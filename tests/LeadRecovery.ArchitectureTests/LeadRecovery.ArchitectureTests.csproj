@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LeadRecovery.Domain\LeadRecovery.Domain.csproj" />
+    <ProjectReference Include="..\..\src\LeadRecovery.Application\LeadRecovery.Application.csproj" />
+    <ProjectReference Include="..\..\src\LeadRecovery.Infrastructure\LeadRecovery.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\LeadRecovery.Contracts\LeadRecovery.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\LeadRecovery.Api\LeadRecovery.Api.csproj" />
+    <ProjectReference Include="..\..\src\LeadRecovery.Worker\LeadRecovery.Worker.csproj" />
+  </ItemGroup>
+
+</Project>

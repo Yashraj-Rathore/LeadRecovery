@@ -1,0 +1,13 @@
+flowchart LR
+    Caller[Caller]
+    Staff[Business Staff]
+    Twilio[Twilio Voice/SMS]
+    Platform[LeadRecovery Platform]
+    Booking[Booking Provider]
+    AI[AI Provider - Optional]
+    Caller --> Twilio
+    Twilio --> Platform
+    Platform --> Twilio
+    Staff --> Platform
+    Platform --> Booking
+    Platform --> AI

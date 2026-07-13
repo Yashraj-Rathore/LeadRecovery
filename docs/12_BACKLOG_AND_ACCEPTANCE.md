@@ -1,0 +1,416 @@
+# 12 - Backlog, User Stories, and Acceptance Criteria
+
+## How to use this backlog
+
+Codex should implement one issue at a time. Each issue must meet its acceptance criteria and the repository definition of done.
+
+## Epic E0 - Foundation
+
+### LR-0001 Create solution structure
+
+**Story:** As a developer, I need a clean solution structure so modules remain testable and dependencies are controlled.
+
+**Acceptance:**
+
+- solution contains Domain, Application, Infrastructure, Contracts, Api, Worker,
+  and test projects;
+- `src/LeadRecovery.Web` is reserved with documentation only; Next.js is not
+  initialized before Milestone 2;
+- project references follow architecture rules;
+- architecture test prevents Domain from referencing Infrastructure/API;
+- clean build succeeds.
+
+### LR-0002 Configure code quality
+
+**Acceptance:**
+
+- nullable enabled;
+- warnings as errors in CI;
+- editorconfig committed;
+- formatter command documented;
+- analyzers enabled;
+- CI runs format/build/test.
+
+### LR-0003 Local PostgreSQL
+
+**Acceptance:**
+
+- Docker Compose starts PostgreSQL;
+- health check exists;
+- secrets come from local environment;
+- README includes start/stop/reset commands.
+
+## Epic E1 - Tenancy and identity
+
+### LR-0101 Tenant entity and context
+
+**Acceptance:**
+
+- Tenant entity persisted;
+- active tenant context server-derived;
+- missing tenant fails closed;
+- tenant configuration uses an application-managed concurrency version;
+- unit/integration tests included.
+
+### LR-0102 Tenant-scoped data access
+
+**Acceptance:**
+
+- tenant-owned entities include TenantId;
+- query filter or equivalent applied;
+- cross-tenant read/write tests fail safely;
+- browser cannot override TenantId.
+
+### LR-0103 Authentication and roles
+
+**Acceptance:**
+
+- Owner and Staff users can authenticate;
+- secure cookie/session configuration;
+- logout invalidates session;
+- unauthorized access returns proper status;
+- role policies tested.
+
+## Epic E2 - Lead domain
+
+### LR-0201 Lead aggregate
+
+**Acceptance:**
+
+- required fields and enums implemented;
+- allowed transitions enforced;
+- closure requires reason;
+- Booked and ClosedWon are statuses, not close reasons;
+- booking cancels automation through application use case;
+- domain tests cover all transitions.
+
+### LR-0202 Customer and phone normalization
+
+**Acceptance:**
+
+- E.164 normalization adapter;
+- tenant-scoped customer uniqueness;
+- invalid/unknown numbers handled explicitly;
+- no duplicate customer from equivalent formatting.
+
+### LR-0203 Conversation and message model
+
+**Acceptance:**
+
+- inbound/outbound messages persisted;
+- provider SID and client idempotency key constraints;
+- delivery-state transitions validated;
+- message body length policy enforced.
+
+### LR-0204 Scheduled action and external receipt persistence
+
+**Acceptance:**
+
+- scheduled actions are tenant-scoped and uniquely idempotent within a tenant;
+- due-action indexes and validated action status transitions are included;
+- external event receipts enforce a unique opaque provider event key;
+- a receipt may have a nullable immutable TenantId because tenant resolution can
+  fail or occur after durable receipt;
+- legitimate provider status progressions are not collapsed as duplicates;
+- mappings, migrations, and PostgreSQL integration tests are included;
+- no Twilio calls, Hangfire execution, or other external side effects are added.
+
+## Epic E3 - Twilio calls
+
+### LR-0301 Twilio signature validator
+
+**Acceptance:**
+
+- valid fixture accepted;
+- invalid fixture rejected 403;
+- canonical URL works behind configured proxy;
+- secret never logged.
+
+### LR-0302 Provider number mapping
+
+**Acceptance:**
+
+- destination number resolves exactly one active tenant;
+- unknown number rejected/acknowledged according to policy without creating data;
+- suspended tenant cannot trigger sends.
+
+### LR-0303 Process missed call
+
+**Acceptance:**
+
+- configured status creates/updates lead;
+- scheduled recovery action created;
+- duplicate event has no duplicate effect;
+- cooldown prevents repeated texts;
+- audit and metrics emitted.
+
+## Epic E4 - SMS and jobs
+
+### LR-0401 Background job infrastructure
+
+**Acceptance:**
+
+- Hangfire uses PostgreSQL storage;
+- worker processes job;
+- retry policy distinguishes transient/permanent failure;
+- job correlation fields logged;
+- duplicate execution is safe.
+
+### LR-0402 Send recovery SMS
+
+**Acceptance:**
+
+- uses approved active template;
+- re-checks eligibility at execution time;
+- opt-out/paused/booked lead suppresses send;
+- message record persisted;
+- provider response mapped;
+- test adapter verifies payload.
+
+### LR-0403 Process inbound SMS
+
+**Acceptance:**
+
+- signature validated;
+- inbound message persisted once;
+- associated lead updated;
+- dashboard activity event emitted;
+- unknown number policy tested.
+
+### LR-0404 Opt-out
+
+**Acceptance:**
+
+- recognized opt-out updates customer/lead suppression;
+- pending SMS actions cancelled;
+- future automated send blocked;
+- audit event created;
+- E2E test passes.
+
+### LR-0405 Delivery status callbacks
+
+**Acceptance:**
+
+- message status updated idempotently;
+- permanent failure visible;
+- no blind retry on invalid/unsubscribed number;
+- metrics emitted.
+
+## Epic E5 - Dashboard
+
+### LR-0501 Lead inbox
+
+**Acceptance:**
+
+- authenticated tenant-scoped list;
+- filters for status, urgency, assignment;
+- empty/loading/error states;
+- keyboard accessible;
+- performance target with 10,000 seeded leads.
+
+### LR-0502 Lead detail and timeline
+
+**Acceptance:**
+
+- call, SMS, system, and note events ordered consistently;
+- no raw HTML execution;
+- pending actions visible;
+- latest data refresh behavior documented.
+
+### LR-0503 Assignment and transitions
+
+**Acceptance:**
+
+- assign self/other authorized user;
+- transition endpoint uses domain rules;
+- optimistic concurrency conflict shown;
+- audit event stored.
+
+### LR-0504 Manual message
+
+**Acceptance:**
+
+- authorized staff only;
+- opt-out and policy checked;
+- idempotency key used;
+- send/failure shown in timeline;
+- manual messages labeled.
+
+### LR-0505 Pause/resume automation
+
+**Acceptance:**
+
+- pause cancels/suppresses pending actions;
+- resume creates only valid future actions;
+- action is audited;
+- UI state is obvious.
+
+## Epic E6 - Qualification and booking
+
+### LR-0601 Deterministic qualification
+
+**Acceptance:**
+
+- tenant-configured questions;
+- answer collection updates structured fields;
+- unknown/ambiguous response routes to human;
+- no AI dependency.
+
+### LR-0602 Business-hours scheduler
+
+**Acceptance:**
+
+- tenant timezone honored;
+- DST tests pass;
+- after-hours action moved to next permitted window;
+- urgent human notification can follow separate policy.
+
+### LR-0603 Booking link
+
+**Acceptance:**
+
+- approved URL only;
+- link sent once per configured stage;
+- staff can mark booked;
+- booking cancels follow-ups.
+
+### LR-0604 Follow-up cadence
+
+**Acceptance:**
+
+- actions scheduled from tenant policy;
+- eligibility rechecked at execution;
+- maximum number enforced;
+- all actions visible/cancellable;
+- no sends after closure/opt-out.
+
+## Epic E7 - AI assistance
+
+### LR-0701 Structured analysis adapter
+
+**Acceptance:**
+
+- provider interface implemented;
+- strict schema validation;
+- timeout and retry bounded;
+- minimum data sent;
+- invalid output creates failure, not trusted suggestion.
+
+### LR-0702 Human review UI
+
+**Acceptance:**
+
+- AI label shown;
+- accept/edit/reject;
+- correction audited;
+- low confidence clearly marked;
+- customer-facing action not automatic.
+
+### LR-0703 AI fallback
+
+**Acceptance:**
+
+- provider unavailable scenario tested;
+- deterministic workflow continues;
+- lead can be flagged NeedsHuman;
+- no repeated costly retry storm.
+
+## Epic E8 - Operations and security
+
+### LR-0801 Observability
+
+**Acceptance:**
+
+- structured logs and correlation IDs;
+- traces across webhook -> job -> provider;
+- core metrics exported;
+- PII redaction test.
+
+### LR-0802 Kill switch
+
+**Acceptance:**
+
+- global and tenant automation disable;
+- queued sends suppressed/cancelled;
+- inbound capture/dashboard remain available;
+- runbook tested.
+
+### LR-0803 Retention job
+
+**Acceptance:**
+
+- dry-run mode;
+- tenant policy applied;
+- deletion archived/audited as required;
+- no deletion across wrong tenant;
+- restore/backup warning documented.
+
+### LR-0804 Rate limiting/security headers
+
+**Acceptance:**
+
+- policies configured;
+- tests for login/manual send;
+- secure headers verified;
+- provider webhooks not accidentally blocked under normal retry burst.
+
+## Epic E9 - Deployment
+
+### LR-0901 Production Docker images
+
+**Acceptance:**
+
+- multi-stage;
+- non-root;
+- health probes;
+- image metadata/version;
+- scan passes or exceptions documented.
+
+### LR-0902 Kubernetes base
+
+**Acceptance:**
+
+- API, worker, web deployments;
+- services and ingress;
+- config/secret references;
+- probes and resources;
+- migration job;
+- deployment works in local/staging cluster.
+
+### LR-0903 CI/CD
+
+**Acceptance:**
+
+- PR pipeline quality gates;
+- release images immutable;
+- staging deploy and smoke test;
+- production approval gate;
+- rollback documented and tested.
+
+## Epic E10 - Pilot readiness
+
+### LR-1001 Tenant onboarding flow
+
+**Acceptance:**
+
+- configure business, phone, hours, templates, booking, users without code changes;
+- validation prevents incomplete activation;
+- onboarding checklist completed.
+
+### LR-1002 Demo tenant and script
+
+**Acceptance:**
+
+- fictional data only;
+- two-minute missed-call flow reproducible;
+- duplicate and opt-out proof available;
+- screenshots/README prepared.
+
+### LR-1003 Pilot measurement
+
+**Acceptance:**
+
+- baseline fields defined;
+- dashboard/report export available;
+- success criteria agreed;
+- no unsupported revenue claim.

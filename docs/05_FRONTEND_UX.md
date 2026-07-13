@@ -1,0 +1,207 @@
+# 05 - Frontend and UX Specification
+
+## 1. UX objective
+
+The dashboard must help a busy office manager answer three questions immediately:
+
+1. Which leads need attention now?
+2. What has already been said or sent?
+3. What action should I take next?
+
+The product should feel like an operational inbox, not a complex CRM.
+
+## 2. Information architecture
+
+Primary navigation:
+
+- Inbox
+- All Leads
+- Reports
+- Settings
+- Users
+- System Status (Owner/Manager)
+
+## 3. Core screens
+
+### 3.1 Login
+
+Requirements:
+
+- email and password;
+- forgot password;
+- clear error messages without revealing account existence unnecessarily;
+- accessible labels and focus order;
+- rate-limit feedback.
+
+### 3.2 Lead inbox
+
+Default filters:
+
+- Needs Human
+- New
+- Urgent
+- Unassigned
+
+Columns/cards:
+
+- customer name or phone;
+- service category;
+- urgency;
+- source;
+- status;
+- assigned user;
+- age since last customer activity;
+- automation indicator;
+- unread indicator.
+
+Actions:
+
+- open lead;
+- assign to self;
+- mark spam;
+- bulk actions are out of MVP scope except safe assignment/filter operations.
+
+### 3.3 Lead detail
+
+Desktop layout:
+
+```text
++--------------------------------------------------------------+
+| Customer / Status / Urgency / Assignment / Automation        |
++-------------------------------+------------------------------+
+| Conversation timeline         | Lead details                 |
+| SMS bubbles, call events,      | service, location, source,   |
+| system events                  | booking, summary, notes      |
+|                               |                              |
+| Message composer              | Next actions                 |
++-------------------------------+------------------------------+
+```
+
+Required controls:
+
+- send manual SMS;
+- pause/resume automation;
+- assign;
+- transition status;
+- edit category and urgency;
+- accept/edit AI summary;
+- add note;
+- copy phone number;
+- open booking link;
+- view pending follow-ups and cancel them.
+
+### 3.4 Settings - Business
+
+- business name;
+- timezone;
+- business hours;
+- service area;
+- booking URL;
+- notification recipients.
+
+### 3.5 Settings - Message templates
+
+- list versions;
+- preview substitutions;
+- create draft;
+- approve/activate;
+- test-send to an authorized test number;
+- character/segment estimate;
+- required opt-out language warning.
+
+### 3.6 Settings - Automation
+
+- global enable/disable;
+- recoverable call statuses;
+- cooldown period;
+- initial delay;
+- follow-up schedule;
+- after-hours behavior;
+- qualification questions;
+- AI feature toggles.
+
+### 3.7 Reports
+
+MVP cards:
+
+- missed calls;
+- recovery messages;
+- reply rate;
+- median response time;
+- booked leads;
+- needs-human backlog;
+- failed messages.
+
+Include date range and timezone note.
+
+## 4. Visual priority
+
+- Urgent human-review leads appear first.
+- Red is reserved for failures or critical attention, not ordinary status.
+- Automation state must include text/icon, not color only.
+- Failed outbound messages display a clear reason and safe retry option.
+
+## 5. Responsive behavior
+
+The dashboard must work on laptop and tablet. Mobile web should support lead viewing and essential actions but need not provide full configuration editing in MVP.
+
+## 6. Accessibility requirements
+
+- semantic HTML;
+- keyboard-accessible navigation and dialogs;
+- focus returns correctly after modal close;
+- ARIA live region for new-message/update notification where appropriate;
+- no inaccessible custom select controls;
+- form errors linked to fields;
+- minimum 44x44 CSS pixel touch targets for primary actions;
+- timestamps readable by screen readers;
+- charts have text summaries.
+
+## 7. Loading and error states
+
+Every screen must define:
+
+- initial loading;
+- empty state;
+- permission denied;
+- recoverable network error;
+- stale update/concurrency conflict;
+- partial integration failure.
+
+Example concurrency message:
+
+> This lead changed while you were viewing it. Review the latest status before trying again.
+
+## 8. Frontend technical approach
+
+- Next.js with TypeScript.
+- Server/client boundaries chosen deliberately; do not expose secrets to browser bundles.
+- API client generated from OpenAPI or strongly typed manually.
+- TanStack Query or equivalent for server state.
+- React Hook Form plus schema validation for forms.
+- Component library allowed, but accessibility must be verified.
+- Use a small design-token set rather than ad hoc styles.
+
+## 9. Real-time strategy
+
+MVP may poll lead counts and open conversations every 5-10 seconds. SignalR can replace polling after core flows are stable.
+
+When a new message arrives:
+
+- inbox count updates;
+- open lead timeline updates;
+- staff typing must not be silently overwritten;
+- provide a visible "new activity" indicator if auto-scroll would be disruptive.
+
+## 10. Demo mode
+
+Provide a safe demo seed mode with fictional data. It must never send real SMS unless a specific environment flag and approved test number are configured.
+
+Demo data should show:
+
+- one urgent plumbing lead;
+- one normal booking request;
+- one opted-out contact;
+- one failed message;
+- one booked lead;
+- one duplicate webhook handled successfully.

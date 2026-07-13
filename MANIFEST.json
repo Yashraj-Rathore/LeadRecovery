@@ -1,0 +1,146 @@
+[
+    {
+        "path":  "AGENTS.md",
+        "bytes":  4270
+    },
+    {
+        "path":  "api/openapi.yaml",
+        "bytes":  5240
+    },
+    {
+        "path":  "CHANGELOG.md",
+        "bytes":  1970
+    },
+    {
+        "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
+        "bytes":  127049
+    },
+    {
+        "path":  "CODEX_PROMPT_SEQUENCE.md",
+        "bytes":  4013
+    },
+    {
+        "path":  "CODEX_START_HERE.md",
+        "bytes":  1527
+    },
+    {
+        "path":  "database/schema.sql",
+        "bytes":  5069
+    },
+    {
+        "path":  "diagrams/deployment.mmd",
+        "bytes":  243
+    },
+    {
+        "path":  "diagrams/system-context.mmd",
+        "bytes":  322
+    },
+    {
+        "path":  "docs/01_PRODUCT_REQUIREMENTS.md",
+        "bytes":  10671
+    },
+    {
+        "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
+        "bytes":  9835
+    },
+    {
+        "path":  "docs/03_DOMAIN_AND_DATABASE.md",
+        "bytes":  8697
+    },
+    {
+        "path":  "docs/04_API_AND_INTEGRATIONS.md",
+        "bytes":  7037
+    },
+    {
+        "path":  "docs/05_FRONTEND_UX.md",
+        "bytes":  5153
+    },
+    {
+        "path":  "docs/06_AI_GUARDRAILS.md",
+        "bytes":  4853
+    },
+    {
+        "path":  "docs/07_SECURITY_PRIVACY.md",
+        "bytes":  5890
+    },
+    {
+        "path":  "docs/08_TESTING_QUALITY.md",
+        "bytes":  5056
+    },
+    {
+        "path":  "docs/09_DEVOPS_KUBERNETES.md",
+        "bytes":  6493
+    },
+    {
+        "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
+        "bytes":  4461
+    },
+    {
+        "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
+        "bytes":  7367
+    },
+    {
+        "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
+        "bytes":  9690
+    },
+    {
+        "path":  "docs/13_PILOT_AND_VALIDATION.md",
+        "bytes":  4834
+    },
+    {
+        "path":  "docs/14_SAAS_EVOLUTION.md",
+        "bytes":  3825
+    },
+    {
+        "path":  "docs/decisions/0001-modular-monolith-and-project-boundaries.md",
+        "bytes":  1411
+    },
+    {
+        "path":  "docs/decisions/0002-pinned-technology-baseline.md",
+        "bytes":  1634
+    },
+    {
+        "path":  "docs/decisions/0003-tenant-isolation.md",
+        "bytes":  1849
+    },
+    {
+        "path":  "docs/decisions/0004-transactional-background-work.md",
+        "bytes":  1483
+    },
+    {
+        "path":  "docs/decisions/0005-api-contract-and-concurrency.md",
+        "bytes":  1452
+    },
+    {
+        "path":  "docs/decisions/0006-lead-lifecycle-and-webhook-identity.md",
+        "bytes":  1284
+    },
+    {
+        "path":  "docs/decisions/0007-tenant-context-and-concurrency.md",
+        "bytes":  1471
+    },
+    {
+        "path":  "docs/decisions/README.md",
+        "bytes":  1157
+    },
+    {
+        "path":  "README.md",
+        "bytes":  8562
+    },
+    {
+        "path":  "templates/.env.example",
+        "bytes":  983
+    },
+    {
+        "path":  "templates/appsettings.Development.example.json",
+        "bytes":  559
+    },
+    {
+        "path":  "templates/definition-of-done.md",
+        "bytes":  1317
+    },
+    {
+        "path":  "templates/pull-request-template.md",
+        "bytes":  809
+    }
+]

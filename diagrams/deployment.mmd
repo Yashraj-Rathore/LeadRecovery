@@ -1,0 +1,10 @@
+flowchart TB
+    Internet --> Ingress
+    Ingress --> Web
+    Ingress --> Api
+    Api --> ManagedPostgres
+    Worker --> ManagedPostgres
+    ExternalSecrets --> Api
+    ExternalSecrets --> Worker
+    Api --> Telemetry
+    Worker --> Telemetry
