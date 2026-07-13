@@ -30,6 +30,7 @@ $sourcePaths = @(
     'docs/decisions/0005-api-contract-and-concurrency.md'
     'docs/decisions/0006-lead-lifecycle-and-webhook-identity.md'
     'docs/decisions/0007-tenant-context-and-concurrency.md'
+    'docs/decisions/0008-customer-phone-normalization.md'
     'CODEX_PROMPT_SEQUENCE.md'
     'templates/definition-of-done.md'
 )

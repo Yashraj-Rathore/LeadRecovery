@@ -220,8 +220,9 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0003: tenant isolation and database-enforced tenant relationships;
 - ADR-0004: transactional scheduled actions and background dispatch;
 - ADR-0005: API contract and optimistic concurrency;
-- ADR-0006: lead lifecycle, close reasons, and webhook event identity.
-- ADR-0007: tenant context and tenant configuration concurrency.
+- ADR-0006: lead lifecycle, close reasons, and webhook event identity;
+- ADR-0007: tenant context and tenant configuration concurrency;
+- ADR-0008: customer phone normalization and tenant-scoped identity.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -306,11 +307,14 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> New
     New --> Contacting: recovery queued/sent
+    New --> NeedsHuman: human review required
     Contacting --> AwaitingCustomer
+    Contacting --> NeedsHuman: human review required
     AwaitingCustomer --> Qualified: required details received
     AwaitingCustomer --> NeedsHuman: ambiguity/safety/low confidence
     Qualified --> BookingOffered
     BookingOffered --> Booked
+    BookingOffered --> NeedsHuman: human review required
     Qualified --> NeedsHuman
     NeedsHuman --> Qualified: staff resolves
     NeedsHuman --> Booked: staff books
@@ -319,12 +323,17 @@ stateDiagram-v2
     AwaitingCustomer --> Closed
     Qualified --> Closed
     BookingOffered --> Closed
+    NeedsHuman --> Closed
     Booked --> ClosedWon
     Closed --> [*]
     ClosedWon --> [*]
 ```
 
-State transitions must be validated in the domain layer. Direct arbitrary status updates are prohibited.
+State transitions must be validated in the domain layer. Direct arbitrary
+status updates are prohibited. Every pre-booking active state may route to
+`NeedsHuman` or close unsuccessfully with a documented reason. `Closed` and
+`ClosedWon` are terminal in LR-0201; reopening is deferred until an application
+use case can require and persist its audit event.
 
 ## 12. Transaction and consistency model
 

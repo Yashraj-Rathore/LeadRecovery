@@ -23,12 +23,14 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestone 0 is complete and LR-0101 is implemented. The repository contains the
-modular-monolith solution, API and worker hosts, a persisted Tenant aggregate,
-server-derived tenant context, initial EF Core migration, project-boundary
-tests, PostgreSQL orchestration, and backend CI quality gates. It deliberately
-does not yet contain the remaining Milestone 1 entities, authentication,
-Twilio integration, Hangfire jobs, or a Next.js application.
+Milestone 0 is complete, and LR-0101, LR-0201, and LR-0202 are implemented. The repository
+contains the modular-monolith solution, API and worker hosts, a persisted Tenant
+aggregate, server-derived tenant context, initial EF Core migration, the Lead
+aggregate and lifecycle policy, a persisted tenant-isolated Customer aggregate,
+canonical phone normalization, project-boundary tests, PostgreSQL orchestration,
+and backend CI quality gates. It deliberately does not yet contain Lead
+persistence, the remaining Milestone 1 entities, authentication, Twilio
+integration, Hangfire jobs, or a Next.js application.
 
 The API exposes only the foundation health contract:
 
@@ -45,6 +47,7 @@ The API exposes only the foundation health contract:
 | PostgreSQL | 18.4 | Local database container |
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
+| libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.17.0 | Reserved frontend runtime baseline |
@@ -933,8 +936,9 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0003: tenant isolation and database-enforced tenant relationships;
 - ADR-0004: transactional scheduled actions and background dispatch;
 - ADR-0005: API contract and optimistic concurrency;
-- ADR-0006: lead lifecycle, close reasons, and webhook event identity.
-- ADR-0007: tenant context and tenant configuration concurrency.
+- ADR-0006: lead lifecycle, close reasons, and webhook event identity;
+- ADR-0007: tenant context and tenant configuration concurrency;
+- ADR-0008: customer phone normalization and tenant-scoped identity.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -1019,11 +1023,14 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> New
     New --> Contacting: recovery queued/sent
+    New --> NeedsHuman: human review required
     Contacting --> AwaitingCustomer
+    Contacting --> NeedsHuman: human review required
     AwaitingCustomer --> Qualified: required details received
     AwaitingCustomer --> NeedsHuman: ambiguity/safety/low confidence
     Qualified --> BookingOffered
     BookingOffered --> Booked
+    BookingOffered --> NeedsHuman: human review required
     Qualified --> NeedsHuman
     NeedsHuman --> Qualified: staff resolves
     NeedsHuman --> Booked: staff books
@@ -1032,12 +1039,17 @@ stateDiagram-v2
     AwaitingCustomer --> Closed
     Qualified --> Closed
     BookingOffered --> Closed
+    NeedsHuman --> Closed
     Booked --> ClosedWon
     Closed --> [*]
     ClosedWon --> [*]
 ```
 
-State transitions must be validated in the domain layer. Direct arbitrary status updates are prohibited.
+State transitions must be validated in the domain layer. Direct arbitrary
+status updates are prohibited. Every pre-booking active state may route to
+`NeedsHuman` or close unsuccessfully with a documented reason. `Closed` and
+`ClosedWon` are terminal in LR-0201; reopening is deferred until an application
+use case can require and persist its audit event.
 
 ## 12. Transaction and consistency model
 
@@ -1091,7 +1103,8 @@ Scale API and worker replicas independently. PostgreSQL remains the likely first
 - External identifiers are stored with provider name and are unique within the correct scope.
 - All timestamps are stored in UTC.
 - Display and scheduling use the tenant timezone.
-- Phone numbers are normalized to E.164 where possible.
+- Customer phone numbers are validated and normalized to canonical E.164 before
+  persistence. Invalid or unknown numbers are rejected explicitly.
 - State changes are explicit and auditable.
 - Soft deletion is used only where business or retention rules require it; otherwise archive/close states are preferred.
 
@@ -1164,6 +1177,10 @@ Tenant membership should be explicit through `TenantUser` if platform users may 
   as an opaque base64 value
 - audit timestamps
 
+LR-0201 implements this aggregate and its lifecycle policy in the domain layer.
+EF mapping, query filters, and persistence for Lead remain part of later
+Milestone 1 persistence issues.
+
 Indexes:
 
 - `(TenantId, Status, CreatedAtUtc desc)`
@@ -1177,16 +1194,24 @@ Optional normalized contact record.
 
 - `Id`
 - `TenantId`
-- `PhoneE164`
-- `Name`
-- `Email`
-- `City`
-- `PostalCode`
-- `SmsConsentBasis`
-- `OptedOutAtUtc`
+- `PhoneE164` required, maximum 16 characters
+- `Name` nullable, maximum 200 characters
+- `Email` nullable, maximum 320 characters
+- `City` nullable, maximum 100 characters
+- `PostalCode` nullable, maximum 20 characters
+- `SmsConsentBasis` nullable, maximum 100 characters
+- `OptedOutAtUtc` nullable
 - `CreatedAtUtc`
 
 Unique: `(TenantId, PhoneE164)`.
+
+LR-0202 implements Customer persistence and a creation use case that derives
+`TenantId` from the active server context. The application depends on a phone
+normalization interface; Infrastructure implements it with
+`libphonenumber-csharp` and stores only canonical E.164 values. Customer reads
+use an EF tenant query filter, and writes reject missing or mismatched tenant
+context. LR-0102 remains responsible for applying equivalent isolation controls
+to the other tenant-owned Milestone 1 entities as they are persisted.
 
 ### CallEvent
 
@@ -1403,13 +1428,16 @@ Examples:
 
 - `New -> Contacting` only when a recovery action is queued or sent.
 - `AwaitingCustomer -> Qualified` only when minimum required fields are present or staff overrides with a reason.
-- Any active state may move to `NeedsHuman`.
+- Any pre-booking active state may move to `NeedsHuman`.
+- Any pre-booking active state, including `NeedsHuman`, may move to `Closed`
+  with a documented close reason.
 - `Booked` cancels pending follow-ups and sets automation to completed.
 - `Booked -> ClosedWon` records a later staff-confirmed win.
 - `Closed` requires one of the documented loss, duplicate, spam, or opt-out
   reasons. `Booked` and `Won` are statuses and are not close reasons.
 - `SuppressedOptOut` prevents all non-essential automated SMS.
-- Reopening a lead requires an audit event.
+- `Closed` and `ClosedWon` are terminal for LR-0201. Reopening is deferred until
+  an application use case can require and persist an audit event.
 
 ## 5. Tenant isolation
 
@@ -2163,6 +2191,12 @@ Never rely only on UI hiding.
 - no mass assignment of TenantId;
 - cross-tenant tests in CI;
 - reports aggregate only within tenant unless a separate platform metric pipeline uses de-identified data.
+
+LR-0202 applies these controls to Customer persistence: the server-derived
+tenant context supplies ownership, EF filters reads, the save pipeline rejects
+missing or mismatched tenant authority, and PostgreSQL enforces canonical-phone
+uniqueness within each tenant. Equivalent guards must be added for each later
+tenant-owned mapping under LR-0102.
 
 ## 6. Webhook security
 
@@ -3461,6 +3495,11 @@ Codex should implement one issue at a time. Each issue must meet its acceptance 
 - booking cancels automation through application use case;
 - domain tests cover all transitions.
 
+For LR-0201, every pre-booking active status may route to `NeedsHuman` or
+`Closed`; closure requires a documented reason. `Closed` and `ClosedWon` remain
+terminal until a later audited reopening use case is implemented. Durable
+scheduled-action cancellation is connected when LR-0204 adds that persistence.
+
 ### LR-0202 Customer and phone normalization
 
 **Acceptance:**
@@ -3469,6 +3508,12 @@ Codex should implement one issue at a time. Each issue must meet its acceptance 
 - tenant-scoped customer uniqueness;
 - invalid/unknown numbers handled explicitly;
 - no duplicate customer from equivalent formatting.
+
+LR-0202 stores canonical E.164 phone identity behind an application interface,
+derives customer ownership from server tenant context, and enforces
+`(TenantId, PhoneE164)` uniqueness in PostgreSQL. Its Customer-specific query
+and write guards do not complete LR-0102, which remains open for the other
+tenant-owned Milestone 1 entities.
 
 ### LR-0203 Conversation and message model
 
@@ -4148,6 +4193,7 @@ updated in the same change so they remain aligned.
 | [0005](0005-api-contract-and-concurrency.md) | API contract and concurrency | Accepted |
 | [0006](0006-lead-lifecycle-and-webhook-identity.md) | Lead lifecycle and webhook identity | Accepted |
 | [0007](0007-tenant-context-and-concurrency.md) | Tenant context and concurrency | Accepted |
+| [0008](0008-customer-phone-normalization.md) | Customer phone normalization and identity | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -4227,6 +4273,7 @@ Use this foundation baseline:
 | PostgreSQL container | postgres:18.4-bookworm |
 | Entity Framework Core and dotnet-ef | 10.0.9 |
 | Npgsql Entity Framework Core provider | 10.0.2 |
+| libphonenumber-csharp | 9.0.34 |
 | Testcontainers.PostgreSql | 4.13.0 |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 |
 | Node.js | 24.17.0 |
@@ -4241,9 +4288,12 @@ frontend versions are reserved in Milestone 0; Next.js packages are not
 installed until Milestone 2.
 
 LR-0101 introduces and centrally pins EF Core, its design-time tooling, the
-Npgsql provider, and PostgreSQL Testcontainers. Hangfire and its PostgreSQL
-provider are selected and pinned only when job execution is introduced in
-Milestone 3. Deferring unused dependencies avoids speculative packages.
+Npgsql provider, and PostgreSQL Testcontainers. LR-0202 introduces
+`libphonenumber-csharp` behind an Infrastructure adapter so domain and
+application code do not depend on a third-party phone API. Hangfire and its
+PostgreSQL provider are selected and pinned only when job execution is
+introduced in Milestone 3. Deferring unused dependencies avoids speculative
+packages.
 
 ## Consequences
 
@@ -4403,6 +4453,13 @@ the lost, duplicate, spam, or opt-out families. Booking stops pending follow-ups
 and completes automation. A later staff-confirmed outcome moves `Booked` to
 `ClosedWon`.
 
+Every pre-booking active status may move to `NeedsHuman` when human review is
+required, or to `Closed` with a documented unsuccessful close reason. `Closed`
+and `ClosedWon` are terminal for LR-0201. Reopening is deferred until an
+application use case can require and persist an audit event. Booking invokes a
+pending-automation cancellation port in the application layer; LR-0204 provides
+the durable ScheduledAction implementation behind that port.
+
 `ExternalEventReceipt.ExternalEventId` is an opaque value created by the
 provider adapter. The unique key is `(Provider, EventType, ExternalEventId)`.
 The adapter must include enough event identity to distinguish legitimate state
@@ -4452,6 +4509,52 @@ Concurrent tenant configuration updates cannot silently overwrite each other.
 The tenant context can be wired and tested before authentication without
 introducing an insecure development bypass. Authentication and membership
 remain outside LR-0101.
+
+---
+
+<!-- SOURCE: docs/decisions/0008-customer-phone-normalization.md -->
+
+# ADR-0008: Customer phone normalization and identity
+
+- Status: Accepted
+- Date: 2026-07-13
+
+## Context
+
+LR-0202 requires equivalent phone formats to resolve to one customer within a
+tenant while invalid or unknown numbers fail explicitly. Hand-written parsing
+rules are incomplete and age poorly as numbering plans change. Phone numbers
+also identify tenant-owned personal records, so request-supplied tenant IDs and
+global uniqueness are both unsafe.
+
+## Decision
+
+Application code depends on `IPhoneNumberNormalizer`, which returns either a
+canonical E.164 value or a typed failure. Infrastructure implements the port
+with the centrally pinned `libphonenumber-csharp` package. International input
+may omit a default region; national input requires a supported region. The
+adapter rejects parse failures, impossible numbers, and invalid numbers before
+persistence.
+
+Customer creation derives `TenantId` only from the active server context. The
+database stores canonical `PhoneE164` values and enforces a unique
+`(TenantId, PhoneE164)` index, so equivalent formatting cannot create duplicate
+customers inside one tenant while the same person may contact multiple tenant
+businesses independently. Customer reads use a tenant query filter and the save
+pipeline rejects missing, mismatched, or changed tenant ownership.
+
+No raw phone input is logged by this workflow. The normalization dependency is
+kept out of Domain and Application so it can be upgraded or replaced without
+changing business policies.
+
+## Consequences
+
+Customer identity is deterministic within each tenant and invalid phone input
+has an explicit application result. Callers must provide a default region for
+national-format input. Numbering-plan behavior follows the pinned metadata and
+requires normal dependency updates over time. LR-0102 remains open to extend
+the same tenant query/write protections to the other tenant-owned entities as
+their persistence is implemented.
 
 ---
 

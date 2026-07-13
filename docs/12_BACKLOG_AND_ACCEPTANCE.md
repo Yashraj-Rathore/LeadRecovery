@@ -84,6 +84,11 @@ Codex should implement one issue at a time. Each issue must meet its acceptance 
 - booking cancels automation through application use case;
 - domain tests cover all transitions.
 
+For LR-0201, every pre-booking active status may route to `NeedsHuman` or
+`Closed`; closure requires a documented reason. `Closed` and `ClosedWon` remain
+terminal until a later audited reopening use case is implemented. Durable
+scheduled-action cancellation is connected when LR-0204 adds that persistence.
+
 ### LR-0202 Customer and phone normalization
 
 **Acceptance:**
@@ -92,6 +97,12 @@ Codex should implement one issue at a time. Each issue must meet its acceptance 
 - tenant-scoped customer uniqueness;
 - invalid/unknown numbers handled explicitly;
 - no duplicate customer from equivalent formatting.
+
+LR-0202 stores canonical E.164 phone identity behind an application interface,
+derives customer ownership from server tenant context, and enforces
+`(TenantId, PhoneE164)` uniqueness in PostgreSQL. Its Customer-specific query
+and write guards do not complete LR-0102, which remains open for the other
+tenant-owned Milestone 1 entities.
 
 ### LR-0203 Conversation and message model
 

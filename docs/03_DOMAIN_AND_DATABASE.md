@@ -6,7 +6,8 @@
 - External identifiers are stored with provider name and are unique within the correct scope.
 - All timestamps are stored in UTC.
 - Display and scheduling use the tenant timezone.
-- Phone numbers are normalized to E.164 where possible.
+- Customer phone numbers are validated and normalized to canonical E.164 before
+  persistence. Invalid or unknown numbers are rejected explicitly.
 - State changes are explicit and auditable.
 - Soft deletion is used only where business or retention rules require it; otherwise archive/close states are preferred.
 
@@ -79,6 +80,10 @@ Tenant membership should be explicit through `TenantUser` if platform users may 
   as an opaque base64 value
 - audit timestamps
 
+LR-0201 implements this aggregate and its lifecycle policy in the domain layer.
+EF mapping, query filters, and persistence for Lead remain part of later
+Milestone 1 persistence issues.
+
 Indexes:
 
 - `(TenantId, Status, CreatedAtUtc desc)`
@@ -92,16 +97,24 @@ Optional normalized contact record.
 
 - `Id`
 - `TenantId`
-- `PhoneE164`
-- `Name`
-- `Email`
-- `City`
-- `PostalCode`
-- `SmsConsentBasis`
-- `OptedOutAtUtc`
+- `PhoneE164` required, maximum 16 characters
+- `Name` nullable, maximum 200 characters
+- `Email` nullable, maximum 320 characters
+- `City` nullable, maximum 100 characters
+- `PostalCode` nullable, maximum 20 characters
+- `SmsConsentBasis` nullable, maximum 100 characters
+- `OptedOutAtUtc` nullable
 - `CreatedAtUtc`
 
 Unique: `(TenantId, PhoneE164)`.
+
+LR-0202 implements Customer persistence and a creation use case that derives
+`TenantId` from the active server context. The application depends on a phone
+normalization interface; Infrastructure implements it with
+`libphonenumber-csharp` and stores only canonical E.164 values. Customer reads
+use an EF tenant query filter, and writes reject missing or mismatched tenant
+context. LR-0102 remains responsible for applying equivalent isolation controls
+to the other tenant-owned Milestone 1 entities as they are persisted.
 
 ### CallEvent
 
@@ -318,13 +331,16 @@ Examples:
 
 - `New -> Contacting` only when a recovery action is queued or sent.
 - `AwaitingCustomer -> Qualified` only when minimum required fields are present or staff overrides with a reason.
-- Any active state may move to `NeedsHuman`.
+- Any pre-booking active state may move to `NeedsHuman`.
+- Any pre-booking active state, including `NeedsHuman`, may move to `Closed`
+  with a documented close reason.
 - `Booked` cancels pending follow-ups and sets automation to completed.
 - `Booked -> ClosedWon` records a later staff-confirmed win.
 - `Closed` requires one of the documented loss, duplicate, spam, or opt-out
   reasons. `Booked` and `Won` are statuses and are not close reasons.
 - `SuppressedOptOut` prevents all non-essential automated SMS.
-- Reopening a lead requires an audit event.
+- `Closed` and `ClosedWon` are terminal for LR-0201. Reopening is deferred until
+  an application use case can require and persist an audit event.
 
 ## 5. Tenant isolation
 

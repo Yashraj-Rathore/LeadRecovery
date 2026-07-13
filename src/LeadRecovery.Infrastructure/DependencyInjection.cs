@@ -1,4 +1,8 @@
+using LeadRecovery.Application.Customers;
+using LeadRecovery.Application.PhoneNumbers;
 using LeadRecovery.Infrastructure.Persistence;
+using LeadRecovery.Infrastructure.Persistence.Repositories;
+using LeadRecovery.Infrastructure.PhoneNumbers;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +22,9 @@ public static class DependencyInjection
             options.UseNpgsql(
                 databaseConnectionString,
                 npgsqlOptions => npgsqlOptions.SetPostgresVersion(18, 0)));
+        services.AddSingleton<IPhoneNumberNormalizer, LibPhoneNumberNormalizer>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<CreateCustomerUseCase>();
 
         return services;
     }

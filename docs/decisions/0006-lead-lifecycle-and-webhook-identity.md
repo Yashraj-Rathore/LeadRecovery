@@ -18,6 +18,13 @@ the lost, duplicate, spam, or opt-out families. Booking stops pending follow-ups
 and completes automation. A later staff-confirmed outcome moves `Booked` to
 `ClosedWon`.
 
+Every pre-booking active status may move to `NeedsHuman` when human review is
+required, or to `Closed` with a documented unsuccessful close reason. `Closed`
+and `ClosedWon` are terminal for LR-0201. Reopening is deferred until an
+application use case can require and persist an audit event. Booking invokes a
+pending-automation cancellation port in the application layer; LR-0204 provides
+the durable ScheduledAction implementation behind that port.
+
 `ExternalEventReceipt.ExternalEventId` is an opaque value created by the
 provider adapter. The unique key is `(Provider, EventType, ExternalEventId)`.
 The adapter must include enough event identity to distinguish legitimate state

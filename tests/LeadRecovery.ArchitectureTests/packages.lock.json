@@ -452,7 +452,8 @@
           "LeadRecovery.Domain": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.9, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.9, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.2, )"
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.2, )",
+          "libphonenumber-csharp": "[9.0.34, )"
         }
       },
       "leadrecovery.worker": {
@@ -462,6 +463,12 @@
           "LeadRecovery.Infrastructure": "[1.0.0, )",
           "Microsoft.Extensions.Hosting": "[10.0.9, )"
         }
+      },
+      "libphonenumber-csharp": {
+        "type": "CentralTransitive",
+        "requested": "[9.0.34, )",
+        "resolved": "9.0.34",
+        "contentHash": "QmwQQk2ca/E3qyTTwmTnIoNj2sQ8daRWBQt4+6bkNkDyHgCjgggNGgvFqS6Gm9HQ1EbYkyKn58RjUC2jVM+RQw=="
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",

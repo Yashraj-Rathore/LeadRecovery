@@ -9,11 +9,11 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  1970
+        "bytes":  3160
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  127049
+        "bytes":  132776
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "database/schema.sql",
-        "bytes":  5069
+        "bytes":  5115
     },
     {
         "path":  "diagrams/deployment.mmd",
@@ -41,11 +41,11 @@
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  9835
+        "bytes":  10336
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  8697
+        "bytes":  9927
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
@@ -61,7 +61,7 @@
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  5890
+        "bytes":  6239
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
@@ -81,7 +81,7 @@
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  9690
+        "bytes":  10334
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -97,7 +97,7 @@
     },
     {
         "path":  "docs/decisions/0002-pinned-technology-baseline.md",
-        "bytes":  1634
+        "bytes":  1818
     },
     {
         "path":  "docs/decisions/0003-tenant-isolation.md",
@@ -113,19 +113,23 @@
     },
     {
         "path":  "docs/decisions/0006-lead-lifecycle-and-webhook-identity.md",
-        "bytes":  1284
+        "bytes":  1735
     },
     {
         "path":  "docs/decisions/0007-tenant-context-and-concurrency.md",
         "bytes":  1471
     },
     {
+        "path":  "docs/decisions/0008-customer-phone-normalization.md",
+        "bytes":  1946
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  1157
+        "bytes":  1261
     },
     {
         "path":  "README.md",
-        "bytes":  8562
+        "bytes":  8804
     },
     {
         "path":  "templates/.env.example",

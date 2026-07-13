@@ -2,6 +2,12 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "libphonenumber-csharp": {
+        "type": "Direct",
+        "requested": "[9.0.34, )",
+        "resolved": "9.0.34",
+        "contentHash": "QmwQQk2ca/E3qyTTwmTnIoNj2sQ8daRWBQt4+6bkNkDyHgCjgggNGgvFqS6Gm9HQ1EbYkyKn58RjUC2jVM+RQw=="
+      },
       "Microsoft.EntityFrameworkCore": {
         "type": "Direct",
         "requested": "[10.0.9, )",

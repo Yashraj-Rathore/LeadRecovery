@@ -14,6 +14,7 @@ updated in the same change so they remain aligned.
 | [0005](0005-api-contract-and-concurrency.md) | API contract and concurrency | Accepted |
 | [0006](0006-lead-lifecycle-and-webhook-identity.md) | Lead lifecycle and webhook identity | Accepted |
 | [0007](0007-tenant-context-and-concurrency.md) | Tenant context and concurrency | Accepted |
+| [0008](0008-customer-phone-normalization.md) | Customer phone normalization and identity | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.

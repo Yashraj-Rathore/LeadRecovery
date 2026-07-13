@@ -16,12 +16,14 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestone 0 is complete and LR-0101 is implemented. The repository contains the
-modular-monolith solution, API and worker hosts, a persisted Tenant aggregate,
-server-derived tenant context, initial EF Core migration, project-boundary
-tests, PostgreSQL orchestration, and backend CI quality gates. It deliberately
-does not yet contain the remaining Milestone 1 entities, authentication,
-Twilio integration, Hangfire jobs, or a Next.js application.
+Milestone 0 is complete, and LR-0101, LR-0201, and LR-0202 are implemented. The repository
+contains the modular-monolith solution, API and worker hosts, a persisted Tenant
+aggregate, server-derived tenant context, initial EF Core migration, the Lead
+aggregate and lifecycle policy, a persisted tenant-isolated Customer aggregate,
+canonical phone normalization, project-boundary tests, PostgreSQL orchestration,
+and backend CI quality gates. It deliberately does not yet contain Lead
+persistence, the remaining Milestone 1 entities, authentication, Twilio
+integration, Hangfire jobs, or a Next.js application.
 
 The API exposes only the foundation health contract:
 
@@ -38,6 +40,7 @@ The API exposes only the foundation health contract:
 | PostgreSQL | 18.4 | Local database container |
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
+| libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.17.0 | Reserved frontend runtime baseline |

@@ -67,6 +67,12 @@ Never rely only on UI hiding.
 - cross-tenant tests in CI;
 - reports aggregate only within tenant unless a separate platform metric pipeline uses de-identified data.
 
+LR-0202 applies these controls to Customer persistence: the server-derived
+tenant context supplies ownership, EF filters reads, the save pipeline rejects
+missing or mismatched tenant authority, and PostgreSQL enforces canonical-phone
+uniqueness within each tenant. Equivalent guards must be added for each later
+tenant-owned mapping under LR-0102.
+
 ## 6. Webhook security
 
 - validate Twilio signatures;
