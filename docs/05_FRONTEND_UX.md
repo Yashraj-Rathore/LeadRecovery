@@ -33,6 +33,11 @@ Requirements:
 - accessible labels and focus order;
 - rate-limit feedback.
 
+Milestone 2 implements the email/password form with accessible labels, disabled
+submitting state, generic credential errors, explicit rate-limit feedback, and
+same-origin CSRF initialization. Forgot/reset password is intentionally deferred
+with its API workflow; no dead control is shown.
+
 ### 3.2 Lead inbox
 
 Default filters:
@@ -60,6 +65,13 @@ Actions:
 - assign to self;
 - mark spam;
 - bulk actions are out of MVP scope except safe assignment/filter operations.
+
+The Milestone 2 shell is a narrower read-only acceptance slice: tenant name,
+current user/role, lead name or phone, source, status, age, summary counts,
+empty/error states, and secure logout. It server-renders authenticated data and
+redirects an expired session to login. Filters, assignment, lead navigation,
+automation controls, unread state, and performance acceptance remain LR-0501
+through LR-0505 and must not be inferred complete from this shell.
 
 ### 3.3 Lead detail
 

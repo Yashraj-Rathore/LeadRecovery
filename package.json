@@ -1,0 +1,16 @@
+{
+  "name": "leadrecovery",
+  "private": true,
+  "packageManager": "pnpm@11.10.0",
+  "engines": {
+    "node": "24.17.0",
+    "pnpm": "11.10.0"
+  },
+  "scripts": {
+    "frontend:build": "pnpm --dir src/LeadRecovery.Web build",
+    "frontend:dev": "pnpm --dir src/LeadRecovery.Web dev",
+    "frontend:start": "pnpm --dir src/LeadRecovery.Web start",
+    "frontend:typecheck": "pnpm --dir src/LeadRecovery.Web typecheck",
+    "e2e": "pnpm --dir tests/LeadRecovery.E2E test"
+  }
+}

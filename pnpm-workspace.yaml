@@ -1,0 +1,9 @@
+packages:
+  - "src/LeadRecovery.Web"
+  - "tests/LeadRecovery.E2E"
+
+allowBuilds:
+  sharp: true
+
+overrides:
+  postcss: 8.5.10

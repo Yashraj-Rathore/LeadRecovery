@@ -31,38 +31,45 @@ Base path: `/api/v1`
 
 ## 3. Authentication endpoints
 
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/logout`
-- `POST /api/v1/auth/refresh` if a refresh design is used
-- `GET /api/v1/auth/me`
-- `POST /api/v1/auth/forgot-password`
-- `POST /api/v1/auth/reset-password`
+- `GET /api/v1/auth/csrf` issues an antiforgery request token and stores the
+  paired HttpOnly SameSite=Strict cookie;
+- `POST /api/v1/auth/login` requires `X-CSRF-TOKEN`, applies generic credential
+  failure responses, Identity lockout, and an IP fixed-window rate limit;
+- `GET /api/v1/auth/me` returns the validated user, tenant, and role session;
+- `POST /api/v1/auth/logout` requires `X-CSRF-TOKEN`, rotates the Identity
+  security stamp, clears the cookie, and invalidates replay of all previously
+  issued cookies for that user.
 
-Prefer secure cookie sessions under a same-origin deployment. Avoid exposing long-lived tokens to browser JavaScript.
+The browser uses a non-persistent, HttpOnly, SameSite=Strict application cookie
+with an eight-hour sliding lifetime. It is always Secure outside Development;
+production defaults to a `__Host-` cookie and persists data-protection keys from
+configured storage. The browser and `/api` share one origin through the Next.js
+rewrite. TenantId is never accepted from request bodies, query strings, or
+headers as authority. Password reset, refresh, tenant switching, and
+PlatformAdmin support grants are deferred and are not advertised by the
+implemented OpenAPI contract.
 
 ## 4. Lead endpoints
 
 ### List leads
 
-`GET /api/v1/leads?status=NeedsHuman&urgency=High&assignedTo=me&cursor=...`
+`GET /api/v1/leads?pageSize=25&cursor=...`
 
-Response includes summary fields only.
+The Milestone 2 endpoint returns tenant-scoped summary fields only, ordered by
+creation time and ID descending. `pageSize` is 1 through 100 and `cursor` is an
+opaque encoded offset. Status, urgency, and assignment filters remain LR-0501.
 
 ### Get lead
 
 `GET /api/v1/leads/{leadId}`
 
-Returns:
+The Milestone 2 endpoint returns the same lead summary shape used by the inbox.
+It returns `404` for an unknown ID and for an ID owned by another tenant. The
+full detail, conversation timeline, pending actions, AI suggestion, and
+role-appropriate audit summary remain LR-0502.
 
-- lead details;
-- current status;
-- customer summary;
-- assignment;
-- automation state;
-- conversation timeline;
-- pending actions;
-- latest AI suggestion;
-- audit summary appropriate to user role.
+The remaining write endpoints in this section describe future dashboard
+milestones and are not yet implemented or included in `api/openapi.yaml`.
 
 ### Update lead status
 

@@ -1,35 +1,108 @@
 openapi: 3.1.0
 info:
   title: LeadRecovery API
-  version: 1.0.0-draft
-  description: Initial contract skeleton. Keep synchronized with implementation.
+  version: 1.0.0-milestone.2
+  description: Implemented Milestone 2 browser authentication and read-only lead contract.
 servers:
   - url: https://app.example.com/api/v1
 paths:
-  /auth/me:
+  /auth/csrf:
     get:
-      summary: Get current authenticated user and tenant
+      tags: [Authentication]
+      summary: Issue an antiforgery request token
+      security: []
       responses:
         '200':
-          description: Current session
+          description: Request token; the paired HttpOnly cookie is set on the response.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Always `no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Create a same-origin browser session
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated user, tenant, and role; the session cookie is set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '400':
+          description: Antiforgery validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '401':
-          description: Not authenticated
+          description: Generic credential, user, membership, or tenant failure.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Login rate limit exceeded.
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get the currently validated user, tenant, and role
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: Current session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '401':
+          description: Missing, expired, revoked, or otherwise invalid session.
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Invalidate the user's issued sessions and clear the browser cookie
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: Session invalidated.
+        '400':
+          description: Antiforgery validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: Not authenticated.
   /leads:
     get:
-      summary: List tenant-scoped leads
+      tags: [Leads]
+      summary: List leads owned by the authenticated tenant
+      security:
+        - cookieSession: []
       parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-        - in: query
-          name: urgency
-          schema:
-            type: string
         - in: query
           name: cursor
           schema:
-            type: string
+            type: [string, 'null']
+          description: Opaque pagination cursor from the previous response.
         - in: query
           name: pageSize
           schema:
@@ -39,96 +112,54 @@ paths:
             default: 25
       responses:
         '200':
-          description: Lead page
+          description: Tenant-scoped lead page.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LeadPage'
+        '400':
+          description: Invalid page size or cursor.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: Authenticated session lacks a tenant member role.
   /leads/{leadId}:
     get:
-      summary: Get lead details
+      tags: [Leads]
+      summary: Get a lead summary owned by the authenticated tenant
+      security:
+        - cookieSession: []
       parameters:
         - $ref: '#/components/parameters/LeadId'
       responses:
         '200':
-          description: Lead detail
+          description: Tenant-scoped lead summary.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LeadDetail'
+                $ref: '#/components/schemas/LeadSummary'
+        '401':
+          description: Not authenticated.
+        '403':
+          description: Authenticated session lacks a tenant member role.
         '404':
-          description: Not found in active tenant
-  /leads/{leadId}/transitions:
-    post:
-      summary: Perform an allowed lead state transition
-      parameters:
-        - $ref: '#/components/parameters/LeadId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [targetStatus]
-              properties:
-                targetStatus:
-                  type: string
-                reason:
-                  type: string
-                expectedRowVersion:
-                  type: string
-                  contentEncoding: base64
-                  description: Opaque encoding of the application-managed concurrency version.
-      responses:
-        '200':
-          description: Updated lead
-        '409':
-          description: Invalid transition or concurrency conflict
-  /leads/{leadId}/messages:
-    post:
-      summary: Queue a manual SMS
-      parameters:
-        - $ref: '#/components/parameters/LeadId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [body, idempotencyKey]
-              properties:
-                body:
-                  type: string
-                  minLength: 1
-                  maxLength: 1000
-                idempotencyKey:
-                  type: string
-                  maxLength: 100
-      responses:
-        '202':
-          description: Message queued
-        '409':
-          description: Suppressed or duplicate
-  /webhooks/twilio/call-status:
-    post:
-      summary: Twilio call status callback
-      security: []
-      responses:
-        '200':
-          description: Accepted or duplicate
-        '403':
-          description: Invalid signature
-  /webhooks/twilio/sms/inbound:
-    post:
-      summary: Twilio inbound SMS webhook
-      security: []
-      responses:
-        '200':
-          description: Accepted or duplicate
-        '403':
-          description: Invalid signature
+          description: Lead does not exist in the active tenant.
 components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: __Host-LeadRecovery.Session
+      description: Production cookie name; Development defaults to `leadrecovery.session`.
   parameters:
+    CsrfHeader:
+      in: header
+      name: X-CSRF-TOKEN
+      required: true
+      schema:
+        type: string
+        minLength: 1
+      description: Request token paired with the antiforgery cookie from `/auth/csrf`.
     LeadId:
       in: path
       name: leadId
@@ -137,29 +168,75 @@ components:
         type: string
         format: uuid
   schemas:
+    CsrfToken:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+    AuthSession:
+      type: object
+      required: [userId, displayName, email, tenantId, tenantName, role]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        tenantId:
+          type: string
+          format: uuid
+        tenantName:
+          type: string
+        role:
+          type: string
+          enum: [Owner, Manager, Staff, ReadOnly]
     LeadSummary:
       type: object
-      required: [id, status, urgency, phone, createdAtUtc]
+      required:
+        - id
+        - displayName
+        - primaryPhoneE164
+        - source
+        - status
+        - urgency
+        - automationState
+        - createdAtUtc
       properties:
         id:
           type: string
           format: uuid
         displayName:
           type: [string, 'null']
-        phone:
+        primaryPhoneE164:
+          type: string
+        source:
           type: string
         status:
           type: string
         urgency:
           type: string
-        serviceCategory:
-          type: [string, 'null']
+        automationState:
+          type: string
         createdAtUtc:
           type: string
           format: date-time
     LeadPage:
       type: object
-      required: [items]
+      required: [items, nextCursor]
       properties:
         items:
           type: array
@@ -167,32 +244,16 @@ components:
             $ref: '#/components/schemas/LeadSummary'
         nextCursor:
           type: [string, 'null']
-    LeadDetail:
-      allOf:
-        - $ref: '#/components/schemas/LeadSummary'
-        - type: object
-          required: [automationState, rowVersion]
-          properties:
-            automationState:
-              type: string
-            rowVersion:
-              type: string
-              contentEncoding: base64
-              description: Opaque application-managed concurrency version.
-            messages:
-              type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    format: uuid
-                  direction:
-                    type: string
-                  body:
-                    type: string
-                  status:
-                    type: string
-                  createdAtUtc:
-                    type: string
-                    format: date-time
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string

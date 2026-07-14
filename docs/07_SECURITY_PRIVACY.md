@@ -48,6 +48,10 @@ Roles:
 - ReadOnly
 - PlatformAdmin
 
+Owner, Manager, Staff, and ReadOnly are tenant membership roles. PlatformAdmin
+is deliberately not a tenant role and is not implemented in Milestone 2; later
+support access requires a separate time-bounded, audited grant model.
+
 Authorization must check:
 
 1. authenticated user;
@@ -57,6 +61,23 @@ Authorization must check:
 5. any special support-access grant.
 
 Never rely only on UI hiding.
+
+Milestone 2 uses ASP.NET Core Identity password hashing, unique normalized
+emails, a 12-character complexity baseline, five-attempt/15-minute lockout,
+generic authentication failures, and a separate five-attempt-per-minute IP
+rate limit by default. Browser sessions are non-persistent HttpOnly
+SameSite=Strict cookies. Production requires HTTPS and Secure `__Host-` cookies,
+and data-protection keys must be persisted to protected shared storage.
+Security stamps, users, exact membership roles, and Trial/Active tenant status
+are revalidated for every request. Logout rotates the security stamp before
+clearing the cookie, so replayed cookies are rejected immediately.
+
+Login and logout require an antiforgery token returned by the same-origin CSRF
+endpoint and sent in `X-CSRF-TOKEN`. The token cookie is HttpOnly,
+SameSite=Strict, and Secure outside Development. Authentication redirects are
+disabled for APIs: missing authentication returns `401`, insufficient role
+returns `403`, and a cross-tenant entity lookup returns `404` without revealing
+existence.
 
 ## 5. Tenant isolation controls
 
@@ -86,6 +107,11 @@ resolution, is never exposed through tenant browser APIs, and permits TenantId
 to move only from null to one resolved non-empty value. PostgreSQL uniqueness on
 the full opaque provider-event identity prevents exact replay without
 collapsing legitimate provider status progressions.
+
+LR-0103 resolves browser tenant authority from the validated membership stored
+in the session. Client-supplied tenant headers are ignored, lead list/detail
+queries execute under the EF tenant filter, and integration plus Playwright
+tests exercise cross-tenant denial in CI.
 
 ## 6. Webhook security
 

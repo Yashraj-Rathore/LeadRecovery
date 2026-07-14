@@ -16,26 +16,29 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestone 0 is complete, and LR-0101 plus LR-0201 through LR-0204 are
-implemented. The repository
-contains the modular-monolith solution, API and worker hosts, a persisted Tenant
-aggregate, server-derived tenant context, EF Core migrations, the Lead
-aggregate and lifecycle policy, tenant-isolated Customer, Lead, Conversation,
-Message, and ScheduledAction persistence, the system-level external-event
-receipt ledger, canonical phone normalization, deterministic message and action
-state rules, project-boundary tests, PostgreSQL orchestration, and backend CI
-quality gates. It deliberately does not yet contain feature API endpoints,
-authentication, Twilio integration, Hangfire execution, or a Next.js
-application.
+Milestones 0 through 2 are complete. LR-0101 through LR-0103 and LR-0201
+through LR-0204 are implemented. In addition to the modular-monolith domain and
+PostgreSQL foundation, the repository now contains ASP.NET Core Identity users,
+tenant memberships and roles, audited same-origin cookie sessions, CSRF and
+login-rate-limit controls, tenant-scoped lead queries, opt-in fictional demo
+seeding, and a minimal Next.js login and lead-inbox shell. Integration and
+Playwright tests cover Owner/Staff login, logout invalidation, role policies,
+and cross-tenant denial. Twilio ingestion, Hangfire execution, outbound SMS,
+and the operational dashboard actions remain later milestones.
 
-The API exposes only the foundation health contract:
+The currently implemented browser and health contract is:
 
 - `GET /health/live` reports whether the process is running;
-- `GET /health/ready` reports whether registered readiness checks pass.
+- `GET /health/ready` reports whether registered readiness checks pass;
+- `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`,
+  `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
+  session;
+- `GET /api/v1/leads` and `GET /api/v1/leads/{leadId}` return only leads owned
+  by the authenticated session tenant.
 
 ## Pinned foundation versions
 
-| Component | Version | Milestone 0 use |
+| Component | Version | Current use |
 |---|---:|---|
 | .NET SDK | 10.0.301 | Builds all backend projects |
 | ASP.NET Core shared framework | 10.0.9 | API and worker runtime baseline |
@@ -46,19 +49,17 @@ The API exposes only the foundation health contract:
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
-| Node.js | 24.17.0 | Reserved frontend runtime baseline |
-| pnpm | 11.10.0 | Reserved frontend package manager baseline |
-| Next.js | 16.2.10 | Reserved for Milestone 2 initialization |
-| React | 19.2.7 | Reserved for Milestone 2 initialization |
-| TypeScript | 6.0.3 | Reserved for Milestone 2 initialization |
-
-Frontend versions are recorded now for reproducibility but no frontend package
-is installed before Milestone 2.
+| Node.js | 24.17.0 | Frontend and Playwright runtime |
+| pnpm | 11.10.0 | Locked frontend workspace package manager |
+| Next.js | 16.2.10 | Same-origin browser shell |
+| React | 19.2.7 | Browser UI runtime |
+| TypeScript | 6.0.3 | Strict frontend type checking |
+| Playwright | 1.61.1 | Browser acceptance tests |
 
 ## Local development
 
-Prerequisites are Git, Docker Desktop with Compose, and the .NET SDK selected by
-`global.json`. Node.js and pnpm are not required until Milestone 2.
+Prerequisites are Git, Docker Desktop with Compose, the .NET SDK selected by
+`global.json`, Node.js from `.node-version`, and pnpm from `package.json`.
 
 Create a local environment file and replace the example database password:
 
@@ -86,6 +87,21 @@ dotnet build LeadRecovery.sln --configuration Release --no-restore
 dotnet test LeadRecovery.sln --configuration Release --no-build
 dotnet run --project src/LeadRecovery.Api
 ```
+
+For the authenticated demo, fill the `DemoSeed__*` values documented in
+`templates/.env.example`, enable the demo seed only in a disposable local
+database, and start the frontend in a second shell:
+
+```powershell
+corepack enable
+pnpm install --frozen-lockfile
+$env:API_BASE_URL = 'http://localhost:8080'
+pnpm frontend:dev
+```
+
+The browser uses the Next.js `/api` rewrite so the session and antiforgery
+cookies remain same-origin. Do not expose the API under a separate browser
+origin or let the client supply `TenantId`.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the empty worker host separately

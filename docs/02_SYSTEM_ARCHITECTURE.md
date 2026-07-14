@@ -93,6 +93,21 @@ Responsibilities:
 - operational metrics;
 - accessible error and loading states.
 
+The Milestone 2 shell is a Next.js App Router application deployed on the same
+browser origin as `/api`. Next.js rewrites `/api/*` to the ASP.NET Core host;
+the browser never receives an API origin or a bearer token. Server components
+forward only the incoming session cookie for authenticated rendering. The
+current UI implements login, logout, session display, and a read-only seeded
+lead inbox; operational lead actions remain Milestone 6 / LR-0501 through
+LR-0505.
+
+ASP.NET Core Identity owns passwords, lockout, security stamps, and the
+application cookie. A `TenantMembership` joins one user to one tenant role. The
+session contains a server-issued tenant claim, but the API revalidates the
+user, security stamp, membership, role, and tenant status on every request.
+Until tenant switching is designed, login succeeds only when exactly one
+Trial/Active membership is available; multiple active memberships fail closed.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -224,7 +239,8 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0007: tenant context and tenant configuration concurrency;
 - ADR-0008: customer phone normalization and tenant-scoped identity;
 - ADR-0009: conversation and message lifecycle, identity, and limits;
-- ADR-0010: scheduled actions, durable cancellation, and external receipts.
+- ADR-0010: scheduled actions, durable cancellation, and external receipts;
+- ADR-0011: Identity, tenant memberships, and same-origin browser sessions.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application

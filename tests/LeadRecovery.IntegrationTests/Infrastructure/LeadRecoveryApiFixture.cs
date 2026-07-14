@@ -11,8 +11,22 @@ namespace LeadRecovery.IntegrationTests.Infrastructure;
 
 public sealed class LeadRecoveryApiFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _database = CreateDatabase();
+    private const string ExternalDatabaseVariable =
+        "LEADRECOVERY_TEST_DATABASE_CONNECTION_STRING";
+
+    private readonly PostgreSqlContainer? _database;
+    private readonly string? _externalDatabaseConnectionString;
     private WebApplicationFactory<Program>? _application;
+
+    public LeadRecoveryApiFixture()
+    {
+        _externalDatabaseConnectionString =
+            Environment.GetEnvironmentVariable(ExternalDatabaseVariable);
+        if (string.IsNullOrWhiteSpace(_externalDatabaseConnectionString))
+        {
+            _database = CreateDatabase();
+        }
+    }
 
     public WebApplicationFactory<Program> Application =>
         _application ?? throw new InvalidOperationException("The API fixture is not initialized.");
@@ -20,10 +34,24 @@ public sealed class LeadRecoveryApiFixture : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-        await _database.StartAsync(cancellationToken);
+        string connectionString;
+        if (_database is null)
+        {
+            connectionString = _externalDatabaseConnectionString
+                ?? throw new InvalidOperationException(
+                    $"{ExternalDatabaseVariable} was unexpectedly unavailable.");
+        }
+        else
+        {
+            await _database.StartAsync(cancellationToken);
+            connectionString = _database.GetConnectionString();
+        }
 
         _application = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-            builder.UseSetting("ConnectionStrings:Database", _database.GetConnectionString()));
+        {
+            builder.UseSetting("ConnectionStrings:Database", connectionString);
+            builder.UseSetting("RateLimiting:LoginPermitLimit", "100");
+        });
 
         await using AsyncServiceScope scope = _application.Services.CreateAsyncScope();
         LeadRecoveryDbContext dbContext =
@@ -38,7 +66,10 @@ public sealed class LeadRecoveryApiFixture : IAsyncLifetime
             await _application.DisposeAsync();
         }
 
-        await _database.DisposeAsync();
+        if (_database is not null)
+        {
+            await _database.DisposeAsync();
+        }
     }
 
     private static PostgreSqlContainer CreateDatabase()

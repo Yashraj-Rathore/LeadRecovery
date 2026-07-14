@@ -15,6 +15,7 @@ env:
   DOTNET_NOLOGO: true
   DOCKER_API_VERSION: "1.43"
   NUGET_XMLDOC_MODE: skip
+  NEXT_TELEMETRY_DISABLED: 1
   TESTINGPLATFORM_TELEMETRY_OPTOUT: 1
 
 jobs:
@@ -51,3 +52,94 @@ jobs:
 
       - name: Review vulnerable dependencies
         run: dotnet list LeadRecovery.sln package --vulnerable --include-transitive
+
+  frontend-e2e:
+    name: Frontend and browser acceptance
+    needs: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18.4-bookworm
+        env:
+          POSTGRES_DB: leadrecovery_e2e
+          POSTGRES_USER: leadrecovery_e2e
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leadrecovery_e2e -d leadrecovery_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      API_BASE_URL: http://127.0.0.1:8080
+      CONNECTIONSTRINGS__DATABASE: Host=127.0.0.1;Port=5432;Database=leadrecovery_e2e;Username=leadrecovery_e2e
+      E2E_OWNER_EMAIL: owner@alpha.example.test
+      E2E_STAFF_EMAIL: staff@alpha.example.test
+      E2E_BETA_OWNER_EMAIL: owner@beta.example.test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.17.0
+
+      - name: Activate pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.10.0 --activate
+          pnpm --version
+
+      - name: Restore backend and frontend dependencies
+        run: |
+          dotnet tool restore
+          dotnet restore LeadRecovery.sln --locked-mode
+          pnpm install --frozen-lockfile
+
+      - name: Build API
+        run: dotnet build LeadRecovery.sln --configuration Release --no-restore --warnaserror
+
+      - name: Generate ephemeral demo values
+        run: |
+          echo "E2E_OWNER_PASSWORD=Aa1!$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "E2E_STAFF_PASSWORD=Bb2!$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "E2E_BETA_OWNER_PASSWORD=Cc3!$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          suffix=$(printf '%04d' $((100 + GITHUB_RUN_NUMBER % 90)))
+          echo "E2E_ALPHA_URGENT_PHONE=+1416555${suffix}" >> "$GITHUB_ENV"
+          echo "E2E_ALPHA_BOOKING_PHONE=+1416555$((10#$suffix + 1))" >> "$GITHUB_ENV"
+          echo "E2E_BETA_LEAD_PHONE=+1416555$((10#$suffix + 2))" >> "$GITHUB_ENV"
+
+      - name: Apply database migrations
+        run: >-
+          dotnet ef database update
+          --project src/LeadRecovery.Infrastructure/LeadRecovery.Infrastructure.csproj
+          --startup-project src/LeadRecovery.Api/LeadRecovery.Api.csproj
+          --configuration Release
+          --no-build
+
+      - name: Type-check and build frontend
+        run: |
+          pnpm frontend:typecheck
+          pnpm frontend:build
+
+      - name: Review vulnerable frontend dependencies
+        run: pnpm audit --audit-level high
+
+      - name: Install Chromium
+        run: pnpm --dir tests/LeadRecovery.E2E exec playwright install --with-deps chromium
+
+      - name: Run browser acceptance tests
+        run: pnpm e2e

@@ -23,26 +23,29 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestone 0 is complete, and LR-0101 plus LR-0201 through LR-0204 are
-implemented. The repository
-contains the modular-monolith solution, API and worker hosts, a persisted Tenant
-aggregate, server-derived tenant context, EF Core migrations, the Lead
-aggregate and lifecycle policy, tenant-isolated Customer, Lead, Conversation,
-Message, and ScheduledAction persistence, the system-level external-event
-receipt ledger, canonical phone normalization, deterministic message and action
-state rules, project-boundary tests, PostgreSQL orchestration, and backend CI
-quality gates. It deliberately does not yet contain feature API endpoints,
-authentication, Twilio integration, Hangfire execution, or a Next.js
-application.
+Milestones 0 through 2 are complete. LR-0101 through LR-0103 and LR-0201
+through LR-0204 are implemented. In addition to the modular-monolith domain and
+PostgreSQL foundation, the repository now contains ASP.NET Core Identity users,
+tenant memberships and roles, audited same-origin cookie sessions, CSRF and
+login-rate-limit controls, tenant-scoped lead queries, opt-in fictional demo
+seeding, and a minimal Next.js login and lead-inbox shell. Integration and
+Playwright tests cover Owner/Staff login, logout invalidation, role policies,
+and cross-tenant denial. Twilio ingestion, Hangfire execution, outbound SMS,
+and the operational dashboard actions remain later milestones.
 
-The API exposes only the foundation health contract:
+The currently implemented browser and health contract is:
 
 - `GET /health/live` reports whether the process is running;
-- `GET /health/ready` reports whether registered readiness checks pass.
+- `GET /health/ready` reports whether registered readiness checks pass;
+- `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`,
+  `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
+  session;
+- `GET /api/v1/leads` and `GET /api/v1/leads/{leadId}` return only leads owned
+  by the authenticated session tenant.
 
 ## Pinned foundation versions
 
-| Component | Version | Milestone 0 use |
+| Component | Version | Current use |
 |---|---:|---|
 | .NET SDK | 10.0.301 | Builds all backend projects |
 | ASP.NET Core shared framework | 10.0.9 | API and worker runtime baseline |
@@ -53,19 +56,17 @@ The API exposes only the foundation health contract:
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
-| Node.js | 24.17.0 | Reserved frontend runtime baseline |
-| pnpm | 11.10.0 | Reserved frontend package manager baseline |
-| Next.js | 16.2.10 | Reserved for Milestone 2 initialization |
-| React | 19.2.7 | Reserved for Milestone 2 initialization |
-| TypeScript | 6.0.3 | Reserved for Milestone 2 initialization |
-
-Frontend versions are recorded now for reproducibility but no frontend package
-is installed before Milestone 2.
+| Node.js | 24.17.0 | Frontend and Playwright runtime |
+| pnpm | 11.10.0 | Locked frontend workspace package manager |
+| Next.js | 16.2.10 | Same-origin browser shell |
+| React | 19.2.7 | Browser UI runtime |
+| TypeScript | 6.0.3 | Strict frontend type checking |
+| Playwright | 1.61.1 | Browser acceptance tests |
 
 ## Local development
 
-Prerequisites are Git, Docker Desktop with Compose, and the .NET SDK selected by
-`global.json`. Node.js and pnpm are not required until Milestone 2.
+Prerequisites are Git, Docker Desktop with Compose, the .NET SDK selected by
+`global.json`, Node.js from `.node-version`, and pnpm from `package.json`.
 
 Create a local environment file and replace the example database password:
 
@@ -93,6 +94,21 @@ dotnet build LeadRecovery.sln --configuration Release --no-restore
 dotnet test LeadRecovery.sln --configuration Release --no-build
 dotnet run --project src/LeadRecovery.Api
 ```
+
+For the authenticated demo, fill the `DemoSeed__*` values documented in
+`templates/.env.example`, enable the demo seed only in a disposable local
+database, and start the frontend in a second shell:
+
+```powershell
+corepack enable
+pnpm install --frozen-lockfile
+$env:API_BASE_URL = 'http://localhost:8080'
+pnpm frontend:dev
+```
+
+The browser uses the Next.js `/api` rewrite so the session and antiforgery
+cookies remain same-origin. Do not expose the API under a separate browser
+origin or let the client supply `TenantId`.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the empty worker host separately
@@ -812,6 +828,21 @@ Responsibilities:
 - operational metrics;
 - accessible error and loading states.
 
+The Milestone 2 shell is a Next.js App Router application deployed on the same
+browser origin as `/api`. Next.js rewrites `/api/*` to the ASP.NET Core host;
+the browser never receives an API origin or a bearer token. Server components
+forward only the incoming session cookie for authenticated rendering. The
+current UI implements login, logout, session display, and a read-only seeded
+lead inbox; operational lead actions remain Milestone 6 / LR-0501 through
+LR-0505.
+
+ASP.NET Core Identity owns passwords, lockout, security stamps, and the
+application cookie. A `TenantMembership` joins one user to one tenant role. The
+session contains a server-issued tenant claim, but the API revalidates the
+user, security stamp, membership, role, and tenant status on every request.
+Until tenant switching is designed, login succeeds only when exactly one
+Trial/Active membership is available; multiple active memberships fail closed.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -943,7 +974,8 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0007: tenant context and tenant configuration concurrency;
 - ADR-0008: customer phone normalization and tenant-scoped identity;
 - ADR-0009: conversation and message lifecycle, identity, and limits;
-- ADR-0010: scheduled actions, durable cancellation, and external receipts.
+- ADR-0010: scheduled actions, durable cancellation, and external receipts;
+- ADR-0011: Identity, tenant memberships, and same-origin browser sessions.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -1154,17 +1186,29 @@ Unique: `(Provider, ProviderNumberSid)` and `(TenantId, PhoneNumberE164)`.
 
 ### User
 
-Use ASP.NET Core Identity or an equivalent secure implementation.
+Implemented with ASP.NET Core Identity using a `Guid` primary key.
 
-Tenant membership should be explicit through `TenantUser` if platform users may belong to more than one tenant.
+- `Id`
+- `DisplayName`
+- normalized username and email fields managed by Identity
+- password hash, security stamp, lockout, and other Identity security fields
+- `IsActive`
+- `CreatedAtUtc`
 
-### TenantUser
+### TenantMembership
 
+- `Id`
 - `TenantId`
 - `UserId`
-- `Role`
-- `Status`
+- `Role` - Owner, Manager, Staff, ReadOnly
 - `CreatedAtUtc`
+
+Unique: `(TenantId, UserId)`. A membership row is the grant; removing it
+revokes that tenant grant. User-wide disablement uses `User.IsActive`, while
+tenant-wide suspension uses `Tenant.Status`. The cookie validator checks all
+three on every request. Milestone 2 supports exactly one Trial/Active membership
+per login and fails closed when a user has zero or multiple active memberships;
+tenant switching requires a later explicit design.
 
 ### Lead
 
@@ -1192,6 +1236,8 @@ LR-0201 implements this aggregate and its lifecycle policy in the domain layer.
 LR-0203 adds Lead persistence as the required tenant-owned parent for
 Conversation and Message. Lead uses the same server-derived tenant read/write
 guards as those child records and an application-managed concurrency version.
+When `AssignedUserId` is present, `(TenantId, AssignedUserId)` must reference a
+membership in the same tenant.
 
 Indexes:
 
@@ -1420,6 +1466,11 @@ Do not store hidden chain-of-thought or unnecessary provider metadata.
 - `CorrelationId`
 - `CreatedAtUtc`
 
+Milestone 2 persists this append-oriented foundation and records successful
+login and logout events with correlation IDs. It is not exposed through tenant
+browser APIs. Redacted before/after JSON is available for later audited domain
+changes; secrets and session material are prohibited.
+
 ### Notification
 
 - `Id`
@@ -1507,6 +1558,10 @@ Required implementation controls:
    tenant-owned entities so the database also rejects cross-tenant links.
 6. Run integration tests that attempt cross-tenant access for every sensitive endpoint family.
 
+The implemented browser lead queries derive TenantId from the validated session
+membership, apply the EF tenant filter, ignore client tenant headers, and map a
+cross-tenant lead identifier to not-found without revealing that it exists.
+
 ## 6. Concurrency
 
 - Use application-managed `bigint Version` concurrency tokens on `Lead` and
@@ -1572,38 +1627,45 @@ Base path: `/api/v1`
 
 ## 3. Authentication endpoints
 
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/logout`
-- `POST /api/v1/auth/refresh` if a refresh design is used
-- `GET /api/v1/auth/me`
-- `POST /api/v1/auth/forgot-password`
-- `POST /api/v1/auth/reset-password`
+- `GET /api/v1/auth/csrf` issues an antiforgery request token and stores the
+  paired HttpOnly SameSite=Strict cookie;
+- `POST /api/v1/auth/login` requires `X-CSRF-TOKEN`, applies generic credential
+  failure responses, Identity lockout, and an IP fixed-window rate limit;
+- `GET /api/v1/auth/me` returns the validated user, tenant, and role session;
+- `POST /api/v1/auth/logout` requires `X-CSRF-TOKEN`, rotates the Identity
+  security stamp, clears the cookie, and invalidates replay of all previously
+  issued cookies for that user.
 
-Prefer secure cookie sessions under a same-origin deployment. Avoid exposing long-lived tokens to browser JavaScript.
+The browser uses a non-persistent, HttpOnly, SameSite=Strict application cookie
+with an eight-hour sliding lifetime. It is always Secure outside Development;
+production defaults to a `__Host-` cookie and persists data-protection keys from
+configured storage. The browser and `/api` share one origin through the Next.js
+rewrite. TenantId is never accepted from request bodies, query strings, or
+headers as authority. Password reset, refresh, tenant switching, and
+PlatformAdmin support grants are deferred and are not advertised by the
+implemented OpenAPI contract.
 
 ## 4. Lead endpoints
 
 ### List leads
 
-`GET /api/v1/leads?status=NeedsHuman&urgency=High&assignedTo=me&cursor=...`
+`GET /api/v1/leads?pageSize=25&cursor=...`
 
-Response includes summary fields only.
+The Milestone 2 endpoint returns tenant-scoped summary fields only, ordered by
+creation time and ID descending. `pageSize` is 1 through 100 and `cursor` is an
+opaque encoded offset. Status, urgency, and assignment filters remain LR-0501.
 
 ### Get lead
 
 `GET /api/v1/leads/{leadId}`
 
-Returns:
+The Milestone 2 endpoint returns the same lead summary shape used by the inbox.
+It returns `404` for an unknown ID and for an ID owned by another tenant. The
+full detail, conversation timeline, pending actions, AI suggestion, and
+role-appropriate audit summary remain LR-0502.
 
-- lead details;
-- current status;
-- customer summary;
-- assignment;
-- automation state;
-- conversation timeline;
-- pending actions;
-- latest AI suggestion;
-- audit summary appropriate to user role.
+The remaining write endpoints in this section describe future dashboard
+milestones and are not yet implemented or included in `api/openapi.yaml`.
 
 ### Update lead status
 
@@ -1841,6 +1903,11 @@ Requirements:
 - accessible labels and focus order;
 - rate-limit feedback.
 
+Milestone 2 implements the email/password form with accessible labels, disabled
+submitting state, generic credential errors, explicit rate-limit feedback, and
+same-origin CSRF initialization. Forgot/reset password is intentionally deferred
+with its API workflow; no dead control is shown.
+
 ### 3.2 Lead inbox
 
 Default filters:
@@ -1868,6 +1935,13 @@ Actions:
 - assign to self;
 - mark spam;
 - bulk actions are out of MVP scope except safe assignment/filter operations.
+
+The Milestone 2 shell is a narrower read-only acceptance slice: tenant name,
+current user/role, lead name or phone, source, status, age, summary counts,
+empty/error states, and secure logout. It server-renders authenticated data and
+redirects an expired session to login. Filters, assignment, lead navigation,
+automation controls, unread state, and performance acceptance remain LR-0501
+through LR-0505 and must not be inferred complete from this shell.
 
 ### 3.3 Lead detail
 
@@ -2229,6 +2303,10 @@ Roles:
 - ReadOnly
 - PlatformAdmin
 
+Owner, Manager, Staff, and ReadOnly are tenant membership roles. PlatformAdmin
+is deliberately not a tenant role and is not implemented in Milestone 2; later
+support access requires a separate time-bounded, audited grant model.
+
 Authorization must check:
 
 1. authenticated user;
@@ -2238,6 +2316,23 @@ Authorization must check:
 5. any special support-access grant.
 
 Never rely only on UI hiding.
+
+Milestone 2 uses ASP.NET Core Identity password hashing, unique normalized
+emails, a 12-character complexity baseline, five-attempt/15-minute lockout,
+generic authentication failures, and a separate five-attempt-per-minute IP
+rate limit by default. Browser sessions are non-persistent HttpOnly
+SameSite=Strict cookies. Production requires HTTPS and Secure `__Host-` cookies,
+and data-protection keys must be persisted to protected shared storage.
+Security stamps, users, exact membership roles, and Trial/Active tenant status
+are revalidated for every request. Logout rotates the security stamp before
+clearing the cookie, so replayed cookies are rejected immediately.
+
+Login and logout require an antiforgery token returned by the same-origin CSRF
+endpoint and sent in `X-CSRF-TOKEN`. The token cookie is HttpOnly,
+SameSite=Strict, and Secure outside Development. Authentication redirects are
+disabled for APIs: missing authentication returns `401`, insufficient role
+returns `403`, and a cross-tenant entity lookup returns `404` without revealing
+existence.
 
 ## 5. Tenant isolation controls
 
@@ -2267,6 +2362,11 @@ resolution, is never exposed through tenant browser APIs, and permits TenantId
 to move only from null to one resolved non-empty value. PostgreSQL uniqueness on
 the full opaque provider-event identity prevents exact replay without
 collapsing legitimate provider status progressions.
+
+LR-0103 resolves browser tenant authority from the validated membership stored
+in the session. Client-supplied tenant headers are ignored, lead list/detail
+queries execute under the EF tenant filter, and integration plus Playwright
+tests exercise cross-tenant denial in CI.
 
 ## 6. Webhook security
 
@@ -2473,6 +2573,13 @@ Test:
 - API endpoints;
 - webhook signature validation.
 
+LR-0103 integration coverage uses the real PostgreSQL migration and API host to
+verify Owner/Staff login, HttpOnly/SameSite/Secure cookie attributes, required
+CSRF for login/logout, immediate logout-cookie replay rejection, audit rows,
+generic invalid/suspended login failure, `401` for anonymous access, Owner-only
+policy behavior, ignored tenant-header spoofing, and list/detail cross-tenant
+denial.
+
 ### Contract tests
 
 - Twilio form payload fixtures;
@@ -2497,6 +2604,14 @@ Critical E2E scenarios:
 9. Failed provider send appears in UI.
 10. AI outage does not stop deterministic workflow.
 
+The Milestone 2 Playwright slice signs into a seeded second tenant, captures a
+lead identifier, signs out, signs into the first tenant, verifies the visible
+lead sets, and confirms the second tenant's identifier returns `404`. CI builds
+the production frontend, applies all migrations to isolated PostgreSQL, starts
+the real API and Next.js shell, and runs this test in Chromium. Later prompts
+add the remaining critical E2E scenarios as their provider and workflow
+features become available.
+
 ## 3. Test environments
 
 ### Local
@@ -2505,6 +2620,12 @@ Critical E2E scenarios:
 - fake providers or provider test credentials;
 - seeded fictional data;
 - no real sends by default.
+
+The integration fixture starts Testcontainers by default. Environments where
+Docker is unavailable may point
+`LEADRECOVERY_TEST_DATABASE_CONNECTION_STRING` at a fresh disposable PostgreSQL
+database; the fixture still applies migrations and runs the identical suite.
+Never point this override at a shared or persistent database.
 
 ### CI
 
@@ -3214,6 +3335,14 @@ Exit criteria:
 - Tenant A cannot view Tenant B;
 - frontend shows seeded leads.
 
+Implementation status (2026-07-14): complete for the Prompt 3 acceptance
+slice. Identity, tenant membership roles, audited secure sessions,
+authorization policies, tenant-scoped lead reads, opt-in fictional seed data,
+the Next.js login/inbox shell, PostgreSQL integration tests, and Playwright
+cross-tenant coverage are present. The shell does not complete LR-0501 or
+LR-0502: filters, assignments, full lead detail/timeline, messaging, and other
+dashboard operations remain Milestone 6.
+
 ### Milestone 3 - Twilio missed-call ingestion (Week 3)
 
 Deliverables:
@@ -3559,6 +3688,14 @@ Codex should implement one issue at a time. Each issue must meet its acceptance 
 - unauthorized access returns proper status;
 - role policies tested.
 
+Implemented in Prompt 3 with ASP.NET Core Identity, explicit
+`TenantMembership`, Owner/Manager/Staff/ReadOnly tenant roles, per-request user
+and membership validation, same-origin HttpOnly cookie sessions, CSRF,
+lockout/rate limiting, security-stamp logout invalidation, and audit events.
+Owner and Staff authentication plus Owner-only policy behavior are tested.
+PlatformAdmin and tenant switching are intentionally deferred; login fails
+closed if there is not exactly one Trial/Active membership.
+
 ## Epic E2 - Lead domain
 
 ### LR-0201 Lead aggregate
@@ -3725,6 +3862,12 @@ issue does not dispatch scheduled work or call an external provider.
 - empty/loading/error states;
 - keyboard accessible;
 - performance target with 10,000 seeded leads.
+
+Prompt 3 provides only the minimum read-only authenticated shell needed to
+prove LR-0103: a tenant-scoped paged lead endpoint, seeded lead display,
+empty/error handling, and accessible login/logout. LR-0501 remains open until
+status/urgency/assignment filters, loading behavior, and the 10,000-lead
+performance acceptance are implemented in Prompt 6.
 
 ### LR-0502 Lead detail and timeline
 
@@ -4292,6 +4435,7 @@ updated in the same change so they remain aligned.
 | [0008](0008-customer-phone-normalization.md) | Customer phone normalization and identity | Accepted |
 | [0009](0009-conversation-and-message-lifecycle.md) | Conversation and message lifecycle | Accepted |
 | [0010](0010-scheduled-actions-and-external-receipts.md) | Scheduled actions and external receipts | Accepted |
+| [0011](0011-identity-membership-and-browser-session.md) | Identity, tenant membership, and browser session | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -4764,6 +4908,64 @@ idempotency before execution infrastructure is introduced. Exact provider-event
 replays are rejected while legitimate progression remains representable.
 System-ledger access requires explicit integration authorization in later
 handlers because tenant query filtering is intentionally inapplicable.
+
+---
+
+<!-- SOURCE: docs/decisions/0011-identity-membership-and-browser-session.md -->
+
+# ADR-0011: Identity, tenant membership, and browser session
+
+- Status: Accepted
+- Date: 2026-07-14
+
+## Context
+
+LR-0103 requires Owner and Staff authentication, tenant roles, secure session
+cookies, logout invalidation, and authorization tests. The product documents
+prefer same-origin browser sessions but did not define the Identity storage
+model, tenant selection, cookie revalidation, CSRF boundary, or how a tenant
+role differs from future platform support access.
+
+## Decision
+
+ASP.NET Core Identity stores `ApplicationUser` records with `Guid` keys and
+owns password hashing, lockout, and security stamps. `TenantMembership` is an
+explicit tenant-owned grant from a user to exactly one of Owner, Manager,
+Staff, or ReadOnly. PlatformAdmin is not a tenant role; later support access
+requires a separate time-bounded, audited grant.
+
+Milestone 2 issues a non-persistent Identity application cookie only when the
+user is active and has exactly one membership whose tenant is Trial or Active.
+Zero or multiple eligible memberships fail closed until an explicit tenant
+switcher is designed. The cookie contains the selected tenant and role, but
+every request revalidates the user, security stamp, exact membership/role, and
+tenant status against PostgreSQL. Browser requests cannot select or override
+TenantId.
+
+Next.js and the ASP.NET Core API share a browser origin through an `/api`
+rewrite. The browser receives no bearer token. Session and antiforgery cookies
+are HttpOnly and SameSite=Strict; production cookies are Secure and default to
+`__Host-` names. Login and logout require the antiforgery request token, while
+login also uses Identity lockout, generic failure text, and an IP fixed-window
+rate limit. API authentication/authorization failures return `401`/`403`
+instead of redirects.
+
+Logout writes an audit event, rotates the user's security stamp, and clears the
+cookie. Rotation invalidates every previously issued cookie for that user,
+including replay of the just-cleared session. Successful login and logout are
+recorded with correlation IDs and no secrets. Production deployments persist
+data-protection keys in configured protected shared storage.
+
+## Consequences
+
+Tenant authority is deterministic and server-derived, and membership or tenant
+revocation takes effect on the next request. Logout has a wider blast radius
+than one browser because all user sessions are invalidated; this is an accepted
+security-first Milestone 2 tradeoff. Multi-tenant account switching,
+fine-grained support grants, password recovery, and persistent login require
+separate later designs. All browser mutations must continue using antiforgery
+validation, and every tenant endpoint must retain entity-level tenant scoping
+even when a role policy has already passed.
 
 ---
 

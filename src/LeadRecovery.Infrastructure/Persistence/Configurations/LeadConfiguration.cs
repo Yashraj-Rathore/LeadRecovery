@@ -1,4 +1,5 @@
 using LeadRecovery.Domain.Customers;
+using LeadRecovery.Domain.Identity;
 using LeadRecovery.Domain.Leads;
 using LeadRecovery.Domain.Tenancy;
 
@@ -93,6 +94,17 @@ internal sealed class LeadConfiguration : IEntityTypeConfiguration<Lead>
 
         builder.Property(lead => lead.AssignedUserId)
             .HasColumnName("assigned_user_id");
+
+        builder.HasOne<TenantMembership>()
+            .WithMany()
+            .HasForeignKey(lead => new { lead.TenantId, lead.AssignedUserId })
+            .HasPrincipalKey(membership => new
+            {
+                membership.TenantId,
+                membership.UserId,
+            })
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("fk_leads_memberships_tenant_id_assigned_user_id");
 
         builder.Property(lead => lead.AutomationState)
             .HasColumnName("automation_state")

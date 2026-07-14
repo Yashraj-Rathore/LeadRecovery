@@ -71,6 +71,14 @@ Codex should implement one issue at a time. Each issue must meet its acceptance 
 - unauthorized access returns proper status;
 - role policies tested.
 
+Implemented in Prompt 3 with ASP.NET Core Identity, explicit
+`TenantMembership`, Owner/Manager/Staff/ReadOnly tenant roles, per-request user
+and membership validation, same-origin HttpOnly cookie sessions, CSRF,
+lockout/rate limiting, security-stamp logout invalidation, and audit events.
+Owner and Staff authentication plus Owner-only policy behavior are tested.
+PlatformAdmin and tenant switching are intentionally deferred; login fails
+closed if there is not exactly one Trial/Active membership.
+
 ## Epic E2 - Lead domain
 
 ### LR-0201 Lead aggregate
@@ -237,6 +245,12 @@ issue does not dispatch scheduled work or call an external provider.
 - empty/loading/error states;
 - keyboard accessible;
 - performance target with 10,000 seeded leads.
+
+Prompt 3 provides only the minimum read-only authenticated shell needed to
+prove LR-0103: a tenant-scoped paged lead endpoint, seeded lead display,
+empty/error handling, and accessible login/logout. LR-0501 remains open until
+status/urgency/assignment filters, loading behavior, and the 10,000-lead
+performance acceptance are implemented in Prompt 6.
 
 ### LR-0502 Lead detail and timeline
 

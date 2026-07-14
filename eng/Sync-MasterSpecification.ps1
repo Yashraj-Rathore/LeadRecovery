@@ -33,6 +33,7 @@ $sourcePaths = @(
     'docs/decisions/0008-customer-phone-normalization.md'
     'docs/decisions/0009-conversation-and-message-lifecycle.md'
     'docs/decisions/0010-scheduled-actions-and-external-receipts.md'
+    'docs/decisions/0011-identity-membership-and-browser-session.md'
     'CODEX_PROMPT_SEQUENCE.md'
     'templates/definition-of-done.md'
 )

@@ -55,6 +55,13 @@ Test:
 - API endpoints;
 - webhook signature validation.
 
+LR-0103 integration coverage uses the real PostgreSQL migration and API host to
+verify Owner/Staff login, HttpOnly/SameSite/Secure cookie attributes, required
+CSRF for login/logout, immediate logout-cookie replay rejection, audit rows,
+generic invalid/suspended login failure, `401` for anonymous access, Owner-only
+policy behavior, ignored tenant-header spoofing, and list/detail cross-tenant
+denial.
+
 ### Contract tests
 
 - Twilio form payload fixtures;
@@ -79,6 +86,14 @@ Critical E2E scenarios:
 9. Failed provider send appears in UI.
 10. AI outage does not stop deterministic workflow.
 
+The Milestone 2 Playwright slice signs into a seeded second tenant, captures a
+lead identifier, signs out, signs into the first tenant, verifies the visible
+lead sets, and confirms the second tenant's identifier returns `404`. CI builds
+the production frontend, applies all migrations to isolated PostgreSQL, starts
+the real API and Next.js shell, and runs this test in Chromium. Later prompts
+add the remaining critical E2E scenarios as their provider and workflow
+features become available.
+
 ## 3. Test environments
 
 ### Local
@@ -87,6 +102,12 @@ Critical E2E scenarios:
 - fake providers or provider test credentials;
 - seeded fictional data;
 - no real sends by default.
+
+The integration fixture starts Testcontainers by default. Environments where
+Docker is unavailable may point
+`LEADRECOVERY_TEST_DATABASE_CONNECTION_STRING` at a fresh disposable PostgreSQL
+database; the fixture still applies migrations and runs the identical suite.
+Never point this override at a shared or persistent database.
 
 ### CI
 

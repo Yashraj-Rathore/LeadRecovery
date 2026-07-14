@@ -73,6 +73,14 @@ Exit criteria:
 - Tenant A cannot view Tenant B;
 - frontend shows seeded leads.
 
+Implementation status (2026-07-14): complete for the Prompt 3 acceptance
+slice. Identity, tenant membership roles, audited secure sessions,
+authorization policies, tenant-scoped lead reads, opt-in fictional seed data,
+the Next.js login/inbox shell, PostgreSQL integration tests, and Playwright
+cross-tenant coverage are present. The shell does not complete LR-0501 or
+LR-0502: filters, assignments, full lead detail/timeline, messaging, and other
+dashboard operations remain Milestone 6.
+
 ### Milestone 3 - Twilio missed-call ingestion (Week 3)
 
 Deliverables:

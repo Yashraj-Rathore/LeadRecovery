@@ -46,17 +46,29 @@ Unique: `(Provider, ProviderNumberSid)` and `(TenantId, PhoneNumberE164)`.
 
 ### User
 
-Use ASP.NET Core Identity or an equivalent secure implementation.
+Implemented with ASP.NET Core Identity using a `Guid` primary key.
 
-Tenant membership should be explicit through `TenantUser` if platform users may belong to more than one tenant.
+- `Id`
+- `DisplayName`
+- normalized username and email fields managed by Identity
+- password hash, security stamp, lockout, and other Identity security fields
+- `IsActive`
+- `CreatedAtUtc`
 
-### TenantUser
+### TenantMembership
 
+- `Id`
 - `TenantId`
 - `UserId`
-- `Role`
-- `Status`
+- `Role` - Owner, Manager, Staff, ReadOnly
 - `CreatedAtUtc`
+
+Unique: `(TenantId, UserId)`. A membership row is the grant; removing it
+revokes that tenant grant. User-wide disablement uses `User.IsActive`, while
+tenant-wide suspension uses `Tenant.Status`. The cookie validator checks all
+three on every request. Milestone 2 supports exactly one Trial/Active membership
+per login and fails closed when a user has zero or multiple active memberships;
+tenant switching requires a later explicit design.
 
 ### Lead
 
@@ -84,6 +96,8 @@ LR-0201 implements this aggregate and its lifecycle policy in the domain layer.
 LR-0203 adds Lead persistence as the required tenant-owned parent for
 Conversation and Message. Lead uses the same server-derived tenant read/write
 guards as those child records and an application-managed concurrency version.
+When `AssignedUserId` is present, `(TenantId, AssignedUserId)` must reference a
+membership in the same tenant.
 
 Indexes:
 
@@ -312,6 +326,11 @@ Do not store hidden chain-of-thought or unnecessary provider metadata.
 - `CorrelationId`
 - `CreatedAtUtc`
 
+Milestone 2 persists this append-oriented foundation and records successful
+login and logout events with correlation IDs. It is not exposed through tenant
+browser APIs. Redacted before/after JSON is available for later audited domain
+changes; secrets and session material are prohibited.
+
 ### Notification
 
 - `Id`
@@ -398,6 +417,10 @@ Required implementation controls:
 5. Use compound `(TenantId, Id)` keys and foreign keys for relationships between
    tenant-owned entities so the database also rejects cross-tenant links.
 6. Run integration tests that attempt cross-tenant access for every sensitive endpoint family.
+
+The implemented browser lead queries derive TenantId from the validated session
+membership, apply the EF tenant filter, ignore client tenant headers, and map a
+cross-tenant lead identifier to not-found without revealing that it exists.
 
 ## 6. Concurrency
 

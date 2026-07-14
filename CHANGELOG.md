@@ -63,6 +63,27 @@ All notable repository and product-specification changes are recorded here.
   progression, and durable booking cancellation.
 - Architecture decision for scheduled-action execution state, durable booking
   cancellation, and external-receipt identity and tenant resolution.
+- LR-0103 ASP.NET Core Identity users, explicit tenant memberships with Owner,
+  Manager, Staff, and ReadOnly roles, per-request membership/session
+  revalidation, and audited login/logout events.
+- Secure same-origin session endpoints with HttpOnly SameSite=Strict cookies,
+  antiforgery validation, generic login failures, lockout, IP rate limiting,
+  security-stamp logout invalidation, and production data-protection key
+  persistence support.
+- Tenant-scoped lead list/detail queries and endpoints that derive TenantId
+  exclusively from the authenticated membership and return not-found for
+  cross-tenant identifiers.
+- Minimal pinned pnpm/Next.js workspace with an accessible login screen,
+  authenticated tenant lead inbox, empty/error states, and logout control.
+- Pinned the patched PostCSS 8.5.10 transitive override used by Next.js to
+  eliminate the reported CSS-stringification XSS advisory.
+- Opt-in fictional demo seeding whose credentials and phone values must be
+  supplied through configuration.
+- PostgreSQL authentication/authorization integration coverage and Playwright
+  browser coverage for login, logout, seeded lead visibility, and cross-tenant
+  denial.
+- ADR-0011 documenting browser session, tenant membership, role, CSRF, and
+  session invalidation decisions.
 
 ### Changed
 
@@ -85,3 +106,9 @@ All notable repository and product-specification changes are recorded here.
 - Added Lead persistence as the minimum LR-0203 prerequisite for database-
   enforced Conversation and Message ownership; no feature API or provider
   integration was introduced.
+- Replaced the draft OpenAPI skeleton with the implemented authentication and
+  read-only lead contract; future Twilio and dashboard-operation endpoints are
+  no longer advertised as available.
+- Expanded CI with the exact Node/pnpm toolchain, frozen frontend install,
+  type-check/build/audit gates, migrations, and the PostgreSQL-backed
+  Playwright acceptance test.
