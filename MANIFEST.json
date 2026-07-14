@@ -9,11 +9,11 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  3160
+        "bytes":  4979
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  132776
+        "bytes":  144598
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "database/schema.sql",
-        "bytes":  5115
+        "bytes":  6106
     },
     {
         "path":  "diagrams/deployment.mmd",
@@ -41,11 +41,11 @@
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  10336
+        "bytes":  10851
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  9927
+        "bytes":  13170
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
@@ -61,11 +61,11 @@
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  6239
+        "bytes":  7068
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  5056
+        "bytes":  5504
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
@@ -81,7 +81,7 @@
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  10334
+        "bytes":  11586
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -124,12 +124,20 @@
         "bytes":  1946
     },
     {
+        "path":  "docs/decisions/0009-conversation-and-message-lifecycle.md",
+        "bytes":  2558
+    },
+    {
+        "path":  "docs/decisions/0010-scheduled-actions-and-external-receipts.md",
+        "bytes":  2484
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  1261
+        "bytes":  1477
     },
     {
         "path":  "README.md",
-        "bytes":  8804
+        "bytes":  8912
     },
     {
         "path":  "templates/.env.example",

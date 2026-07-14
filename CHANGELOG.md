@@ -37,6 +37,32 @@ All notable repository and product-specification changes are recorded here.
 - Customer PostgreSQL mapping and migration with tenant query/write guards,
   tenant-scoped canonical-phone uniqueness, and integration coverage for
   equivalent formatting, duplicate prevention, and cross-tenant isolation.
+- LR-0203 Conversation and Message aggregates with explicit open/close and
+  delivery-state policies, a 1,600-character message body limit, and terminal
+  received, delivered, failed, and suppressed states.
+- Lead, Conversation, and Message PostgreSQL mappings with tenant query/write
+  guards, application-managed Lead concurrency, compound tenant foreign keys,
+  provider SID uniqueness, tenant-scoped client idempotency, and timeline
+  indexes.
+- PostgreSQL integration coverage for inbound/outbound message persistence,
+  duplicate identifiers, cross-tenant relationships, tenant filtering, missing
+  tenant context, and stale Lead writes.
+- Architecture decision for conversation lifecycle, message delivery states,
+  message identity, and body-length policy.
+- LR-0204 ScheduledAction aggregate with validated pending, running, retry,
+  completion, failure, and cancellation transitions plus tenant-scoped
+  idempotency and due-work indexes.
+- PostgreSQL-backed booking cancellation that persists the booked Lead and
+  cancels only that lead's pending scheduled actions through one scoped EF
+  transaction.
+- ExternalEventReceipt system ledger with an opaque provider-event identity,
+  optional one-time tenant resolution, immutable resolved ownership, and
+  processing-result policy.
+- Combined additive messaging/workflow migration and PostgreSQL coverage for
+  LR-0203 and LR-0204 persistence, uniqueness, cross-tenant denial, receipt
+  progression, and durable booking cancellation.
+- Architecture decision for scheduled-action execution state, durable booking
+  cancellation, and external-receipt identity and tenant resolution.
 
 ### Changed
 
@@ -56,3 +82,6 @@ All notable repository and product-specification changes are recorded here.
   `ClosedWon` remain terminal until audited reopening is implemented.
 - Pinned `libphonenumber-csharp` 9.0.34 centrally for canonical phone parsing
   while keeping the third-party API behind an application interface.
+- Added Lead persistence as the minimum LR-0203 prerequisite for database-
+  enforced Conversation and Message ownership; no feature API or provider
+  integration was introduced.

@@ -15,6 +15,8 @@ updated in the same change so they remain aligned.
 | [0006](0006-lead-lifecycle-and-webhook-identity.md) | Lead lifecycle and webhook identity | Accepted |
 | [0007](0007-tenant-context-and-concurrency.md) | Tenant context and concurrency | Accepted |
 | [0008](0008-customer-phone-normalization.md) | Customer phone normalization and identity | Accepted |
+| [0009](0009-conversation-and-message-lifecycle.md) | Conversation and message lifecycle | Accepted |
+| [0010](0010-scheduled-actions-and-external-receipts.md) | Scheduled actions and external receipts | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.

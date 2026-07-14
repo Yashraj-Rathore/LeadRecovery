@@ -16,6 +16,10 @@ Focus on:
 - cooldown rules;
 - opt-out detection;
 - phone normalization;
+- conversation closure and message delivery-state transitions;
+- message body limits and identifier invariants;
+- scheduled-action transition matrix, retry timing, and terminal states;
+- external-receipt tenant assignment and processing invariants;
 - template rendering;
 - AI-result validation;
 - authorization policies;
@@ -43,6 +47,9 @@ Test:
 - tenant filters;
 - transactions;
 - unique/idempotency constraints;
+- compound tenant foreign keys and tenant-owned write guards;
+- scheduled-action tenant filtering, due/idempotency indexes, booking
+  cancellation, and external-receipt identity/tenant immutability;
 - Hangfire persistence where practical;
 - authentication and cookies;
 - API endpoints;

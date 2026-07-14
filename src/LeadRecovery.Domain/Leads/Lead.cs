@@ -1,6 +1,8 @@
+using LeadRecovery.Domain.Common;
+
 namespace LeadRecovery.Domain.Leads;
 
-public sealed class Lead
+public sealed class Lead : ITenantOwnedEntity
 {
     private Lead()
     {

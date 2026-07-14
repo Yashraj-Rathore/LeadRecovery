@@ -23,14 +23,17 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestone 0 is complete, and LR-0101, LR-0201, and LR-0202 are implemented. The repository
+Milestone 0 is complete, and LR-0101 plus LR-0201 through LR-0204 are
+implemented. The repository
 contains the modular-monolith solution, API and worker hosts, a persisted Tenant
-aggregate, server-derived tenant context, initial EF Core migration, the Lead
-aggregate and lifecycle policy, a persisted tenant-isolated Customer aggregate,
-canonical phone normalization, project-boundary tests, PostgreSQL orchestration,
-and backend CI quality gates. It deliberately does not yet contain Lead
-persistence, the remaining Milestone 1 entities, authentication, Twilio
-integration, Hangfire jobs, or a Next.js application.
+aggregate, server-derived tenant context, EF Core migrations, the Lead
+aggregate and lifecycle policy, tenant-isolated Customer, Lead, Conversation,
+Message, and ScheduledAction persistence, the system-level external-event
+receipt ledger, canonical phone normalization, deterministic message and action
+state rules, project-boundary tests, PostgreSQL orchestration, and backend CI
+quality gates. It deliberately does not yet contain feature API endpoints,
+authentication, Twilio integration, Hangfire execution, or a Next.js
+application.
 
 The API exposes only the foundation health contract:
 
@@ -938,7 +941,9 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0005: API contract and optimistic concurrency;
 - ADR-0006: lead lifecycle, close reasons, and webhook event identity;
 - ADR-0007: tenant context and tenant configuration concurrency;
-- ADR-0008: customer phone normalization and tenant-scoped identity.
+- ADR-0008: customer phone normalization and tenant-scoped identity;
+- ADR-0009: conversation and message lifecycle, identity, and limits;
+- ADR-0010: scheduled actions, durable cancellation, and external receipts.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -1066,6 +1071,12 @@ use case can require and persist its audit event.
 - External sends are at-least-once attempts; idempotency keys prevent duplicate business effects.
 - Do not assume exactly-once delivery from Twilio, Kubernetes, or job runners.
 
+LR-0204 implements the durable `ScheduledAction` record and the
+`ExternalEventReceipt` system ledger without dispatching work or calling a
+provider. Booking uses the same scoped EF context to persist the Lead transition
+and cancel only its pending actions in one transaction. Hangfire notification,
+reconciliation, leasing, and external execution remain later issues.
+
 ## 13. Caching
 
 Do not add distributed caching in MVP. Optimize indexed database queries first. Short-lived in-memory caching may be used only for non-sensitive, non-tenant-confusing reference data.
@@ -1178,8 +1189,9 @@ Tenant membership should be explicit through `TenantUser` if platform users may 
 - audit timestamps
 
 LR-0201 implements this aggregate and its lifecycle policy in the domain layer.
-EF mapping, query filters, and persistence for Lead remain part of later
-Milestone 1 persistence issues.
+LR-0203 adds Lead persistence as the required tenant-owned parent for
+Conversation and Message. Lead uses the same server-derived tenant read/write
+guards as those child records and an application-managed concurrency version.
 
 Indexes:
 
@@ -1210,8 +1222,9 @@ LR-0202 implements Customer persistence and a creation use case that derives
 normalization interface; Infrastructure implements it with
 `libphonenumber-csharp` and stores only canonical E.164 values. Customer reads
 use an EF tenant query filter, and writes reject missing or mismatched tenant
-context. LR-0102 remains responsible for applying equivalent isolation controls
-to the other tenant-owned Milestone 1 entities as they are persisted.
+context. LR-0203 and LR-0204 apply equivalent persistence controls to the other
+tenant-owned Milestone 1 entities. LR-0102 still owns endpoint-level proof that
+browser input cannot override server-derived TenantId when feature APIs arrive.
 
 ### CallEvent
 
@@ -1240,7 +1253,10 @@ Unique: `(Provider, ProviderCallSid, Status, ReceivedAtUtc bucket)` or a provide
 - `Channel` - Sms
 - `Status` - Open, Closed
 - `CreatedAtUtc`
-- `ClosedAtUtc`
+- `ClosedAtUtc` nullable
+
+Conversations start `Open`, may transition once to `Closed`, and cannot reopen
+without a future explicit audited use case.
 
 ### Message
 
@@ -1250,13 +1266,13 @@ Unique: `(Provider, ProviderCallSid, Status, ReceivedAtUtc bucket)` or a provide
 - `ConversationId`
 - `Direction` - Inbound, Outbound
 - `Kind` - Automated, Manual, System
-- `Provider`
-- `ProviderMessageSid` nullable until sent
-- `ClientIdempotencyKey`
-- `Body`
+- `Provider` maximum 50 characters
+- `ProviderMessageSid` nullable until sent, maximum 100 characters
+- `ClientIdempotencyKey` required, maximum 200 characters
+- `Body` required, maximum 1,600 characters
 - `Status` - Queued, Sent, Delivered, Failed, Received, Suppressed
-- `FailureCode` nullable
-- `FailureDescription` nullable
+- `FailureCode` nullable, maximum 100 characters
+- `FailureDescription` nullable, maximum 500 characters
 - `SentByUserId` nullable
 - `TemplateId` nullable
 - `CreatedAtUtc`
@@ -1264,6 +1280,21 @@ Unique: `(Provider, ProviderCallSid, Status, ReceivedAtUtc bucket)` or a provide
 - `DeliveredAtUtc` nullable
 
 Unique: `(Provider, ProviderMessageSid)` when not null; `(TenantId, ClientIdempotencyKey)`.
+
+Inbound messages begin in terminal `Received`. Outbound messages begin
+`Queued`; allowed transitions are `Queued -> Sent -> Delivered`,
+`Queued/Sent -> Failed`, and `Queued -> Suppressed`. `Delivered`, `Failed`, and
+`Suppressed` are terminal. A client idempotency key is required for every
+message; inbound adapters derive an opaque server-controlled key rather than
+trusting tenant or provider input as authority. Message bodies preserve their
+content but reject empty input and content longer than the provider-supported
+1,600-character ceiling.
+
+LR-0203 persists inbound and outbound records without calling a provider. Lead,
+Conversation, and Message reads are tenant-filtered; their writes reject missing
+or mismatched tenant context; and compound foreign keys prevent cross-tenant
+relationships. Provider calls and idempotent callback handlers remain in later
+Twilio and worker issues.
 
 ### MessageTemplate
 
@@ -1300,16 +1331,29 @@ MVP can use configuration rather than a general visual workflow engine.
 - `Id`
 - `TenantId`
 - `LeadId`
-- `ActionType`
+- `ActionType` maximum 100 characters
 - `ScheduledForUtc`
 - `Status` - Pending, Running, Completed, Cancelled, Failed
 - `AttemptCount`
-- `IdempotencyKey`
-- `PayloadJson`
-- `LastError`
+- `IdempotencyKey` maximum 200 characters
+- `PayloadJson` required JSON object, maximum 16,384 characters
+- `LastError` nullable, maximum 1,000 characters
 - audit timestamps
 
 Unique: `(TenantId, IdempotencyKey)`.
+
+Actions start `Pending`. Allowed transitions are `Pending -> Running`,
+`Pending -> Cancelled`, `Running -> Completed`, `Running -> Failed`, and
+`Running -> Pending` for a retry with a new due time at or after the retry
+decision. Starting an attempt increments `AttemptCount`. Completed, Failed, and
+Cancelled are terminal. The due-work index is `(Status, ScheduledForUtc)`; a
+separate `(TenantId, LeadId, Status)` index supports deterministic cancellation.
+
+LR-0204 persists durable workflow intent without executing it. The booking use
+case and its PostgreSQL adapter use one scoped DbContext save to persist the
+booked Lead and cancel only that lead's Pending actions. Running or terminal
+actions are not rewritten, and no Hangfire or provider call occurs in this
+issue.
 
 ### ExternalEventReceipt
 
@@ -1320,19 +1364,25 @@ immutable. This entity is never exposed through tenant browser APIs.
 
 - `Id`
 - `TenantId` nullable
-- `Provider`
-- `EventType`
-- `ExternalEventId`
-- `PayloadHash`
+- `Provider` maximum 50 characters
+- `EventType` maximum 100 characters
+- `ExternalEventId` maximum 200 characters
+- `PayloadHash` maximum 128 characters
 - `ReceivedAtUtc`
 - `ProcessedAtUtc` nullable
-- `ProcessingResult`
+- `ProcessingResult` nullable, maximum 500 characters
 
 Unique: `(Provider, EventType, ExternalEventId)`.
 
 `ExternalEventId` is an opaque adapter-generated value. Provider adapters must
 distinguish legitimate status progressions from duplicate delivery; a provider
 SID by itself is not necessarily sufficient.
+
+LR-0204 permits unresolved receipts to be saved without a request tenant
+context. A non-empty TenantId may be assigned once after resolution and cannot
+then be cleared or changed. Processing may be recorded once at or after receipt.
+The ledger has no tenant query filter and is not exposed through browser APIs;
+later integration handlers must authorize its system-level access explicitly.
 
 ### AiAnalysis
 
@@ -1438,6 +1488,12 @@ Examples:
 - `SuppressedOptOut` prevents all non-essential automated SMS.
 - `Closed` and `ClosedWon` are terminal for LR-0201. Reopening is deferred until
   an application use case can require and persist an audit event.
+- Message delivery states follow the LR-0203 policy: only queued outbound
+  messages can be sent or suppressed; sent messages can be delivered; queued or
+  sent messages can fail; final and inbound-received states cannot transition.
+- Scheduled actions follow the LR-0204 transition graph; only Pending actions
+  can start or cancel, only Running actions can retry, complete, or fail, and
+  terminal states cannot transition.
 
 ## 5. Tenant isolation
 
@@ -2198,6 +2254,20 @@ missing or mismatched tenant authority, and PostgreSQL enforces canonical-phone
 uniqueness within each tenant. Equivalent guards must be added for each later
 tenant-owned mapping under LR-0102.
 
+LR-0203 extends the same controls to Lead, Conversation, and Message. Compound
+tenant foreign keys reject cross-tenant relationships, client idempotency keys
+are unique only within their tenant, and provider message identity is unique in
+provider scope. Message bodies are never included in informational logs by this
+slice.
+
+LR-0204 extends tenant filters, write guards, compound Lead ownership, and
+tenant-scoped idempotency to ScheduledAction. ExternalEventReceipt is a
+system-level integration ledger instead: it may be written before tenant
+resolution, is never exposed through tenant browser APIs, and permits TenantId
+to move only from null to one resolved non-empty value. PostgreSQL uniqueness on
+the full opaque provider-event identity prevents exact replay without
+collapsing legitimate provider status progressions.
+
 ## 6. Webhook security
 
 - validate Twilio signatures;
@@ -2364,6 +2434,10 @@ Focus on:
 - cooldown rules;
 - opt-out detection;
 - phone normalization;
+- conversation closure and message delivery-state transitions;
+- message body limits and identifier invariants;
+- scheduled-action transition matrix, retry timing, and terminal states;
+- external-receipt tenant assignment and processing invariants;
 - template rendering;
 - AI-result validation;
 - authorization policies;
@@ -2391,6 +2465,9 @@ Test:
 - tenant filters;
 - transactions;
 - unique/idempotency constraints;
+- compound tenant foreign keys and tenant-owned write guards;
+- scheduled-action tenant filtering, due/idempotency indexes, booking
+  cancellation, and external-receipt identity/tenant immutability;
 - Hangfire persistence where practical;
 - authentication and cookies;
 - API endpoints;
@@ -3497,8 +3574,8 @@ Codex should implement one issue at a time. Each issue must meet its acceptance 
 
 For LR-0201, every pre-booking active status may route to `NeedsHuman` or
 `Closed`; closure requires a documented reason. `Closed` and `ClosedWon` remain
-terminal until a later audited reopening use case is implemented. Durable
-scheduled-action cancellation is connected when LR-0204 adds that persistence.
+terminal until a later audited reopening use case is implemented. LR-0204 now
+connects durable scheduled-action cancellation behind the booking use case.
 
 ### LR-0202 Customer and phone normalization
 
@@ -3524,6 +3601,15 @@ tenant-owned Milestone 1 entities.
 - delivery-state transitions validated;
 - message body length policy enforced.
 
+LR-0203 persists Lead as the required parent plus tenant-owned Conversation and
+Message records. Inbound messages start `Received`; outbound messages follow
+`Queued -> Sent -> Delivered`, may fail while queued or sent, and may be
+suppressed while queued. Final states are terminal. The database enforces global
+provider identity within a provider and tenant-scoped client idempotency, while
+the domain enforces a 1,600-character body ceiling. No Twilio calls, webhook
+handlers, Hangfire execution, authentication, or feature API endpoints are part
+of this issue.
+
 ### LR-0204 Scheduled action and external receipt persistence
 
 **Acceptance:**
@@ -3536,6 +3622,16 @@ tenant-owned Milestone 1 entities.
 - legitimate provider status progressions are not collapsed as duplicates;
 - mappings, migrations, and PostgreSQL integration tests are included;
 - no Twilio calls, Hangfire execution, or other external side effects are added.
+
+LR-0204 stores tenant-owned ScheduledAction intent with explicit state
+transitions, tenant-key uniqueness, due and cancellation indexes, and compound
+Lead ownership. Booking now persists the Lead transition and cancels only its
+Pending actions through one scoped EF transaction. ExternalEventReceipt is a
+system ledger with a unique opaque `(Provider, EventType, ExternalEventId)` key;
+TenantId is nullable until resolved and immutable afterward. Unit tests cover
+the transition and receipt policies, and PostgreSQL tests cover migration,
+tenant denial, uniqueness, status progression, and durable cancellation. This
+issue does not dispatch scheduled work or call an external provider.
 
 ## Epic E3 - Twilio calls
 
@@ -4194,6 +4290,8 @@ updated in the same change so they remain aligned.
 | [0006](0006-lead-lifecycle-and-webhook-identity.md) | Lead lifecycle and webhook identity | Accepted |
 | [0007](0007-tenant-context-and-concurrency.md) | Tenant context and concurrency | Accepted |
 | [0008](0008-customer-phone-normalization.md) | Customer phone normalization and identity | Accepted |
+| [0009](0009-conversation-and-message-lifecycle.md) | Conversation and message lifecycle | Accepted |
+| [0010](0010-scheduled-actions-and-external-receipts.md) | Scheduled actions and external receipts | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -4555,6 +4653,117 @@ national-format input. Numbering-plan behavior follows the pinned metadata and
 requires normal dependency updates over time. LR-0102 remains open to extend
 the same tenant query/write protections to the other tenant-owned entities as
 their persistence is implemented.
+
+---
+
+<!-- SOURCE: docs/decisions/0009-conversation-and-message-lifecycle.md -->
+
+# ADR-0009: Conversation and message lifecycle
+
+- Status: Accepted
+- Date: 2026-07-14
+
+## Context
+
+LR-0203 requires inbound and outbound persistence, delivery-state validation,
+provider and client idempotency constraints, and a body-length policy. The
+earlier specification listed fields and statuses but did not define the exact
+transition graph or length. Conversation and Message also require a persisted
+Lead parent so PostgreSQL can enforce tenant-safe relationships.
+
+## Decision
+
+Conversations start `Open`, may transition once to `Closed`, and do not reopen
+without a future explicit audited use case.
+
+Inbound messages start and remain `Received`. Outbound messages start `Queued`.
+The allowed outbound transitions are `Queued -> Sent -> Delivered`,
+`Queued/Sent -> Failed`, and `Queued -> Suppressed`. `Received`, `Delivered`,
+`Failed`, and `Suppressed` are terminal. Future callback handlers make repeated
+events idempotent by comparing the persisted state and event identity before
+invoking a transition; the aggregate rejects impossible regressions.
+
+Every message has a required opaque `ClientIdempotencyKey`, unique within its
+tenant. An inbound adapter derives this server-side; browser or webhook fields
+never select tenant authority. `(Provider, ProviderMessageSid)` is globally
+unique when the SID is present because the provider defines that identity
+scope. Provider SIDs remain nullable for outbound messages until accepted by a
+provider.
+
+Message bodies preserve their exact content, reject whitespace-only values, and
+are limited to 1,600 UTF-16 code units as a conservative application check for
+the supported 1,600-character ceiling on incoming and outgoing Twilio
+Programmable Messaging bodies. Shorter product copy remains preferable, and
+provider encoding may impose additional segment costs.
+
+LR-0203 adds Lead EF persistence as the minimum required parent for Conversation
+and Message. Lead, Conversation, and Message use server-derived tenant query and
+write guards. PostgreSQL uses compound tenant foreign keys so a child cannot be
+linked to a parent from another tenant. This issue does not introduce provider
+calls, webhook handlers, feature API endpoints, authentication, or background
+execution.
+
+## Consequences
+
+Delivery state cannot regress silently, duplicate client actions cannot create
+multiple messages within a tenant, and provider callbacks cannot attach one
+provider identity to multiple records. The model is ready for later Twilio and
+worker use cases without performing external side effects in Milestone 1.
+
+---
+
+<!-- SOURCE: docs/decisions/0010-scheduled-actions-and-external-receipts.md -->
+
+# ADR-0010: Scheduled actions and external receipts
+
+- Status: Accepted
+- Date: 2026-07-14
+
+## Context
+
+LR-0204 requires durable scheduled work, validated execution state, cancellation
+when a lead is booked, and provider-event deduplication. Earlier documentation
+did not define the exact action transition graph, retry accounting, transaction
+boundary for booking cancellation, or how a receipt can exist before its tenant
+is known.
+
+## Decision
+
+`ScheduledAction` is tenant-owned durable application intent. It begins
+`Pending`. The allowed transitions are `Pending -> Running`,
+`Pending -> Cancelled`, `Running -> Completed`, `Running -> Failed`, and
+`Running -> Pending` for a retry whose new due time is not before the retry
+decision. Starting increments `AttemptCount`; Completed, Failed, and Cancelled
+are terminal. `(TenantId, IdempotencyKey)` is unique, compound tenant foreign
+keys protect Lead ownership, and indexes support due-work selection and
+lead-specific cancellation.
+
+The LR-0201 booking port is implemented by a PostgreSQL adapter that uses the
+same scoped EF DbContext as the tracked Lead. Its single save persists the
+Booked transition and cancels only Pending actions for that tenant and lead.
+Running and terminal actions remain unchanged. LR-0204 does not lease, dispatch,
+or execute scheduled work and does not call Hangfire or any provider.
+
+`ExternalEventReceipt` is a system integration ledger, not an ordinary
+tenant-browser entity. It may be inserted with no TenantId before routing is
+known. A non-empty TenantId may be assigned once and is immutable thereafter.
+The ledger therefore has no tenant query filter and must not be exposed through
+tenant browser APIs.
+
+Receipt identity is the unique opaque tuple
+`(Provider, EventType, ExternalEventId)`. An adapter-generated ExternalEventId
+must distinguish legitimate provider status progressions; a provider object SID
+alone is not necessarily an event identity. Processing may be recorded once,
+at or after the receipt timestamp.
+
+## Consequences
+
+Booked leads and pending follow-ups cannot diverge because they are persisted
+through one database transaction. Scheduled work has deterministic state and
+idempotency before execution infrastructure is introduced. Exact provider-event
+replays are rejected while legitimate progression remains representable.
+System-ledger access requires explicit integration authorization in later
+handlers because tenant query filtering is intentionally inapplicable.
 
 ---
 

@@ -73,6 +73,20 @@ missing or mismatched tenant authority, and PostgreSQL enforces canonical-phone
 uniqueness within each tenant. Equivalent guards must be added for each later
 tenant-owned mapping under LR-0102.
 
+LR-0203 extends the same controls to Lead, Conversation, and Message. Compound
+tenant foreign keys reject cross-tenant relationships, client idempotency keys
+are unique only within their tenant, and provider message identity is unique in
+provider scope. Message bodies are never included in informational logs by this
+slice.
+
+LR-0204 extends tenant filters, write guards, compound Lead ownership, and
+tenant-scoped idempotency to ScheduledAction. ExternalEventReceipt is a
+system-level integration ledger instead: it may be written before tenant
+resolution, is never exposed through tenant browser APIs, and permits TenantId
+to move only from null to one resolved non-empty value. PostgreSQL uniqueness on
+the full opaque provider-event identity prevents exact replay without
+collapsing legitimate provider status progressions.
+
 ## 6. Webhook security
 
 - validate Twilio signatures;

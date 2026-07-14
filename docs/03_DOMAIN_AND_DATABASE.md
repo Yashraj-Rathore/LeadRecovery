@@ -81,8 +81,9 @@ Tenant membership should be explicit through `TenantUser` if platform users may 
 - audit timestamps
 
 LR-0201 implements this aggregate and its lifecycle policy in the domain layer.
-EF mapping, query filters, and persistence for Lead remain part of later
-Milestone 1 persistence issues.
+LR-0203 adds Lead persistence as the required tenant-owned parent for
+Conversation and Message. Lead uses the same server-derived tenant read/write
+guards as those child records and an application-managed concurrency version.
 
 Indexes:
 
@@ -113,8 +114,9 @@ LR-0202 implements Customer persistence and a creation use case that derives
 normalization interface; Infrastructure implements it with
 `libphonenumber-csharp` and stores only canonical E.164 values. Customer reads
 use an EF tenant query filter, and writes reject missing or mismatched tenant
-context. LR-0102 remains responsible for applying equivalent isolation controls
-to the other tenant-owned Milestone 1 entities as they are persisted.
+context. LR-0203 and LR-0204 apply equivalent persistence controls to the other
+tenant-owned Milestone 1 entities. LR-0102 still owns endpoint-level proof that
+browser input cannot override server-derived TenantId when feature APIs arrive.
 
 ### CallEvent
 
@@ -143,7 +145,10 @@ Unique: `(Provider, ProviderCallSid, Status, ReceivedAtUtc bucket)` or a provide
 - `Channel` - Sms
 - `Status` - Open, Closed
 - `CreatedAtUtc`
-- `ClosedAtUtc`
+- `ClosedAtUtc` nullable
+
+Conversations start `Open`, may transition once to `Closed`, and cannot reopen
+without a future explicit audited use case.
 
 ### Message
 
@@ -153,13 +158,13 @@ Unique: `(Provider, ProviderCallSid, Status, ReceivedAtUtc bucket)` or a provide
 - `ConversationId`
 - `Direction` - Inbound, Outbound
 - `Kind` - Automated, Manual, System
-- `Provider`
-- `ProviderMessageSid` nullable until sent
-- `ClientIdempotencyKey`
-- `Body`
+- `Provider` maximum 50 characters
+- `ProviderMessageSid` nullable until sent, maximum 100 characters
+- `ClientIdempotencyKey` required, maximum 200 characters
+- `Body` required, maximum 1,600 characters
 - `Status` - Queued, Sent, Delivered, Failed, Received, Suppressed
-- `FailureCode` nullable
-- `FailureDescription` nullable
+- `FailureCode` nullable, maximum 100 characters
+- `FailureDescription` nullable, maximum 500 characters
 - `SentByUserId` nullable
 - `TemplateId` nullable
 - `CreatedAtUtc`
@@ -167,6 +172,21 @@ Unique: `(Provider, ProviderCallSid, Status, ReceivedAtUtc bucket)` or a provide
 - `DeliveredAtUtc` nullable
 
 Unique: `(Provider, ProviderMessageSid)` when not null; `(TenantId, ClientIdempotencyKey)`.
+
+Inbound messages begin in terminal `Received`. Outbound messages begin
+`Queued`; allowed transitions are `Queued -> Sent -> Delivered`,
+`Queued/Sent -> Failed`, and `Queued -> Suppressed`. `Delivered`, `Failed`, and
+`Suppressed` are terminal. A client idempotency key is required for every
+message; inbound adapters derive an opaque server-controlled key rather than
+trusting tenant or provider input as authority. Message bodies preserve their
+content but reject empty input and content longer than the provider-supported
+1,600-character ceiling.
+
+LR-0203 persists inbound and outbound records without calling a provider. Lead,
+Conversation, and Message reads are tenant-filtered; their writes reject missing
+or mismatched tenant context; and compound foreign keys prevent cross-tenant
+relationships. Provider calls and idempotent callback handlers remain in later
+Twilio and worker issues.
 
 ### MessageTemplate
 
@@ -203,16 +223,29 @@ MVP can use configuration rather than a general visual workflow engine.
 - `Id`
 - `TenantId`
 - `LeadId`
-- `ActionType`
+- `ActionType` maximum 100 characters
 - `ScheduledForUtc`
 - `Status` - Pending, Running, Completed, Cancelled, Failed
 - `AttemptCount`
-- `IdempotencyKey`
-- `PayloadJson`
-- `LastError`
+- `IdempotencyKey` maximum 200 characters
+- `PayloadJson` required JSON object, maximum 16,384 characters
+- `LastError` nullable, maximum 1,000 characters
 - audit timestamps
 
 Unique: `(TenantId, IdempotencyKey)`.
+
+Actions start `Pending`. Allowed transitions are `Pending -> Running`,
+`Pending -> Cancelled`, `Running -> Completed`, `Running -> Failed`, and
+`Running -> Pending` for a retry with a new due time at or after the retry
+decision. Starting an attempt increments `AttemptCount`. Completed, Failed, and
+Cancelled are terminal. The due-work index is `(Status, ScheduledForUtc)`; a
+separate `(TenantId, LeadId, Status)` index supports deterministic cancellation.
+
+LR-0204 persists durable workflow intent without executing it. The booking use
+case and its PostgreSQL adapter use one scoped DbContext save to persist the
+booked Lead and cancel only that lead's Pending actions. Running or terminal
+actions are not rewritten, and no Hangfire or provider call occurs in this
+issue.
 
 ### ExternalEventReceipt
 
@@ -223,19 +256,25 @@ immutable. This entity is never exposed through tenant browser APIs.
 
 - `Id`
 - `TenantId` nullable
-- `Provider`
-- `EventType`
-- `ExternalEventId`
-- `PayloadHash`
+- `Provider` maximum 50 characters
+- `EventType` maximum 100 characters
+- `ExternalEventId` maximum 200 characters
+- `PayloadHash` maximum 128 characters
 - `ReceivedAtUtc`
 - `ProcessedAtUtc` nullable
-- `ProcessingResult`
+- `ProcessingResult` nullable, maximum 500 characters
 
 Unique: `(Provider, EventType, ExternalEventId)`.
 
 `ExternalEventId` is an opaque adapter-generated value. Provider adapters must
 distinguish legitimate status progressions from duplicate delivery; a provider
 SID by itself is not necessarily sufficient.
+
+LR-0204 permits unresolved receipts to be saved without a request tenant
+context. A non-empty TenantId may be assigned once after resolution and cannot
+then be cleared or changed. Processing may be recorded once at or after receipt.
+The ledger has no tenant query filter and is not exposed through browser APIs;
+later integration handlers must authorize its system-level access explicitly.
 
 ### AiAnalysis
 
@@ -341,6 +380,12 @@ Examples:
 - `SuppressedOptOut` prevents all non-essential automated SMS.
 - `Closed` and `ClosedWon` are terminal for LR-0201. Reopening is deferred until
   an application use case can require and persist an audit event.
+- Message delivery states follow the LR-0203 policy: only queued outbound
+  messages can be sent or suppressed; sent messages can be delivered; queued or
+  sent messages can fail; final and inbound-received states cannot transition.
+- Scheduled actions follow the LR-0204 transition graph; only Pending actions
+  can start or cancel, only Running actions can retry, complete, or fail, and
+  terminal states cannot transition.
 
 ## 5. Tenant isolation
 

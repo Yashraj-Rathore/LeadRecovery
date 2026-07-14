@@ -44,19 +44,19 @@ create table leads (
     id uuid primary key,
     tenant_id uuid not null references tenants(id),
     customer_id uuid null,
-    primary_phone_e164 text not null,
-    display_name text null,
-    source text not null,
-    status text not null,
-    urgency text not null,
+    primary_phone_e164 varchar(32) not null,
+    display_name varchar(200) null,
+    source varchar(32) not null,
+    status varchar(32) not null,
+    urgency varchar(32) not null,
     service_category_id uuid null,
     assigned_user_id uuid null,
-    automation_state text not null,
+    automation_state varchar(32) not null,
     last_customer_activity_at_utc timestamptz null,
     last_business_activity_at_utc timestamptz null,
     booked_at_utc timestamptz null,
     closed_at_utc timestamptz null,
-    close_reason text null,
+    close_reason varchar(32) null,
     version bigint not null default 0,
     created_at_utc timestamptz not null,
     updated_at_utc timestamptz not null,
@@ -68,39 +68,47 @@ create index ix_leads_tenant_status_created
     on leads(tenant_id, status, created_at_utc desc);
 create index ix_leads_tenant_phone_created
     on leads(tenant_id, primary_phone_e164, created_at_utc desc);
+create index ix_leads_tenant_assigned_status
+    on leads(tenant_id, assigned_user_id, status);
+create index ix_leads_tenant_urgency_status
+    on leads(tenant_id, urgency, status);
 
 create table conversations (
     id uuid primary key,
     tenant_id uuid not null references tenants(id),
     lead_id uuid not null,
-    channel text not null,
-    status text not null,
+    channel varchar(16) not null,
+    status varchar(16) not null,
     created_at_utc timestamptz not null,
     closed_at_utc timestamptz null,
     unique(tenant_id, id),
     foreign key (tenant_id, lead_id) references leads(tenant_id, id)
 );
 
+create index ix_conversations_tenant_lead_created
+    on conversations(tenant_id, lead_id, created_at_utc desc);
+
 create table messages (
     id uuid primary key,
     tenant_id uuid not null references tenants(id),
     lead_id uuid not null,
     conversation_id uuid not null,
-    direction text not null,
-    kind text not null,
-    provider text not null,
-    provider_message_sid text null,
-    client_idempotency_key text not null,
-    body text not null,
-    status text not null,
-    failure_code text null,
-    failure_description text null,
+    direction varchar(16) not null,
+    kind varchar(16) not null,
+    provider varchar(50) not null,
+    provider_message_sid varchar(100) null,
+    client_idempotency_key varchar(200) not null,
+    body varchar(1600) not null,
+    status varchar(16) not null,
+    failure_code varchar(100) null,
+    failure_description varchar(500) null,
     sent_by_user_id uuid null,
     template_id uuid null,
     created_at_utc timestamptz not null,
     sent_at_utc timestamptz null,
     delivered_at_utc timestamptz null,
     unique(tenant_id, client_idempotency_key),
+    unique(tenant_id, id),
     foreign key (tenant_id, lead_id) references leads(tenant_id, id),
     foreign key (tenant_id, conversation_id) references conversations(tenant_id, id)
 );
@@ -109,38 +117,49 @@ create unique index ux_messages_provider_sid
     on messages(provider, provider_message_sid)
     where provider_message_sid is not null;
 
+create index ix_messages_tenant_conversation_created
+    on messages(tenant_id, conversation_id, created_at_utc);
+
 create table external_event_receipts (
     id uuid primary key,
     tenant_id uuid null references tenants(id),
-    provider text not null,
-    event_type text not null,
-    external_event_id text not null,
-    payload_hash text not null,
+    provider varchar(50) not null,
+    event_type varchar(100) not null,
+    external_event_id varchar(200) not null,
+    payload_hash varchar(128) not null,
     received_at_utc timestamptz not null,
     processed_at_utc timestamptz null,
-    processing_result text null,
+    processing_result varchar(500) null,
     unique(provider, event_type, external_event_id)
 );
+
+create index ix_external_event_receipts_received_at
+    on external_event_receipts(received_at_utc);
 
 create table scheduled_actions (
     id uuid primary key,
     tenant_id uuid not null references tenants(id),
     lead_id uuid not null,
-    action_type text not null,
+    action_type varchar(100) not null,
     scheduled_for_utc timestamptz not null,
-    status text not null,
-    attempt_count integer not null default 0,
-    idempotency_key text not null,
+    status varchar(16) not null
+        check (status in ('Pending', 'Running', 'Completed', 'Cancelled', 'Failed')),
+    attempt_count integer not null default 0 check (attempt_count >= 0),
+    idempotency_key varchar(200) not null,
     payload_json jsonb not null,
-    last_error text null,
+    last_error varchar(1000) null,
     created_at_utc timestamptz not null,
     updated_at_utc timestamptz not null,
     unique(tenant_id, idempotency_key),
+    unique(tenant_id, id),
     foreign key (tenant_id, lead_id) references leads(tenant_id, id)
 );
 
 create index ix_scheduled_actions_due
     on scheduled_actions(status, scheduled_for_utc);
+
+create index ix_scheduled_actions_tenant_lead_status
+    on scheduled_actions(tenant_id, lead_id, status);
 
 create table audit_events (
     id uuid primary key,

@@ -1,6 +1,8 @@
+using LeadRecovery.Domain.Common;
+
 namespace LeadRecovery.Domain.Customers;
 
-public sealed class Customer
+public sealed class Customer : ITenantOwnedEntity
 {
     private Customer()
     {

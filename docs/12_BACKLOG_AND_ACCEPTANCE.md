@@ -86,8 +86,8 @@ Codex should implement one issue at a time. Each issue must meet its acceptance 
 
 For LR-0201, every pre-booking active status may route to `NeedsHuman` or
 `Closed`; closure requires a documented reason. `Closed` and `ClosedWon` remain
-terminal until a later audited reopening use case is implemented. Durable
-scheduled-action cancellation is connected when LR-0204 adds that persistence.
+terminal until a later audited reopening use case is implemented. LR-0204 now
+connects durable scheduled-action cancellation behind the booking use case.
 
 ### LR-0202 Customer and phone normalization
 
@@ -113,6 +113,15 @@ tenant-owned Milestone 1 entities.
 - delivery-state transitions validated;
 - message body length policy enforced.
 
+LR-0203 persists Lead as the required parent plus tenant-owned Conversation and
+Message records. Inbound messages start `Received`; outbound messages follow
+`Queued -> Sent -> Delivered`, may fail while queued or sent, and may be
+suppressed while queued. Final states are terminal. The database enforces global
+provider identity within a provider and tenant-scoped client idempotency, while
+the domain enforces a 1,600-character body ceiling. No Twilio calls, webhook
+handlers, Hangfire execution, authentication, or feature API endpoints are part
+of this issue.
+
 ### LR-0204 Scheduled action and external receipt persistence
 
 **Acceptance:**
@@ -125,6 +134,16 @@ tenant-owned Milestone 1 entities.
 - legitimate provider status progressions are not collapsed as duplicates;
 - mappings, migrations, and PostgreSQL integration tests are included;
 - no Twilio calls, Hangfire execution, or other external side effects are added.
+
+LR-0204 stores tenant-owned ScheduledAction intent with explicit state
+transitions, tenant-key uniqueness, due and cancellation indexes, and compound
+Lead ownership. Booking now persists the Lead transition and cancels only its
+Pending actions through one scoped EF transaction. ExternalEventReceipt is a
+system ledger with a unique opaque `(Provider, EventType, ExternalEventId)` key;
+TenantId is nullable until resolved and immutable afterward. Unit tests cover
+the transition and receipt policies, and PostgreSQL tests cover migration,
+tenant denial, uniqueness, status progression, and durable cancellation. This
+issue does not dispatch scheduled work or call an external provider.
 
 ## Epic E3 - Twilio calls
 

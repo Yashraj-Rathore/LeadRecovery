@@ -16,14 +16,17 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestone 0 is complete, and LR-0101, LR-0201, and LR-0202 are implemented. The repository
+Milestone 0 is complete, and LR-0101 plus LR-0201 through LR-0204 are
+implemented. The repository
 contains the modular-monolith solution, API and worker hosts, a persisted Tenant
-aggregate, server-derived tenant context, initial EF Core migration, the Lead
-aggregate and lifecycle policy, a persisted tenant-isolated Customer aggregate,
-canonical phone normalization, project-boundary tests, PostgreSQL orchestration,
-and backend CI quality gates. It deliberately does not yet contain Lead
-persistence, the remaining Milestone 1 entities, authentication, Twilio
-integration, Hangfire jobs, or a Next.js application.
+aggregate, server-derived tenant context, EF Core migrations, the Lead
+aggregate and lifecycle policy, tenant-isolated Customer, Lead, Conversation,
+Message, and ScheduledAction persistence, the system-level external-event
+receipt ledger, canonical phone normalization, deterministic message and action
+state rules, project-boundary tests, PostgreSQL orchestration, and backend CI
+quality gates. It deliberately does not yet contain feature API endpoints,
+authentication, Twilio integration, Hangfire execution, or a Next.js
+application.
 
 The API exposes only the foundation health contract:
 

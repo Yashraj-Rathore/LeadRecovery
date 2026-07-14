@@ -222,7 +222,9 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0005: API contract and optimistic concurrency;
 - ADR-0006: lead lifecycle, close reasons, and webhook event identity;
 - ADR-0007: tenant context and tenant configuration concurrency;
-- ADR-0008: customer phone normalization and tenant-scoped identity.
+- ADR-0008: customer phone normalization and tenant-scoped identity;
+- ADR-0009: conversation and message lifecycle, identity, and limits;
+- ADR-0010: scheduled actions, durable cancellation, and external receipts.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -349,6 +351,12 @@ use case can require and persist its audit event.
   side effect.
 - External sends are at-least-once attempts; idempotency keys prevent duplicate business effects.
 - Do not assume exactly-once delivery from Twilio, Kubernetes, or job runners.
+
+LR-0204 implements the durable `ScheduledAction` record and the
+`ExternalEventReceipt` system ledger without dispatching work or calling a
+provider. Booking uses the same scoped EF context to persist the Lead transition
+and cancel only its pending actions in one transaction. Hangfire notification,
+reconciliation, leasing, and external execution remain later issues.
 
 ## 13. Caching
 
