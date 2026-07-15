@@ -126,6 +126,14 @@ Exit criteria:
 - STOP cancels actions;
 - worker restart does not duplicate send.
 
+Implementation status (2026-07-15): complete for LR-0401 through LR-0405.
+PostgreSQL-backed Hangfire execution, deterministic fake and explicitly gated
+Twilio providers, approved-template sending, execution-time eligibility,
+signed inbound/status callbacks, STOP-family suppression, delivery-state
+mapping, stale-running recovery, audits, metrics, and duplicate-safe
+PostgreSQL integration coverage are implemented. The dashboard UI that renders
+the durable inbound activity remains Milestone 5.
+
 ### Milestone 5 - Operational dashboard (Week 5)
 
 Deliverables:

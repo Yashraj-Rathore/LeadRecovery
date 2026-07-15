@@ -16,6 +16,8 @@
     <ProjectReference Include="..\..\src\LeadRecovery.Infrastructure\LeadRecovery.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\LeadRecovery.Application\LeadRecovery.Application.csproj" />
     <ProjectReference Include="..\..\src\LeadRecovery.Contracts\LeadRecovery.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\LeadRecovery.Worker\LeadRecovery.Worker.csproj"
+                      Aliases="WorkerAssembly" />
   </ItemGroup>
 
   <ItemGroup>

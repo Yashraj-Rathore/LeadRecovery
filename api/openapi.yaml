@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: LeadRecovery API
-  version: 1.0.0-milestone.3
-  description: Implemented Milestone 3 browser, lead-read, and Twilio call-status ingestion contract.
+  version: 1.0.0-milestone.4
+  description: Implemented Milestone 4 browser, lead-read, Twilio webhook, and SMS workflow contract.
 servers:
   - url: https://app.example.com/api/v1
 paths:
@@ -40,6 +40,84 @@ paths:
       responses:
         '204':
           description: Callback durably processed or safely acknowledged.
+        '400':
+          description: Signed callback form is malformed.
+        '403':
+          description: Signature is missing or invalid.
+        '503':
+          description: Auth token or canonical webhook URL is not configured.
+  /webhooks/twilio/sms/inbound:
+    post:
+      tags: [Twilio webhooks]
+      summary: Accept a signed inbound SMS callback
+      security: []
+      parameters:
+        - in: header
+          name: X-Twilio-Signature
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [MessageSid, From, To, Body]
+              properties:
+                MessageSid:
+                  type: string
+                  pattern: '^(SM|MM)[0-9A-Fa-f]{32}$'
+                From:
+                  type: string
+                To:
+                  type: string
+                Body:
+                  type: string
+                  minLength: 1
+                  maxLength: 1600
+      responses:
+        '204':
+          description: Message persisted once or safely acknowledged; opt-out is applied atomically.
+        '400':
+          description: Signed callback form is malformed.
+        '403':
+          description: Signature is missing or invalid.
+        '503':
+          description: Auth token or canonical webhook URL is not configured.
+  /webhooks/twilio/sms/status:
+    post:
+      tags: [Twilio webhooks]
+      summary: Accept a signed outbound SMS delivery callback
+      security: []
+      parameters:
+        - in: header
+          name: X-Twilio-Signature
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [MessageSid, MessageStatus]
+              properties:
+                MessageSid:
+                  type: string
+                  pattern: '^(SM|MM)[0-9A-Fa-f]{32}$'
+                MessageStatus:
+                  type: string
+                  maxLength: 50
+                ErrorCode:
+                  type: string
+                  maxLength: 50
+      responses:
+        '204':
+          description: Delivery progression updated idempotently or safely acknowledged.
         '400':
           description: Signed callback form is malformed.
         '403':

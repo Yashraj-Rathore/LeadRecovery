@@ -46,7 +46,13 @@ The currently implemented browser and health contract is:
 - `GET /api/v1/leads` and `GET /api/v1/leads/{leadId}` return only leads owned
   by the authenticated session tenant;
 - `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
-  form callbacks and records recovery intent without sending SMS.
+  form callbacks and records recovery intent;
+- `POST /api/v1/webhooks/twilio/sms/inbound` and
+  `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
+  inbound activity once, apply opt-out suppression, and update delivery state;
+- the worker executes due recovery actions through PostgreSQL-backed Hangfire,
+  using the deterministic fake SMS provider unless real delivery is explicitly
+  enabled.
 
 ## Pinned foundation versions
 
@@ -59,7 +65,9 @@ The currently implemented browser and health contract is:
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
-| Twilio .NET SDK | 7.14.9 | Call-status request-signature validation only |
+| Twilio .NET SDK | 7.14.9 | Webhook signature validation and gated outbound adapter |
+| Hangfire ASP.NET Core | 1.8.23 | Worker server and retry policy |
+| Hangfire PostgreSQL | 1.21.1 | Durable background-job storage |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.17.0 | Frontend and Playwright runtime |
@@ -116,16 +124,26 @@ The browser uses the Next.js `/api` rewrite so the session and antiforgery
 cookies remain same-origin. Do not expose the API under a separate browser
 origin or let the client supply `TenantId`.
 
-To exercise the Twilio call-status endpoint, set `TWILIO_AUTH_TOKEN` and the
+To exercise the Twilio webhook endpoints, set `TWILIO_AUTH_TOKEN` and the
 exact public application base in `TWILIO_WEBHOOK_BASE_URL`. The latter is used
 to reconstruct the signed public URL behind a trusted proxy. Leave both unset
-when the webhook is not enabled; the endpoint then fails closed with `503`.
-This milestone never sends a live SMS.
+when the webhooks are not enabled; the endpoints then fail closed with `503`.
+
+The worker is safe by default: `SMS_PROVIDER=fake` produces a deterministic
+provider SID without network access. A live Twilio request is possible only
+when `SMS_PROVIDER=twilio` and `ALLOW_REAL_SMS=true` are both set and the
+Twilio account SID/auth token are present. Keep the fake defaults for automated
+tests and local workflow development.
 
 With the API running, check `http://localhost:8080/health/live` and
-`http://localhost:8080/health/ready`. Start the empty worker host separately
-with `dotnet run --project src/LeadRecovery.Worker` when process wiring needs to
-be checked.
+`http://localhost:8080/health/ready`. Start the worker separately after setting
+the same database connection and webhook base URL:
+
+```powershell
+$env:SMS_PROVIDER = 'fake'
+$env:ALLOW_REAL_SMS = 'false'
+dotnet run --project src/LeadRecovery.Worker
+```
 
 Stop local services without deleting data:
 
@@ -863,6 +881,13 @@ scope, while Infrastructure commits the receipt, lead, pending scheduled
 action, and audit event in one serializable PostgreSQL transaction. No outbound
 provider call or background execution occurs in the API request.
 
+Milestone 4 keeps that API/worker separation. The Worker polls durable due
+actions, enqueues only opaque identifiers into PostgreSQL-backed Hangfire, and
+executes provider calls after a second eligibility transaction. Signed inbound
+and status webhooks remain in the API and commit receipts plus business state
+before returning. The default sender is an in-process fake; live Twilio access
+requires two explicit configuration gates.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -1382,8 +1407,15 @@ Twilio and worker issues.
 - `CreatedByUserId`
 - `ApprovedByUserId` nullable
 - `CreatedAtUtc`
+- `ApprovedAtUtc` nullable
 
 Templates are immutable after approval; edits create a new version.
+
+LR-0402 persists this aggregate with tenant read/write guards, a compound
+tenant identity used by Message, and a filtered unique index that permits only
+one active template per `(TenantId, Purpose)`. Activation is rejected until the
+template is approved. Initial recovery execution requires the active approved
+`InitialMissedCallRecovery` purpose and stores its ID on the outbound Message.
 
 ### WorkflowDefinition
 
@@ -1782,7 +1814,7 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 - `POST /api/v1/webhooks/twilio/sms/inbound`
 - `POST /api/v1/webhooks/twilio/sms/status`
 
-Milestone 3 implements only
+Milestone 3 implements
 `POST /api/v1/webhooks/twilio/call-status`. It accepts
 `application/x-www-form-urlencoded` callbacks containing `CallSid`,
 `CallStatus`, `From`, and `To` (with `Caller`/`Called` compatibility). A valid
@@ -1791,6 +1823,14 @@ non-recoverable, cooldown, and inactive-tenant outcomes are also acknowledged
 with `204`. Malformed signed input returns `400`, an invalid or missing
 signature returns `403`, and missing validator/canonical-URL configuration
 returns `503`.
+
+Milestone 4 implements `POST /api/v1/webhooks/twilio/sms/inbound` and
+`POST /api/v1/webhooks/twilio/sms/status` with the same signature and canonical
+URL rules. Inbound events require `MessageSid`, `From`, `To`, and a non-empty
+body of at most 1,600 characters. Delivery events require `MessageSid` and
+`MessageStatus`, with optional `ErrorCode`. Accepted, duplicate, unknown, and
+non-actionable signed callbacks return `204`; malformed, unsigned, and
+unconfigured outcomes remain `400`, `403`, and `503` respectively.
 
 ### 8.2 Required controls
 
@@ -1828,9 +1868,22 @@ Example only; tenant must approve final copy:
 
 Normalize and detect provider-supported opt-out words. Set customer and lead suppression state immediately. Cancel pending SMS jobs. Record audit event.
 
+The implemented STOP family is `STOP`, `STOPALL`, `UNSUBSCRIBE`, `CANCEL`,
+`END`, and `QUIT`, matched case-insensitively after trimming. The inbound
+message, customer opt-out, lead suppression, pending-action cancellation,
+receipt, and redacted dashboard audit activity commit atomically.
+
 ### 8.6 Delivery callbacks
 
 Update message state for queued, sent, delivered, undelivered, or failed. Permanent failures are not retried blindly.
+
+The worker persists a queued message before the provider call and re-checks the
+tenant, phone route, lead state, customer opt-out, and approved active template
+inside a serializable transaction. Transient provider/network failures return
+the action to Pending and are retried by Hangfire; provider rejections are
+terminal and visible on the Message. Duplicate jobs reuse the tenant-scoped
+message idempotency key. An expired Running lease is returned to Pending after
+five minutes so a worker restart does not strand work.
 
 ## 9. Booking integration
 
@@ -2440,6 +2493,12 @@ signatures, raw form values, and unmasked phone numbers are also excluded from
 application logs and audit JSON. The public endpoint fails closed when either
 the auth token or canonical URL is absent.
 
+Milestone 4 applies the same validation-before-persistence rule to inbound SMS
+and delivery callbacks. Message bodies are stored as required product data but
+never included in structured logs or audit JSON. A live outbound provider is
+disabled unless both the explicit provider selection and `ALLOW_REAL_SMS`
+safety gate are enabled; automated tests always use the in-process fake.
+
 ## 7. Input and output security
 
 - server-side validation for all requests;
@@ -2651,6 +2710,15 @@ policy normalization, lead activity updates, use-case scheduling, cooldown,
 audit, metrics, and duplicate short-circuiting. No test uses a live provider or
 sends SMS.
 
+LR-0401 through LR-0405 add unit coverage for template approval, customer
+opt-out, provider payload coordination, and transient retry signaling. The
+PostgreSQL suite independently signs inbound and delivery forms and verifies
+approved-template sending, duplicate-job suppression, STOP cancellation and
+future-send blocking, permanent delivery failure visibility, callback
+idempotency, and invalid-signature rejection. One integration test starts a
+real Hangfire server with PostgreSQL storage and proves the queued worker job
+reaches Completed. Every automated path uses the deterministic fake sender.
+
 ### Contract tests
 
 - Twilio form payload fixtures;
@@ -2697,6 +2765,21 @@ Docker is unavailable may point
 `LEADRECOVERY_TEST_DATABASE_CONNECTION_STRING` at a fresh disposable PostgreSQL
 database; the fixture still applies migrations and runs the identical suite.
 Never point this override at a shared or persistent database.
+
+Safe Milestone 4 local validation keeps real delivery disabled:
+
+```powershell
+$env:SMS_PROVIDER = 'fake'
+$env:ALLOW_REAL_SMS = 'false'
+dotnet test tests/LeadRecovery.Domain.Tests --no-build
+dotnet test tests/LeadRecovery.Application.Tests --no-build
+dotnet test tests/LeadRecovery.ArchitectureTests --no-build
+dotnet test tests/LeadRecovery.IntegrationTests --no-build
+```
+
+The integration project may use its default disposable Testcontainer or the
+documented fresh `LEADRECOVERY_TEST_DATABASE_CONNECTION_STRING` override. It
+must never run against a shared or persistent database.
 
 ### CI
 
@@ -3211,6 +3294,13 @@ Do not log full message content by default.
 
 Business metrics must be tenant-scoped and access-controlled.
 
+Milestone 4 emits fixed-cardinality counters from the
+`LeadRecovery.Messaging.Sms` meter for outbound, inbound, and delivery outcomes.
+Worker logs carry TenantId, ScheduledActionId, CorrelationId, and outcome in a
+structured scope; they exclude phone numbers and message bodies. Durable audit
+events provide the tenant dashboard activity source until the Milestone 5 live
+timeline transport is added.
+
 ## 5. Alerts
 
 Initial alerts:
@@ -3458,6 +3548,14 @@ Exit criteria:
 - reply appears in database/UI;
 - STOP cancels actions;
 - worker restart does not duplicate send.
+
+Implementation status (2026-07-15): complete for LR-0401 through LR-0405.
+PostgreSQL-backed Hangfire execution, deterministic fake and explicitly gated
+Twilio providers, approved-template sending, execution-time eligibility,
+signed inbound/status callbacks, STOP-family suppression, delivery-state
+mapping, stale-running recovery, audits, metrics, and duplicate-safe
+PostgreSQL integration coverage are implemented. The dashboard UI that renders
+the durable inbound activity remains Milestone 5.
 
 ### Milestone 5 - Operational dashboard (Week 5)
 
@@ -3939,6 +4037,15 @@ execution is included.
 - permanent failure visible;
 - no blind retry on invalid/unsubscribed number;
 - metrics emitted.
+
+Implementation note (2026-07-15): LR-0401 through LR-0405 are complete.
+Hangfire 1.8.23 uses PostgreSQL storage through Hangfire.PostgreSql 1.21.1 in
+the Worker process. Sends use an approved active tenant template, persist before
+the provider call, re-check eligibility, and are duplicate-safe. Signed inbound
+SMS and delivery callbacks use opaque receipts; STOP-family input suppresses
+the customer/lead and cancels pending recovery work atomically. Provider
+failures are classified before retry, outcomes are audited and metered, and a
+real Hangfire PostgreSQL integration test proves worker execution.
 
 ## Epic E5 - Dashboard
 
@@ -4526,6 +4633,7 @@ updated in the same change so they remain aligned.
 | [0010](0010-scheduled-actions-and-external-receipts.md) | Scheduled actions and external receipts | Accepted |
 | [0011](0011-identity-membership-and-browser-session.md) | Identity, tenant membership, and browser session | Accepted |
 | [0012](0012-twilio-call-status-ingestion.md) | Twilio call-status ingestion and recovery routing | Accepted |
+| [0013](0013-sms-worker-and-webhook-lifecycle.md) | SMS worker and webhook lifecycle | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -5126,6 +5234,75 @@ tenant resolution, while LR-0302 says unknown numbers must not create data.
 
 ---
 
+<!-- SOURCE: docs/decisions/0013-sms-worker-and-webhook-lifecycle.md -->
+
+# ADR-0013: SMS worker and webhook lifecycle
+
+- Status: Accepted
+- Date: 2026-07-15
+- Owners: LeadRecovery engineering
+
+## Context
+
+Milestone 4 must turn durable scheduled intent into an outbound SMS, ingest
+customer replies and provider delivery state, honor opt-out immediately, and
+remain safe under duplicate webhooks, job retries, and worker restarts. It must
+also make local and automated execution incapable of accidentally sending a
+real message.
+
+## Decision
+
+1. Run Hangfire servers only in `LeadRecovery.Worker`, with Hangfire 1.8.23 and
+   Hangfire.PostgreSql 1.21.1 sharing the application PostgreSQL instance in a
+   separate `hangfire` schema. API webhooks persist work but never host workers.
+2. Dispatch only `SendInitialRecoverySms` actions. The job payload contains the
+   server-derived tenant ID, action ID, and correlation ID; it contains no phone
+   number or message body.
+3. Lock the ScheduledAction in a serializable transaction, re-check tenant,
+   route, lead, automation, booking, opt-out, and template eligibility, then
+   persist the Customer association, open SMS Conversation, queued Message, and
+   Running action before calling the provider.
+4. Use `scheduled-action:{ActionId}` as the tenant-scoped message idempotency
+   key. Duplicate job executions observe terminal action/message state and do
+   not call the provider again. Work left Running for five minutes is returned
+   to Pending for restart recovery.
+5. Treat network, timeout, 429, and provider 5xx failures as transient. Return
+   the action to Pending and let Hangfire retry after 30, 120, and 300 seconds.
+   Treat other provider rejections as permanent, fail the Message and action,
+   and do not create a blind retry from delivery callbacks.
+6. Use a deterministic in-process fake sender by default. The Twilio sender is
+   constructed only when `SMS_PROVIDER=twilio`, `ALLOW_REAL_SMS=true`, and both
+   account credentials are configured.
+7. Require an approved active `InitialMissedCallRecovery` template. Template
+   body/version are immutable; one active template per tenant/purpose is
+   enforced by PostgreSQL.
+8. Validate inbound and delivery callback signatures against the configured
+   canonical public URL before parsing business fields. Derive opaque receipt
+   identities from Message SID for inbound and from Message SID, normalized
+   status, and error code for delivery progression.
+9. Recognize trimmed, case-insensitive `STOP`, `STOPALL`, `UNSUBSCRIBE`,
+   `CANCEL`, `END`, and `QUIT`. Persist the inbound message, customer opt-out,
+   lead suppression, pending-action cancellation, receipt, and redacted audit
+   in one serializable transaction.
+10. Emit structured worker logs and fixed-cardinality SMS outcome counters;
+    never log phone numbers, credentials, signatures, or message bodies.
+
+## Consequences
+
+- The workflow is at-least-once. Database idempotency prevents normal duplicate
+  execution, but a process crash after Twilio accepts a request and before the
+  database records the SID remains the narrow external side-effect window.
+  Operators reconcile that case using provider logs and the action correlation
+  ID rather than automatically sending again without review.
+- A worker restart cannot strand an action indefinitely, and permanent provider
+  failures remain visible for staff follow-up.
+- Inbound dashboard activity is durable in Message and AuditEvent records; the
+  Milestone 5 UI/live notification transport may consume those records without
+  changing webhook semantics.
+- Operators must configure the two independent live-send gates deliberately.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -5155,6 +5332,8 @@ Implement LR-0301, LR-0302, and LR-0303. Use a provider adapter and fixtures. Va
 ## Prompt 5 - Worker and SMS
 
 Implement LR-0401 through LR-0405. Use Hangfire with PostgreSQL storage, a fake adapter for automated tests, and a real adapter behind configuration. Include opt-out and duplicate-job tests. Provide a safe local test procedure.
+
+Implementation status (2026-07-15): complete. Continue with Prompt 6.
 
 ## Prompt 6 - Dashboard operations
 

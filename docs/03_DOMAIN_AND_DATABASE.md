@@ -222,8 +222,15 @@ Twilio and worker issues.
 - `CreatedByUserId`
 - `ApprovedByUserId` nullable
 - `CreatedAtUtc`
+- `ApprovedAtUtc` nullable
 
 Templates are immutable after approval; edits create a new version.
+
+LR-0402 persists this aggregate with tenant read/write guards, a compound
+tenant identity used by Message, and a filtered unique index that permits only
+one active template per `(TenantId, Purpose)`. Activation is rejected until the
+template is approved. Initial recovery execution requires the active approved
+`InitialMissedCallRecovery` purpose and stores its ID on the outbound Message.
 
 ### WorkflowDefinition
 

@@ -155,7 +155,7 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 - `POST /api/v1/webhooks/twilio/sms/inbound`
 - `POST /api/v1/webhooks/twilio/sms/status`
 
-Milestone 3 implements only
+Milestone 3 implements
 `POST /api/v1/webhooks/twilio/call-status`. It accepts
 `application/x-www-form-urlencoded` callbacks containing `CallSid`,
 `CallStatus`, `From`, and `To` (with `Caller`/`Called` compatibility). A valid
@@ -164,6 +164,14 @@ non-recoverable, cooldown, and inactive-tenant outcomes are also acknowledged
 with `204`. Malformed signed input returns `400`, an invalid or missing
 signature returns `403`, and missing validator/canonical-URL configuration
 returns `503`.
+
+Milestone 4 implements `POST /api/v1/webhooks/twilio/sms/inbound` and
+`POST /api/v1/webhooks/twilio/sms/status` with the same signature and canonical
+URL rules. Inbound events require `MessageSid`, `From`, `To`, and a non-empty
+body of at most 1,600 characters. Delivery events require `MessageSid` and
+`MessageStatus`, with optional `ErrorCode`. Accepted, duplicate, unknown, and
+non-actionable signed callbacks return `204`; malformed, unsigned, and
+unconfigured outcomes remain `400`, `403`, and `503` respectively.
 
 ### 8.2 Required controls
 
@@ -201,9 +209,22 @@ Example only; tenant must approve final copy:
 
 Normalize and detect provider-supported opt-out words. Set customer and lead suppression state immediately. Cancel pending SMS jobs. Record audit event.
 
+The implemented STOP family is `STOP`, `STOPALL`, `UNSUBSCRIBE`, `CANCEL`,
+`END`, and `QUIT`, matched case-insensitively after trimming. The inbound
+message, customer opt-out, lead suppression, pending-action cancellation,
+receipt, and redacted dashboard audit activity commit atomically.
+
 ### 8.6 Delivery callbacks
 
 Update message state for queued, sent, delivered, undelivered, or failed. Permanent failures are not retried blindly.
+
+The worker persists a queued message before the provider call and re-checks the
+tenant, phone route, lead state, customer opt-out, and approved active template
+inside a serializable transaction. Transient provider/network failures return
+the action to Pending and are retried by Hangfire; provider rejections are
+terminal and visible on the Message. Duplicate jobs reuse the tenant-scoped
+message idempotency key. An expired Running lease is returned to Pending after
+five minutes so a worker restart does not strand work.
 
 ## 9. Booking integration
 

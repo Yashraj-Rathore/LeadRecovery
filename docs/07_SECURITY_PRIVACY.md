@@ -132,6 +132,12 @@ signatures, raw form values, and unmasked phone numbers are also excluded from
 application logs and audit JSON. The public endpoint fails closed when either
 the auth token or canonical URL is absent.
 
+Milestone 4 applies the same validation-before-persistence rule to inbound SMS
+and delivery callbacks. Message bodies are stored as required product data but
+never included in structured logs or audit JSON. A live outbound provider is
+disabled unless both the explicit provider selection and `ALLOW_REAL_SMS`
+safety gate are enabled; automated tests always use the in-process fake.
+
 ## 7. Input and output security
 
 - server-side validation for all requests;

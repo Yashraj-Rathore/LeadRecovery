@@ -39,7 +39,13 @@ The currently implemented browser and health contract is:
 - `GET /api/v1/leads` and `GET /api/v1/leads/{leadId}` return only leads owned
   by the authenticated session tenant;
 - `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
-  form callbacks and records recovery intent without sending SMS.
+  form callbacks and records recovery intent;
+- `POST /api/v1/webhooks/twilio/sms/inbound` and
+  `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
+  inbound activity once, apply opt-out suppression, and update delivery state;
+- the worker executes due recovery actions through PostgreSQL-backed Hangfire,
+  using the deterministic fake SMS provider unless real delivery is explicitly
+  enabled.
 
 ## Pinned foundation versions
 
@@ -52,7 +58,9 @@ The currently implemented browser and health contract is:
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
-| Twilio .NET SDK | 7.14.9 | Call-status request-signature validation only |
+| Twilio .NET SDK | 7.14.9 | Webhook signature validation and gated outbound adapter |
+| Hangfire ASP.NET Core | 1.8.23 | Worker server and retry policy |
+| Hangfire PostgreSQL | 1.21.1 | Durable background-job storage |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.17.0 | Frontend and Playwright runtime |
@@ -109,16 +117,26 @@ The browser uses the Next.js `/api` rewrite so the session and antiforgery
 cookies remain same-origin. Do not expose the API under a separate browser
 origin or let the client supply `TenantId`.
 
-To exercise the Twilio call-status endpoint, set `TWILIO_AUTH_TOKEN` and the
+To exercise the Twilio webhook endpoints, set `TWILIO_AUTH_TOKEN` and the
 exact public application base in `TWILIO_WEBHOOK_BASE_URL`. The latter is used
 to reconstruct the signed public URL behind a trusted proxy. Leave both unset
-when the webhook is not enabled; the endpoint then fails closed with `503`.
-This milestone never sends a live SMS.
+when the webhooks are not enabled; the endpoints then fail closed with `503`.
+
+The worker is safe by default: `SMS_PROVIDER=fake` produces a deterministic
+provider SID without network access. A live Twilio request is possible only
+when `SMS_PROVIDER=twilio` and `ALLOW_REAL_SMS=true` are both set and the
+Twilio account SID/auth token are present. Keep the fake defaults for automated
+tests and local workflow development.
 
 With the API running, check `http://localhost:8080/health/live` and
-`http://localhost:8080/health/ready`. Start the empty worker host separately
-with `dotnet run --project src/LeadRecovery.Worker` when process wiring needs to
-be checked.
+`http://localhost:8080/health/ready`. Start the worker separately after setting
+the same database connection and webhook base URL:
+
+```powershell
+$env:SMS_PROVIDER = 'fake'
+$env:ALLOW_REAL_SMS = 'false'
+dotnet run --project src/LeadRecovery.Worker
+```
 
 Stop local services without deleting data:
 

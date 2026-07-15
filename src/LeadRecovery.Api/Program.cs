@@ -38,6 +38,7 @@ builder.Services.AddSingleton(new TwilioWebhookOptions(
     builder.Configuration["TWILIO_WEBHOOK_BASE_URL"],
     builder.Environment.IsDevelopment()));
 builder.Services.AddScoped<TwilioCallStatusRequestAdapter>();
+builder.Services.AddScoped<TwilioSmsRequestAdapter>();
 builder.Services.AddScoped<SignInManager<ApplicationUser>>();
 builder.Services.AddScoped<AuthenticationSessionService>();
 builder.Services.AddScoped<DemoDataSeeder>();

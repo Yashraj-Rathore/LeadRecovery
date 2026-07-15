@@ -159,6 +159,26 @@ create table conversations (
 create index ix_conversations_tenant_lead_created
     on conversations(tenant_id, lead_id, created_at_utc desc);
 
+create table message_templates (
+    id uuid primary key,
+    tenant_id uuid not null references tenants(id),
+    name varchar(120) not null,
+    purpose varchar(80) not null,
+    body varchar(1600) not null,
+    version integer not null,
+    is_approved boolean not null,
+    is_active boolean not null,
+    created_by_user_id uuid not null,
+    approved_by_user_id uuid null,
+    created_at_utc timestamptz not null,
+    approved_at_utc timestamptz null,
+    unique(tenant_id, id)
+);
+
+create unique index ux_message_templates_tenant_purpose_active
+    on message_templates(tenant_id, purpose)
+    where is_active;
+
 create table messages (
     id uuid primary key,
     tenant_id uuid not null references tenants(id),
@@ -181,7 +201,8 @@ create table messages (
     unique(tenant_id, client_idempotency_key),
     unique(tenant_id, id),
     foreign key (tenant_id, lead_id) references leads(tenant_id, id),
-    foreign key (tenant_id, conversation_id) references conversations(tenant_id, id)
+    foreign key (tenant_id, conversation_id) references conversations(tenant_id, id),
+    foreign key (tenant_id, template_id) references message_templates(tenant_id, id)
 );
 
 create unique index ux_messages_provider_sid

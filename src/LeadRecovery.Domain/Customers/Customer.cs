@@ -56,6 +56,19 @@ public sealed class Customer : ITenantOwnedEntity
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
+    public void OptOut(DateTimeOffset optedOutAtUtc)
+    {
+        DateTimeOffset utcTimestamp = RequireUtc(optedOutAtUtc, nameof(optedOutAtUtc));
+        if (utcTimestamp < CreatedAtUtc)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(optedOutAtUtc),
+                "The opt-out timestamp cannot precede customer creation.");
+        }
+
+        OptedOutAtUtc ??= utcTimestamp;
+    }
+
     private static Guid RequireId(Guid value, string parameterName)
     {
         if (value == Guid.Empty)

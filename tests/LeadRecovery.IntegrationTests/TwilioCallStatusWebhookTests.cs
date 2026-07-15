@@ -177,6 +177,7 @@ public sealed class TwilioCallStatusWebhookTests(LeadRecoveryApiFixture fixture)
             1,
             await dbContext.ExternalEventReceipts.CountAsync(
                 receipt => receipt.TenantId == null &&
+                    receipt.EventType == "CallStatus" &&
                     receipt.ProcessingResult ==
                         CallStatusProcessingOutcome.IgnoredUnknownNumber.ToString(),
                 TestContext.Current.CancellationToken));

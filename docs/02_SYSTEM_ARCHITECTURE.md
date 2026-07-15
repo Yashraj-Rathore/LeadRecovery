@@ -116,6 +116,13 @@ scope, while Infrastructure commits the receipt, lead, pending scheduled
 action, and audit event in one serializable PostgreSQL transaction. No outbound
 provider call or background execution occurs in the API request.
 
+Milestone 4 keeps that API/worker separation. The Worker polls durable due
+actions, enqueues only opaque identifiers into PostgreSQL-backed Hangfire, and
+executes provider calls after a second eligibility transaction. Signed inbound
+and status webhooks remain in the API and commit receipts plus business state
+before returning. The default sender is an in-process fake; live Twilio access
+requires two explicit configuration gates.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:

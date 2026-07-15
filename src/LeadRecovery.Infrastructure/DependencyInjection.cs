@@ -1,12 +1,15 @@
 using LeadRecovery.Application.Customers;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Leads;
+using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.PhoneNumbers;
 using LeadRecovery.Infrastructure.Identity;
 using LeadRecovery.Infrastructure.Integrations.Twilio;
+using LeadRecovery.Infrastructure.Messaging;
 using LeadRecovery.Infrastructure.Persistence;
 using LeadRecovery.Infrastructure.Persistence.Automations;
 using LeadRecovery.Infrastructure.Persistence.Integrations;
+using LeadRecovery.Infrastructure.Persistence.Messaging;
 using LeadRecovery.Infrastructure.Persistence.Queries;
 using LeadRecovery.Infrastructure.Persistence.Repositories;
 using LeadRecovery.Infrastructure.PhoneNumbers;
@@ -50,6 +53,12 @@ public static class DependencyInjection
         services.AddScoped<ICallStatusPersistence, CallStatusPersistence>();
         services.AddSingleton<ICallStatusMetrics, CallStatusMetrics>();
         services.AddScoped<ProcessCallStatusWebhookUseCase>();
+        services.AddScoped<ISmsWorkflowPersistence, SmsWorkflowPersistence>();
+        services.TryAddSingleton<ISmsSender, FakeSmsSender>();
+        services.AddSingleton<ISmsMetrics, SmsMetrics>();
+        services.AddScoped<SendScheduledRecoverySmsUseCase>();
+        services.AddScoped<ProcessInboundSmsUseCase>();
+        services.AddScoped<ProcessDeliveryStatusUseCase>();
         services.AddScoped<CreateCustomerUseCase>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ILeadAutomationCancellation, ScheduledActionLeadAutomationCancellation>();
@@ -57,6 +66,26 @@ public static class DependencyInjection
         services.AddScoped<ILeadInboxQuery, LeadInboxQuery>();
         services.AddScoped<ListLeadsUseCase>();
         services.AddScoped<GetLeadUseCase>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddSmsProvider(
+        this IServiceCollection services,
+        SmsProviderOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        services.RemoveAll<ISmsSender>();
+        services.AddSingleton(options);
+        if (options.UseTwilio)
+        {
+            services.AddSingleton<ISmsSender, TwilioSmsSender>();
+        }
+        else
+        {
+            services.AddSingleton<ISmsSender, FakeSmsSender>();
+        }
 
         return services;
     }

@@ -245,6 +245,15 @@ execution is included.
 - no blind retry on invalid/unsubscribed number;
 - metrics emitted.
 
+Implementation note (2026-07-15): LR-0401 through LR-0405 are complete.
+Hangfire 1.8.23 uses PostgreSQL storage through Hangfire.PostgreSql 1.21.1 in
+the Worker process. Sends use an approved active tenant template, persist before
+the provider call, re-check eligibility, and are duplicate-safe. Signed inbound
+SMS and delivery callbacks use opaque receipts; STOP-family input suppresses
+the customer/lead and cancels pending recovery work atomically. Provider
+failures are classified before retry, outcomes are audited and metered, and a
+real Hangfire PostgreSQL integration test proves worker execution.
+
 ## Epic E5 - Dashboard
 
 ### LR-0501 Lead inbox

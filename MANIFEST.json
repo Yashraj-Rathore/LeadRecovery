@@ -5,19 +5,19 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  8305
+        "bytes":  10753
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  7928
+        "bytes":  9292
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  165730
+        "bytes":  175726
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  4013
+        "bytes":  4084
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "database/schema.sql",
-        "bytes":  8653
+        "bytes":  9356
     },
     {
         "path":  "diagrams/deployment.mmd",
@@ -41,15 +41,15 @@
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  12375
+        "bytes":  12809
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  15037
+        "bytes":  15455
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  9468
+        "bytes":  10797
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
@@ -61,11 +61,11 @@
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  9138
+        "bytes":  9521
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  7360
+        "bytes":  8548
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
@@ -73,15 +73,15 @@
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
-        "bytes":  4461
+        "bytes":  4863
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  8285
+        "bytes":  8782
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  13146
+        "bytes":  13753
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -140,16 +140,20 @@
         "bytes":  3549
     },
     {
+        "path":  "docs/decisions/0013-sms-worker-and-webhook-lifecycle.md",
+        "bytes":  3601
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  1711
+        "bytes":  1810
     },
     {
         "path":  "README.md",
-        "bytes":  10355
+        "bytes":  11242
     },
     {
         "path":  "templates/.env.example",
-        "bytes":  1446
+        "bytes":  1483
     },
     {
         "path":  "templates/appsettings.Development.example.json",

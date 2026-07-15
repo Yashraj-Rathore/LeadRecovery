@@ -26,6 +26,8 @@ Implement LR-0301, LR-0302, and LR-0303. Use a provider adapter and fixtures. Va
 
 Implement LR-0401 through LR-0405. Use Hangfire with PostgreSQL storage, a fake adapter for automated tests, and a real adapter behind configuration. Include opt-out and duplicate-job tests. Provide a safe local test procedure.
 
+Implementation status (2026-07-15): complete. Continue with Prompt 6.
+
 ## Prompt 6 - Dashboard operations
 
 Implement LR-0501 through LR-0505. Build lead inbox/detail, assignment, allowed transitions, manual messaging, pause/resume, pending actions, loading/error/concurrency states, and accessibility checks.

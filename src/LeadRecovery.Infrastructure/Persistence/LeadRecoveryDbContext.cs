@@ -37,6 +37,8 @@ public sealed class LeadRecoveryDbContext(
 
     public DbSet<Message> Messages => Set<Message>();
 
+    public DbSet<MessageTemplate> MessageTemplates => Set<MessageTemplate>();
+
     public DbSet<ScheduledAction> ScheduledActions => Set<ScheduledAction>();
 
     public DbSet<ExternalEventReceipt> ExternalEventReceipts =>
@@ -53,6 +55,7 @@ public sealed class LeadRecoveryDbContext(
         EnforceTenantOwnership<Lead>("lead");
         EnforceTenantOwnership<Conversation>("conversation");
         EnforceTenantOwnership<Message>("message");
+        EnforceTenantOwnership<MessageTemplate>("message template");
         EnforceTenantOwnership<ScheduledAction>("scheduled action");
         EnforceTenantOwnership<TenantMembership>("tenant membership");
         EnforceExternalEventReceiptTenantImmutability();
@@ -70,6 +73,7 @@ public sealed class LeadRecoveryDbContext(
         EnforceTenantOwnership<Lead>("lead");
         EnforceTenantOwnership<Conversation>("conversation");
         EnforceTenantOwnership<Message>("message");
+        EnforceTenantOwnership<MessageTemplate>("message template");
         EnforceTenantOwnership<ScheduledAction>("scheduled action");
         EnforceTenantOwnership<TenantMembership>("tenant membership");
         EnforceExternalEventReceiptTenantImmutability();
@@ -94,6 +98,8 @@ public sealed class LeadRecoveryDbContext(
             .HasQueryFilter(conversation => conversation.TenantId == ActiveTenantId);
         builder.Entity<Message>()
             .HasQueryFilter(message => message.TenantId == ActiveTenantId);
+        builder.Entity<MessageTemplate>()
+            .HasQueryFilter(template => template.TenantId == ActiveTenantId);
         builder.Entity<ScheduledAction>()
             .HasQueryFilter(action => action.TenantId == ActiveTenantId);
         builder.Entity<TenantMembership>()

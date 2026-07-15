@@ -100,6 +100,26 @@ All notable repository and product-specification changes are recorded here.
 - ADR-0012 documenting canonical request validation, provider-number recovery
   policy, unknown-number acknowledgement, event identity, transaction scope,
   and the no-live-send Milestone 3 boundary.
+- LR-0401 PostgreSQL-backed Hangfire worker execution with structured
+  correlation fields, bounded transient retries, duplicate-safe action/message
+  identity, and five-minute stale-running recovery.
+- LR-0402 approved active tenant message templates, execution-time eligibility
+  checks, durable queued messages, a deterministic fake sender, and a live
+  Twilio sender gated by `SMS_PROVIDER=twilio` plus `ALLOW_REAL_SMS=true`.
+- LR-0403 signed inbound SMS ingestion with idempotent receipts, customer/lead
+  association, durable conversation history, unknown-number policy, redacted
+  dashboard audit activity, and fixed-cardinality metrics.
+- LR-0404 STOP-family opt-out handling that atomically updates customer and lead
+  suppression, cancels pending recovery SMS actions, blocks future sends, and
+  records an audit event.
+- LR-0405 idempotent delivery callbacks that map sent, delivered, failed, and
+  undelivered states, expose permanent errors without blind retries, and emit
+  delivery metrics.
+- EF migration for tenant-scoped immutable message templates and their
+  compound relationship to Messages, plus a real Hangfire/PostgreSQL worker
+  integration test and end-to-end signed webhook coverage.
+- ADR-0013 documenting worker ownership, at-least-once provider execution,
+  provider safety gates, opt-out words, callback identity, and retry policy.
 
 ### Changed
 

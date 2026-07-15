@@ -66,6 +66,13 @@ Do not log full message content by default.
 
 Business metrics must be tenant-scoped and access-controlled.
 
+Milestone 4 emits fixed-cardinality counters from the
+`LeadRecovery.Messaging.Sms` meter for outbound, inbound, and delivery outcomes.
+Worker logs carry TenantId, ScheduledActionId, CorrelationId, and outcome in a
+structured scope; they exclude phone numbers and message bodies. Durable audit
+events provide the tenant dashboard activity source until the Milestone 5 live
+timeline transport is added.
+
 ## 5. Alerts
 
 Initial alerts:

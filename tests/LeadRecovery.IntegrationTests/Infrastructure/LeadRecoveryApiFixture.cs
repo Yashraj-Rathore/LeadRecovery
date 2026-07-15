@@ -17,6 +17,7 @@ public sealed class LeadRecoveryApiFixture : IAsyncLifetime
     private readonly PostgreSqlContainer? _database;
     private readonly string? _externalDatabaseConnectionString;
     private WebApplicationFactory<Program>? _application;
+    private string? _activeDatabaseConnectionString;
 
     public LeadRecoveryApiFixture()
     {
@@ -30,6 +31,10 @@ public sealed class LeadRecoveryApiFixture : IAsyncLifetime
 
     public WebApplicationFactory<Program> Application =>
         _application ?? throw new InvalidOperationException("The API fixture is not initialized.");
+
+    public string DatabaseConnectionString =>
+        _activeDatabaseConnectionString ?? throw new InvalidOperationException(
+            "The API fixture is not initialized.");
 
     public async ValueTask InitializeAsync()
     {
@@ -46,6 +51,8 @@ public sealed class LeadRecoveryApiFixture : IAsyncLifetime
             await _database.StartAsync(cancellationToken);
             connectionString = _database.GetConnectionString();
         }
+
+        _activeDatabaseConnectionString = connectionString;
 
         _application = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {

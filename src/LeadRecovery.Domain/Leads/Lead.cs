@@ -75,12 +75,46 @@ public sealed class Lead : ITenantOwnedEntity
     public void BeginContacting(DateTimeOffset changedAtUtc) =>
         TransitionTo(LeadStatus.Contacting, changedAtUtc);
 
+    public void AssociateCustomer(Guid customerId, DateTimeOffset changedAtUtc)
+    {
+        Guid requiredCustomerId = RequireId(customerId, nameof(customerId));
+        DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
+            changedAtUtc,
+            nameof(changedAtUtc));
+        if (CustomerId is not null && CustomerId != requiredCustomerId)
+        {
+            throw new InvalidOperationException(
+                "A lead cannot be reassigned to a different customer.");
+        }
+
+        CustomerId = requiredCustomerId;
+        UpdatedAtUtc = utcTimestamp;
+    }
+
     public void RecordCustomerActivity(DateTimeOffset activityAtUtc)
     {
         DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
             activityAtUtc,
             nameof(activityAtUtc));
         LastCustomerActivityAtUtc = utcTimestamp;
+        UpdatedAtUtc = utcTimestamp;
+    }
+
+    public void RecordBusinessActivity(DateTimeOffset activityAtUtc)
+    {
+        DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
+            activityAtUtc,
+            nameof(activityAtUtc));
+        LastBusinessActivityAtUtc = utcTimestamp;
+        UpdatedAtUtc = utcTimestamp;
+    }
+
+    public void SuppressForOptOut(DateTimeOffset changedAtUtc)
+    {
+        DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
+            changedAtUtc,
+            nameof(changedAtUtc));
+        AutomationState = AutomationState.SuppressedOptOut;
         UpdatedAtUtc = utcTimestamp;
     }
 

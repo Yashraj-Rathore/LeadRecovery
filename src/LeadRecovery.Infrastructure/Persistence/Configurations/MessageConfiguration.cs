@@ -129,6 +129,13 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
         builder.Property(message => message.TemplateId)
             .HasColumnName("template_id");
 
+        builder.HasOne<MessageTemplate>()
+            .WithMany()
+            .HasForeignKey(message => new { message.TenantId, message.TemplateId })
+            .HasPrincipalKey(template => new { template.TenantId, template.Id })
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("fk_messages_templates_tenant_id_template_id");
+
         builder.Property(message => message.CreatedAtUtc)
             .HasColumnName("created_at_utc")
             .IsRequired();

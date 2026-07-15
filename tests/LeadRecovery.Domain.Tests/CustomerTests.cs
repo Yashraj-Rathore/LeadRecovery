@@ -75,4 +75,19 @@ public sealed class CustomerTests
             "+14165550123",
             CreatedAtUtc.ToOffset(TimeSpan.FromHours(-4))));
     }
+
+    [Fact]
+    public void OptOutIsIdempotentAndPreservesFirstTimestamp()
+    {
+        Customer customer = new(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            "+14165550123",
+            CreatedAtUtc);
+
+        customer.OptOut(CreatedAtUtc.AddMinutes(1));
+        customer.OptOut(CreatedAtUtc.AddMinutes(2));
+
+        Assert.Equal(CreatedAtUtc.AddMinutes(1), customer.OptedOutAtUtc);
+    }
 }

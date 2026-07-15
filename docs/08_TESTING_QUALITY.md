@@ -72,6 +72,15 @@ policy normalization, lead activity updates, use-case scheduling, cooldown,
 audit, metrics, and duplicate short-circuiting. No test uses a live provider or
 sends SMS.
 
+LR-0401 through LR-0405 add unit coverage for template approval, customer
+opt-out, provider payload coordination, and transient retry signaling. The
+PostgreSQL suite independently signs inbound and delivery forms and verifies
+approved-template sending, duplicate-job suppression, STOP cancellation and
+future-send blocking, permanent delivery failure visibility, callback
+idempotency, and invalid-signature rejection. One integration test starts a
+real Hangfire server with PostgreSQL storage and proves the queued worker job
+reaches Completed. Every automated path uses the deterministic fake sender.
+
 ### Contract tests
 
 - Twilio form payload fixtures;
@@ -118,6 +127,21 @@ Docker is unavailable may point
 `LEADRECOVERY_TEST_DATABASE_CONNECTION_STRING` at a fresh disposable PostgreSQL
 database; the fixture still applies migrations and runs the identical suite.
 Never point this override at a shared or persistent database.
+
+Safe Milestone 4 local validation keeps real delivery disabled:
+
+```powershell
+$env:SMS_PROVIDER = 'fake'
+$env:ALLOW_REAL_SMS = 'false'
+dotnet test tests/LeadRecovery.Domain.Tests --no-build
+dotnet test tests/LeadRecovery.Application.Tests --no-build
+dotnet test tests/LeadRecovery.ArchitectureTests --no-build
+dotnet test tests/LeadRecovery.IntegrationTests --no-build
+```
+
+The integration project may use its default disposable Testcontainer or the
+documented fresh `LEADRECOVERY_TEST_DATABASE_CONNECTION_STRING` override. It
+must never run against a shared or persistent database.
 
 ### CI
 
