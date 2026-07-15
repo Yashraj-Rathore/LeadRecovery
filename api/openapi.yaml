@@ -1,11 +1,51 @@
 openapi: 3.1.0
 info:
   title: LeadRecovery API
-  version: 1.0.0-milestone.2
-  description: Implemented Milestone 2 browser authentication and read-only lead contract.
+  version: 1.0.0-milestone.3
+  description: Implemented Milestone 3 browser, lead-read, and Twilio call-status ingestion contract.
 servers:
   - url: https://app.example.com/api/v1
 paths:
+  /webhooks/twilio/call-status:
+    post:
+      tags: [Twilio webhooks]
+      summary: Accept an authenticated Twilio call-status callback
+      description: Persists recovery intent only; this endpoint does not send SMS.
+      security: []
+      parameters:
+        - in: header
+          name: X-Twilio-Signature
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [CallSid, CallStatus, From, To]
+              properties:
+                CallSid:
+                  type: string
+                  pattern: '^CA[0-9A-Fa-f]{32}$'
+                CallStatus:
+                  type: string
+                  maxLength: 50
+                From:
+                  type: string
+                To:
+                  type: string
+      responses:
+        '204':
+          description: Callback durably processed or safely acknowledged.
+        '400':
+          description: Signed callback form is malformed.
+        '403':
+          description: Signature is missing or invalid.
+        '503':
+          description: Auth token or canonical webhook URL is not configured.
   /auth/csrf:
     get:
       tags: [Authentication]

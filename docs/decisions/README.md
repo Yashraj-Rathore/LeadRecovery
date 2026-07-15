@@ -18,6 +18,7 @@ updated in the same change so they remain aligned.
 | [0009](0009-conversation-and-message-lifecycle.md) | Conversation and message lifecycle | Accepted |
 | [0010](0010-scheduled-actions-and-external-receipts.md) | Scheduled actions and external receipts | Accepted |
 | [0011](0011-identity-membership-and-browser-session.md) | Identity, tenant membership, and browser session | Accepted |
+| [0012](0012-twilio-call-status-ingestion.md) | Twilio call-status ingestion and recovery routing | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.

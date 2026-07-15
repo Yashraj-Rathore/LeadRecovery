@@ -51,6 +51,12 @@ public sealed class LeadRecoveryApiFixture : IAsyncLifetime
         {
             builder.UseSetting("ConnectionStrings:Database", connectionString);
             builder.UseSetting("RateLimiting:LoginPermitLimit", "100");
+            builder.UseSetting(
+                "TWILIO_AUTH_TOKEN",
+                "integration-test-twilio-auth-token");
+            builder.UseSetting(
+                "TWILIO_WEBHOOK_BASE_URL",
+                "https://webhooks.example.test");
         });
 
         await using AsyncServiceScope scope = _application.Services.CreateAsyncScope();

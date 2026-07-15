@@ -41,8 +41,15 @@ Maps a Twilio number or verified business number to a tenant.
 - `InboundSmsEnabled`
 - `MissedCallRecoveryEnabled`
 - `IsPrimary`
+- `RecoverableCallStatuses` non-empty normalized provider status set
+- `InitialDelaySeconds` from 0 through 3,600
+- `RecoveryCooldownSeconds` from 1 through 86,400
 
-Unique: `(Provider, ProviderNumberSid)` and `(TenantId, PhoneNumberE164)`.
+Unique: `(Provider, ProviderNumberSid)`, `(Provider, PhoneNumberE164)`, and
+`(TenantId, PhoneNumberE164)`. Global provider/phone uniqueness guarantees that
+one destination cannot route to multiple tenants. In Milestone 3 this entity is
+the narrow tenant-specific recovery-policy boundary; a later settings milestone
+may move timing and status configuration into a versioned workflow definition.
 
 ### User
 
@@ -330,6 +337,10 @@ Milestone 2 persists this append-oriented foundation and records successful
 login and logout events with correlation IDs. It is not exposed through tenant
 browser APIs. Redacted before/after JSON is available for later audited domain
 changes; secrets and session material are prohibited.
+
+Milestone 3 records redacted call-status outcomes and scheduled-recovery
+decisions. It never stores the Twilio auth token, request signature, raw form
+payload, or phone number in audit JSON.
 
 ### Notification
 

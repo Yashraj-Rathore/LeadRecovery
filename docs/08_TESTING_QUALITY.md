@@ -62,6 +62,16 @@ generic invalid/suspended login failure, `401` for anonymous access, Owner-only
 policy behavior, ignored tenant-header spoofing, and list/detail cross-tenant
 denial.
 
+LR-0301 through LR-0303 coverage uses an official-shaped Twilio form fixture,
+independently computes the provider signature, and signs the configured public
+URL while the test client uses its internal host. PostgreSQL integration tests
+verify valid recovery creation, invalid-signature `403` with no receipt,
+duplicate replay, cooldown, unknown-number acknowledgement without tenant
+business data, and suspended-tenant suppression. Unit tests cover tenant-phone
+policy normalization, lead activity updates, use-case scheduling, cooldown,
+audit, metrics, and duplicate short-circuiting. No test uses a live provider or
+sends SMS.
+
 ### Contract tests
 
 - Twilio form payload fixtures;

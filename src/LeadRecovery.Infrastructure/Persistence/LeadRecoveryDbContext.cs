@@ -27,6 +27,8 @@ public sealed class LeadRecoveryDbContext(
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
+    public DbSet<TenantPhoneNumber> TenantPhoneNumbers => Set<TenantPhoneNumber>();
+
     public DbSet<Customer> Customers => Set<Customer>();
 
     public DbSet<Lead> Leads => Set<Lead>();
@@ -47,6 +49,7 @@ public sealed class LeadRecoveryDbContext(
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         EnforceTenantOwnership<Customer>("customer");
+        EnforceTenantOwnership<TenantPhoneNumber>("tenant phone number");
         EnforceTenantOwnership<Lead>("lead");
         EnforceTenantOwnership<Conversation>("conversation");
         EnforceTenantOwnership<Message>("message");
@@ -63,6 +66,7 @@ public sealed class LeadRecoveryDbContext(
         CancellationToken cancellationToken = default)
     {
         EnforceTenantOwnership<Customer>("customer");
+        EnforceTenantOwnership<TenantPhoneNumber>("tenant phone number");
         EnforceTenantOwnership<Lead>("lead");
         EnforceTenantOwnership<Conversation>("conversation");
         EnforceTenantOwnership<Message>("message");
@@ -82,6 +86,8 @@ public sealed class LeadRecoveryDbContext(
         builder.ApplyConfigurationsFromAssembly(typeof(LeadRecoveryDbContext).Assembly);
         builder.Entity<Customer>()
             .HasQueryFilter(customer => customer.TenantId == ActiveTenantId);
+        builder.Entity<TenantPhoneNumber>()
+            .HasQueryFilter(number => number.TenantId == ActiveTenantId);
         builder.Entity<Lead>()
             .HasQueryFilter(lead => lead.TenantId == ActiveTenantId);
         builder.Entity<Conversation>()

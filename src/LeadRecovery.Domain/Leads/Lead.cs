@@ -75,6 +75,15 @@ public sealed class Lead : ITenantOwnedEntity
     public void BeginContacting(DateTimeOffset changedAtUtc) =>
         TransitionTo(LeadStatus.Contacting, changedAtUtc);
 
+    public void RecordCustomerActivity(DateTimeOffset activityAtUtc)
+    {
+        DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
+            activityAtUtc,
+            nameof(activityAtUtc));
+        LastCustomerActivityAtUtc = utcTimestamp;
+        UpdatedAtUtc = utcTimestamp;
+    }
+
     public void AwaitCustomer(DateTimeOffset changedAtUtc) =>
         TransitionTo(LeadStatus.AwaitingCustomer, changedAtUtc);
 

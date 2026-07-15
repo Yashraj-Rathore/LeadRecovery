@@ -23,15 +23,18 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 2 are complete. LR-0101 through LR-0103 and LR-0201
-through LR-0204 are implemented. In addition to the modular-monolith domain and
+Milestones 0 through 3 are complete. LR-0101 through LR-0103, LR-0201 through
+LR-0204, and LR-0301 through LR-0303 are implemented. In addition to the modular-monolith domain and
 PostgreSQL foundation, the repository now contains ASP.NET Core Identity users,
 tenant memberships and roles, audited same-origin cookie sessions, CSRF and
 login-rate-limit controls, tenant-scoped lead queries, opt-in fictional demo
 seeding, and a minimal Next.js login and lead-inbox shell. Integration and
 Playwright tests cover Owner/Staff login, logout invalidation, role policies,
-and cross-tenant denial. Twilio ingestion, Hangfire execution, outbound SMS,
-and the operational dashboard actions remain later milestones.
+and cross-tenant denial. Signed Twilio call-status callbacks now resolve a
+tenant-owned provider number, persist an idempotency receipt, create or update
+a lead, and schedule a pending initial-recovery action with cooldown, audit,
+and metrics. Hangfire execution, outbound SMS, inbound SMS, and the operational
+dashboard actions remain later milestones.
 
 The currently implemented browser and health contract is:
 
@@ -41,7 +44,9 @@ The currently implemented browser and health contract is:
   `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
   session;
 - `GET /api/v1/leads` and `GET /api/v1/leads/{leadId}` return only leads owned
-  by the authenticated session tenant.
+  by the authenticated session tenant;
+- `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
+  form callbacks and records recovery intent without sending SMS.
 
 ## Pinned foundation versions
 
@@ -54,6 +59,7 @@ The currently implemented browser and health contract is:
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
+| Twilio .NET SDK | 7.14.9 | Call-status request-signature validation only |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.17.0 | Frontend and Playwright runtime |
@@ -109,6 +115,12 @@ pnpm frontend:dev
 The browser uses the Next.js `/api` rewrite so the session and antiforgery
 cookies remain same-origin. Do not expose the API under a separate browser
 origin or let the client supply `TenantId`.
+
+To exercise the Twilio call-status endpoint, set `TWILIO_AUTH_TOKEN` and the
+exact public application base in `TWILIO_WEBHOOK_BASE_URL`. The latter is used
+to reconstruct the signed public URL behind a trusted proxy. Leave both unset
+when the webhook is not enabled; the endpoint then fails closed with `503`.
+This milestone never sends a live SMS.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the empty worker host separately
@@ -843,6 +855,14 @@ user, security stamp, membership, role, and tenant status on every request.
 Until tenant switching is designed, login succeeds only when exactly one
 Trial/Active membership is available; multiple active memberships fail closed.
 
+Milestone 3 maps the anonymous Twilio call-status endpoint through an API
+adapter into a provider-neutral application event. The adapter validates the
+signature against a configured canonical public URL before parsing business
+fields. The application then uses a trusted server-derived tenant execution
+scope, while Infrastructure commits the receipt, lead, pending scheduled
+action, and audit event in one serializable PostgreSQL transaction. No outbound
+provider call or background execution occurs in the API request.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -1181,8 +1201,15 @@ Maps a Twilio number or verified business number to a tenant.
 - `InboundSmsEnabled`
 - `MissedCallRecoveryEnabled`
 - `IsPrimary`
+- `RecoverableCallStatuses` non-empty normalized provider status set
+- `InitialDelaySeconds` from 0 through 3,600
+- `RecoveryCooldownSeconds` from 1 through 86,400
 
-Unique: `(Provider, ProviderNumberSid)` and `(TenantId, PhoneNumberE164)`.
+Unique: `(Provider, ProviderNumberSid)`, `(Provider, PhoneNumberE164)`, and
+`(TenantId, PhoneNumberE164)`. Global provider/phone uniqueness guarantees that
+one destination cannot route to multiple tenants. In Milestone 3 this entity is
+the narrow tenant-specific recovery-policy boundary; a later settings milestone
+may move timing and status configuration into a versioned workflow definition.
 
 ### User
 
@@ -1471,6 +1498,10 @@ login and logout events with correlation IDs. It is not exposed through tenant
 browser APIs. Redacted before/after JSON is available for later audited domain
 changes; secrets and session material are prohibited.
 
+Milestone 3 records redacted call-status outcomes and scheduled-recovery
+decisions. It never stores the Twilio auth token, request signature, raw form
+payload, or phone number in audit JSON.
+
 ### Notification
 
 - `Id`
@@ -1751,6 +1782,16 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 - `POST /api/v1/webhooks/twilio/sms/inbound`
 - `POST /api/v1/webhooks/twilio/sms/status`
 
+Milestone 3 implements only
+`POST /api/v1/webhooks/twilio/call-status`. It accepts
+`application/x-www-form-urlencoded` callbacks containing `CallSid`,
+`CallStatus`, `From`, and `To` (with `Caller`/`Called` compatibility). A valid
+callback returns `204` after durable processing; duplicate, unknown,
+non-recoverable, cooldown, and inactive-tenant outcomes are also acknowledged
+with `204`. Malformed signed input returns `400`, an invalid or missing
+signature returns `403`, and missing validator/canonical-URL configuration
+returns `503`.
+
 ### 8.2 Required controls
 
 - Validate Twilio signature against the exact public URL and form values.
@@ -1760,6 +1801,12 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 - Use provider SID plus event type for idempotency.
 - Never trust tenant ID from webhook form fields.
 - Resolve tenant through the called/messaged Twilio number.
+
+The implemented canonical URL is built from the operator-controlled
+`TWILIO_WEBHOOK_BASE_URL` plus the request path and query. Arbitrary forwarded
+headers are not trusted. The base must use HTTPS outside Development. Unknown
+destinations create only a system receipt and redacted audit event for replay
+control; they create no tenant lead or scheduled action.
 
 ### 8.3 Recoverable call statuses
 
@@ -1848,6 +1895,12 @@ Output must conform to the schema in `docs/06_AI_GUARDRAILS.md`.
 8. Commit.
 9. Return 200.
 10. Process external side effects asynchronously.
+
+For call-status callbacks, `ExternalEventId` is a SHA-256 identity over Call SID
+plus normalized status and `PayloadHash` covers deterministically ordered form
+fields. One serializable transaction contains receipt insertion, route outcome,
+lead update/creation, pending action, and audit. `SendInitialRecoverySms` remains
+durable intent until Milestone 4 adds worker execution.
 
 ## 13. Rate limiting
 
@@ -2379,6 +2432,14 @@ tests exercise cross-tenant denial in CI.
 - record correlation ID and provider SID;
 - do not log full payload by default.
 
+Milestone 3 uses the official pinned Twilio request validator and an
+operator-configured canonical base URL rather than trusting inbound forwarded
+headers. Validation happens before phone normalization or persistence. The auth
+token is held only by the validator instance and is never passed to logging;
+signatures, raw form values, and unmasked phone numbers are also excluded from
+application logs and audit JSON. The public endpoint fails closed when either
+the auth token or canonical URL is absent.
+
 ## 7. Input and output security
 
 - server-side validation for all requests;
@@ -2579,6 +2640,16 @@ CSRF for login/logout, immediate logout-cookie replay rejection, audit rows,
 generic invalid/suspended login failure, `401` for anonymous access, Owner-only
 policy behavior, ignored tenant-header spoofing, and list/detail cross-tenant
 denial.
+
+LR-0301 through LR-0303 coverage uses an official-shaped Twilio form fixture,
+independently computes the provider signature, and signs the configured public
+URL while the test client uses its internal host. PostgreSQL integration tests
+verify valid recovery creation, invalid-signature `403` with no receipt,
+duplicate replay, cooldown, unknown-number acknowledgement without tenant
+business data, and suspended-tenant suppression. Unit tests cover tenant-phone
+policy normalization, lead activity updates, use-case scheduling, cooldown,
+audit, metrics, and duplicate short-circuiting. No test uses a live provider or
+sends SMS.
 
 ### Contract tests
 
@@ -3361,6 +3432,13 @@ Exit criteria:
 - invalid signature rejected;
 - duplicate callback creates no duplicate.
 
+Implementation status (2026-07-15): complete for LR-0301 through LR-0303.
+The signed call-status adapter, canonical proxy URL handling, globally unique
+provider-number routing, tenant-specific recovery policy, serializable receipt
+and business transaction, cooldown, audit, metrics, migration, and fixture-led
+PostgreSQL tests are implemented. Pending actions are not executed and no live
+SMS is sent; those remain Milestone 4.
+
 ### Milestone 4 - SMS and background worker (Week 4)
 
 Deliverables:
@@ -3798,6 +3876,17 @@ issue does not dispatch scheduled work or call an external provider.
 - duplicate event has no duplicate effect;
 - cooldown prevents repeated texts;
 - audit and metrics emitted.
+
+Implementation status (2026-07-15): LR-0301, LR-0302, and LR-0303 are
+complete. Signature validation uses the pinned official Twilio SDK and a
+configured canonical public base URL. Provider destinations are globally unique
+and tenant-owned; Trial/Active tenants require both global and number-level
+automation enablement. Valid events are handled in one serializable transaction
+with opaque receipt identity, lead create/update, pending recovery action,
+redacted audit, and fixed-cardinality metrics. Duplicate, cooldown, unknown,
+non-recoverable, and suspended outcomes are safely acknowledged without a
+duplicate or prohibited business action. No outbound provider call or Hangfire
+execution is included.
 
 ## Epic E4 - SMS and jobs
 
@@ -4436,6 +4525,7 @@ updated in the same change so they remain aligned.
 | [0009](0009-conversation-and-message-lifecycle.md) | Conversation and message lifecycle | Accepted |
 | [0010](0010-scheduled-actions-and-external-receipts.md) | Scheduled actions and external receipts | Accepted |
 | [0011](0011-identity-membership-and-browser-session.md) | Identity, tenant membership, and browser session | Accepted |
+| [0012](0012-twilio-call-status-ingestion.md) | Twilio call-status ingestion and recovery routing | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -4966,6 +5056,73 @@ fine-grained support grants, password recovery, and persistent login require
 separate later designs. All browser mutations must continue using antiforgery
 validation, and every tenant endpoint must retain entity-level tenant scoping
 even when a role policy has already passed.
+
+---
+
+<!-- SOURCE: docs/decisions/0012-twilio-call-status-ingestion.md -->
+
+# ADR-0012: Twilio call-status ingestion and recovery routing
+
+- Status: Accepted
+- Date: 2026-07-15
+- Owners: LeadRecovery engineering
+
+## Context
+
+Milestone 3 needs to authenticate Twilio callbacks, resolve a tenant without
+trusting request-supplied tenant data, distinguish callback progression from
+duplicate delivery, and create durable recovery intent without sending SMS.
+The product documents also require tenant-configurable recoverable statuses,
+delay, and cooldown, but the general workflow-settings feature is not yet
+implemented. `ExternalEventReceipt` is intentionally allowed to exist before
+tenant resolution, while LR-0302 says unknown numbers must not create data.
+
+## Decision
+
+1. Add tenant-owned `TenantPhoneNumber` persistence as the narrow Milestone 3
+   routing and recovery-policy boundary. It stores the recoverable status set,
+   initial delay, and cooldown for the mapped number. A future settings feature
+   may move these values into a versioned workflow definition.
+2. Require global uniqueness for `(Provider, PhoneNumberE164)` as well as
+   provider SID and tenant-phone uniqueness. A destination can therefore map to
+   at most one tenant.
+3. Treat Trial and Active tenants as operational only when tenant automation and
+   number-level missed-call recovery are enabled. Suspended and Closed tenants
+   are acknowledged without creating leads or scheduled actions.
+4. Validate `X-Twilio-Signature` with the pinned official `Twilio` 7.14.9 SDK against a
+   canonical public URL built from `TWILIO_WEBHOOK_BASE_URL` plus the request
+   path/query. The configured base may include a trusted proxy path prefix. It
+   must use HTTPS outside Development. Missing validator configuration fails
+   closed with `503`; an invalid signature returns `403`.
+5. Derive the opaque event identity from the Call SID and normalized status, so
+   replay of one status is idempotent while legitimate status progression is
+   retained. The payload hash covers sorted form fields.
+6. Insert the receipt with `ON CONFLICT DO NOTHING`, resolve routing, update or
+   create the lead, create a `SendInitialRecoverySms` scheduled action, and add
+   a redacted audit event in one serializable PostgreSQL transaction. The
+   trusted server-derived tenant scope remains active through commit.
+7. A valid callback for an unknown destination creates only a system receipt
+   and redacted integration audit event, then returns `204`. “Without creating
+   data” in LR-0302 means no tenant business data: no lead or scheduled action.
+8. Emit fixed-cardinality `System.Diagnostics.Metrics` counters for validation
+   rejection and processing outcomes. Do not log the auth token, signature,
+   payload, or phone numbers.
+9. Milestone 3 persists pending recovery intent only. It does not execute
+   Hangfire work or call Twilio's outbound API.
+
+## Consequences
+
+- Callback validation remains correct behind a configured reverse proxy without
+  trusting arbitrary forwarded headers.
+- Database uniqueness and a serializable transaction close duplicate and
+  short-window cooldown races; a serialization failure is safe for provider
+  retry because the receipt and business writes roll back together.
+- Unknown valid callbacks leave a minimal system trace for replay control and
+  operations while creating no tenant lead/message/action.
+- Operators must configure both `TWILIO_AUTH_TOKEN` and
+  `TWILIO_WEBHOOK_BASE_URL` before enabling the webhook.
+- Outbound SMS, Hangfire execution, opt-out ingestion, and delivery callbacks
+  remain Milestone 4.
 
 ---
 

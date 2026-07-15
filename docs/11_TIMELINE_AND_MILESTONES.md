@@ -99,6 +99,13 @@ Exit criteria:
 - invalid signature rejected;
 - duplicate callback creates no duplicate.
 
+Implementation status (2026-07-15): complete for LR-0301 through LR-0303.
+The signed call-status adapter, canonical proxy URL handling, globally unique
+provider-number routing, tenant-specific recovery policy, serializable receipt
+and business transaction, cooldown, audit, metrics, migration, and fixture-led
+PostgreSQL tests are implemented. Pending actions are not executed and no live
+SMS is sent; those remain Milestone 4.
+
 ### Milestone 4 - SMS and background worker (Week 4)
 
 Deliverables:

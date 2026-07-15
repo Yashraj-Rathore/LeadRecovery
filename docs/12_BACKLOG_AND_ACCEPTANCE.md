@@ -182,6 +182,17 @@ issue does not dispatch scheduled work or call an external provider.
 - cooldown prevents repeated texts;
 - audit and metrics emitted.
 
+Implementation status (2026-07-15): LR-0301, LR-0302, and LR-0303 are
+complete. Signature validation uses the pinned official Twilio SDK and a
+configured canonical public base URL. Provider destinations are globally unique
+and tenant-owned; Trial/Active tenants require both global and number-level
+automation enablement. Valid events are handled in one serializable transaction
+with opaque receipt identity, lead create/update, pending recovery action,
+redacted audit, and fixed-cardinality metrics. Duplicate, cooldown, unknown,
+non-recoverable, and suspended outcomes are safely acknowledged without a
+duplicate or prohibited business action. No outbound provider call or Hangfire
+execution is included.
+
 ## Epic E4 - SMS and jobs
 
 ### LR-0401 Background job infrastructure

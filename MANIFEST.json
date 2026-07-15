@@ -5,15 +5,15 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  7010
+        "bytes":  8305
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  6640
+        "bytes":  7928
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  156435
+        "bytes":  165730
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "database/schema.sql",
-        "bytes":  8295
+        "bytes":  8653
     },
     {
         "path":  "diagrams/deployment.mmd",
@@ -41,15 +41,15 @@
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  11853
+        "bytes":  12375
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  14361
+        "bytes":  15037
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  8188
+        "bytes":  9468
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
@@ -61,11 +61,11 @@
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  8633
+        "bytes":  9138
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  6730
+        "bytes":  7360
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
@@ -77,11 +77,11 @@
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  7856
+        "bytes":  8285
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  12438
+        "bytes":  13146
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -136,16 +136,20 @@
         "bytes":  2772
     },
     {
+        "path":  "docs/decisions/0012-twilio-call-status-ingestion.md",
+        "bytes":  3549
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  1599
+        "bytes":  1711
     },
     {
         "path":  "README.md",
-        "bytes":  9547
+        "bytes":  10355
     },
     {
         "path":  "templates/.env.example",
-        "bytes":  1421
+        "bytes":  1446
     },
     {
         "path":  "templates/appsettings.Development.example.json",

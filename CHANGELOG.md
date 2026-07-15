@@ -84,6 +84,22 @@ All notable repository and product-specification changes are recorded here.
   denial.
 - ADR-0011 documenting browser session, tenant membership, role, CSRF, and
   session invalidation decisions.
+- LR-0301 Twilio call-status request adapter using the pinned official SDK for
+  exact public-URL and form signature validation, with fail-closed configuration
+  and canonical proxy-path support.
+- LR-0302 tenant-owned provider-number mapping with globally unambiguous
+  destination routing, per-number recoverable statuses, initial delay, cooldown,
+  and suspended/global/number-level automation suppression.
+- LR-0303 serializable missed-call processing that atomically records an opaque
+  idempotency receipt, creates or updates a lead, writes a pending
+  `SendInitialRecoverySms` action, records a redacted audit event, and emits
+  fixed-cardinality metrics without sending SMS.
+- Official-shaped Twilio fixtures plus unit and PostgreSQL integration coverage
+  for canonical proxy signatures, invalid signatures, duplicate replay,
+  cooldown, unknown numbers, and suspended tenants.
+- ADR-0012 documenting canonical request validation, provider-number recovery
+  policy, unknown-number acknowledgement, event identity, transaction scope,
+  and the no-live-send Milestone 3 boundary.
 
 ### Changed
 
@@ -96,6 +112,9 @@ All notable repository and product-specification changes are recorded here.
 - Aligned Milestone 1 with the backlog by including Conversation,
   ScheduledAction, and ExternalEventReceipt persistence while deferring
   authentication, UI, Twilio, and Hangfire execution.
+- Clarified LR-0302 “without creating data” as no tenant business data: a valid
+  unknown callback retains only the system receipt and redacted audit required
+  by the accepted idempotency design.
 - Mounted the PostgreSQL 18 data volume at `/var/lib/postgresql` to support its
   major-version-specific data-directory layout.
 - Resolved the lead lifecycle ambiguity so every pre-booking active state may

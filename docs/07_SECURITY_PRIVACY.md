@@ -124,6 +124,14 @@ tests exercise cross-tenant denial in CI.
 - record correlation ID and provider SID;
 - do not log full payload by default.
 
+Milestone 3 uses the official pinned Twilio request validator and an
+operator-configured canonical base URL rather than trusting inbound forwarded
+headers. Validation happens before phone normalization or persistence. The auth
+token is held only by the validator instance and is never passed to logging;
+signatures, raw form values, and unmasked phone numbers are also excluded from
+application logs and audit JSON. The public endpoint fails closed when either
+the auth token or canonical URL is absent.
+
 ## 7. Input and output security
 
 - server-side validation for all requests;

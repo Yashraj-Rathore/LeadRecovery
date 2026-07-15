@@ -155,6 +155,16 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 - `POST /api/v1/webhooks/twilio/sms/inbound`
 - `POST /api/v1/webhooks/twilio/sms/status`
 
+Milestone 3 implements only
+`POST /api/v1/webhooks/twilio/call-status`. It accepts
+`application/x-www-form-urlencoded` callbacks containing `CallSid`,
+`CallStatus`, `From`, and `To` (with `Caller`/`Called` compatibility). A valid
+callback returns `204` after durable processing; duplicate, unknown,
+non-recoverable, cooldown, and inactive-tenant outcomes are also acknowledged
+with `204`. Malformed signed input returns `400`, an invalid or missing
+signature returns `403`, and missing validator/canonical-URL configuration
+returns `503`.
+
 ### 8.2 Required controls
 
 - Validate Twilio signature against the exact public URL and form values.
@@ -164,6 +174,12 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 - Use provider SID plus event type for idempotency.
 - Never trust tenant ID from webhook form fields.
 - Resolve tenant through the called/messaged Twilio number.
+
+The implemented canonical URL is built from the operator-controlled
+`TWILIO_WEBHOOK_BASE_URL` plus the request path and query. Arbitrary forwarded
+headers are not trusted. The base must use HTTPS outside Development. Unknown
+destinations create only a system receipt and redacted audit event for replay
+control; they create no tenant lead or scheduled action.
 
 ### 8.3 Recoverable call statuses
 
@@ -252,6 +268,12 @@ Output must conform to the schema in `docs/06_AI_GUARDRAILS.md`.
 8. Commit.
 9. Return 200.
 10. Process external side effects asynchronously.
+
+For call-status callbacks, `ExternalEventId` is a SHA-256 identity over Call SID
+plus normalized status and `PayloadHash` covers deterministically ordered form
+fields. One serializable transaction contains receipt insertion, route outcome,
+lead update/creation, pending action, and audit. `SendInitialRecoverySms` remains
+durable intent until Milestone 4 adds worker execution.
 
 ## 13. Rate limiting
 

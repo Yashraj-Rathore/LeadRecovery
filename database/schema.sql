@@ -21,7 +21,14 @@ create table tenant_phone_numbers (
     inbound_sms_enabled boolean not null default true,
     missed_call_recovery_enabled boolean not null default true,
     is_primary boolean not null default false,
+    recoverable_call_statuses text[] not null
+        check (cardinality(recoverable_call_statuses) > 0),
+    initial_delay_seconds integer not null
+        check (initial_delay_seconds between 0 and 3600),
+    recovery_cooldown_seconds integer not null
+        check (recovery_cooldown_seconds between 1 and 86400),
     unique(provider, provider_number_sid),
+    unique(provider, phone_number_e164),
     unique(tenant_id, phone_number_e164)
 );
 

@@ -701,6 +701,93 @@ namespace LeadRecovery.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("LeadRecovery.Domain.Tenancy.TenantPhoneNumber", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("InboundSmsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("inbound_sms_enabled");
+
+                    b.Property<int>("InitialDelaySeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("initial_delay_seconds");
+
+                    b.Property<bool>("IsPrimary")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_primary");
+
+                    b.Property<bool>("MissedCallRecoveryEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("missed_call_recovery_enabled");
+
+                    b.Property<string>("PhoneNumberE164")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("phone_number_e164");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderNumberSid")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("provider_number_sid");
+
+                    b.PrimitiveCollection<string[]>("RecoverableCallStatuses")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("recoverable_call_statuses");
+
+                    b.Property<int>("RecoveryCooldownSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("recovery_cooldown_seconds");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tenant_phone_numbers");
+
+                    b.HasAlternateKey("TenantId", "Id")
+                        .HasName("ak_tenant_phone_numbers_tenant_id_id");
+
+                    b.HasIndex("Provider", "PhoneNumberE164")
+                        .IsUnique()
+                        .HasDatabaseName("ux_tenant_phone_numbers_provider_phone_number");
+
+                    b.HasIndex("Provider", "ProviderNumberSid")
+                        .IsUnique()
+                        .HasDatabaseName("ux_tenant_phone_numbers_provider_number_sid");
+
+                    b.HasIndex("TenantId", "PhoneNumberE164")
+                        .IsUnique()
+                        .HasDatabaseName("ux_tenant_phone_numbers_tenant_phone_number");
+
+                    b.ToTable("tenant_phone_numbers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_tenant_phone_numbers_initial_delay_seconds", "initial_delay_seconds between 0 and 3600");
+
+                            t.HasCheckConstraint("ck_tenant_phone_numbers_recoverable_statuses", "cardinality(recoverable_call_statuses) > 0");
+
+                            t.HasCheckConstraint("ck_tenant_phone_numbers_recovery_cooldown_seconds", "recovery_cooldown_seconds between 1 and 86400");
+                        });
+                });
+
             modelBuilder.Entity("LeadRecovery.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1014,6 +1101,16 @@ namespace LeadRecovery.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_leads_customers_tenant_id_customer_id");
+                });
+
+            modelBuilder.Entity("LeadRecovery.Domain.Tenancy.TenantPhoneNumber", b =>
+                {
+                    b.HasOne("LeadRecovery.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_phone_numbers_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>

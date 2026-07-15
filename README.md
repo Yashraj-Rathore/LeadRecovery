@@ -16,15 +16,18 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 2 are complete. LR-0101 through LR-0103 and LR-0201
-through LR-0204 are implemented. In addition to the modular-monolith domain and
+Milestones 0 through 3 are complete. LR-0101 through LR-0103, LR-0201 through
+LR-0204, and LR-0301 through LR-0303 are implemented. In addition to the modular-monolith domain and
 PostgreSQL foundation, the repository now contains ASP.NET Core Identity users,
 tenant memberships and roles, audited same-origin cookie sessions, CSRF and
 login-rate-limit controls, tenant-scoped lead queries, opt-in fictional demo
 seeding, and a minimal Next.js login and lead-inbox shell. Integration and
 Playwright tests cover Owner/Staff login, logout invalidation, role policies,
-and cross-tenant denial. Twilio ingestion, Hangfire execution, outbound SMS,
-and the operational dashboard actions remain later milestones.
+and cross-tenant denial. Signed Twilio call-status callbacks now resolve a
+tenant-owned provider number, persist an idempotency receipt, create or update
+a lead, and schedule a pending initial-recovery action with cooldown, audit,
+and metrics. Hangfire execution, outbound SMS, inbound SMS, and the operational
+dashboard actions remain later milestones.
 
 The currently implemented browser and health contract is:
 
@@ -34,7 +37,9 @@ The currently implemented browser and health contract is:
   `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
   session;
 - `GET /api/v1/leads` and `GET /api/v1/leads/{leadId}` return only leads owned
-  by the authenticated session tenant.
+  by the authenticated session tenant;
+- `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
+  form callbacks and records recovery intent without sending SMS.
 
 ## Pinned foundation versions
 
@@ -47,6 +52,7 @@ The currently implemented browser and health contract is:
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
+| Twilio .NET SDK | 7.14.9 | Call-status request-signature validation only |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.17.0 | Frontend and Playwright runtime |
@@ -102,6 +108,12 @@ pnpm frontend:dev
 The browser uses the Next.js `/api` rewrite so the session and antiforgery
 cookies remain same-origin. Do not expose the API under a separate browser
 origin or let the client supply `TenantId`.
+
+To exercise the Twilio call-status endpoint, set `TWILIO_AUTH_TOKEN` and the
+exact public application base in `TWILIO_WEBHOOK_BASE_URL`. The latter is used
+to reconstruct the signed public URL behind a trusted proxy. Leave both unset
+when the webhook is not enabled; the endpoint then fails closed with `503`.
+This milestone never sends a live SMS.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the empty worker host separately

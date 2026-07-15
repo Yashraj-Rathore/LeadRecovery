@@ -108,6 +108,14 @@ user, security stamp, membership, role, and tenant status on every request.
 Until tenant switching is designed, login succeeds only when exactly one
 Trial/Active membership is available; multiple active memberships fail closed.
 
+Milestone 3 maps the anonymous Twilio call-status endpoint through an API
+adapter into a provider-neutral application event. The adapter validates the
+signature against a configured canonical public URL before parsing business
+fields. The application then uses a trusted server-derived tenant execution
+scope, while Infrastructure commits the receipt, lead, pending scheduled
+action, and audit event in one serializable PostgreSQL transaction. No outbound
+provider call or background execution occurs in the API request.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:

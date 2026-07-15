@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using LeadRecovery.Api.Demo;
 using LeadRecovery.Api.Endpoints;
 using LeadRecovery.Api.Identity;
+using LeadRecovery.Api.Integrations.Twilio;
 using LeadRecovery.Api.Middleware;
 using LeadRecovery.Api.Tenancy;
 using LeadRecovery.Application.Authorization;
@@ -26,8 +27,17 @@ string databaseConnectionString = builder.Configuration.GetConnectionString("Dat
         "The ConnectionStrings:Database configuration value is required.");
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
+builder.Services.AddScoped<HttpTenantContext>();
+builder.Services.AddScoped<ITenantContext>(services =>
+    services.GetRequiredService<HttpTenantContext>());
+builder.Services.AddScoped<ITenantExecutionScope>(services =>
+    services.GetRequiredService<HttpTenantContext>());
 builder.Services.AddInfrastructure(databaseConnectionString);
+builder.Services.AddTwilioCallIngestion(builder.Configuration["TWILIO_AUTH_TOKEN"]);
+builder.Services.AddSingleton(new TwilioWebhookOptions(
+    builder.Configuration["TWILIO_WEBHOOK_BASE_URL"],
+    builder.Environment.IsDevelopment()));
+builder.Services.AddScoped<TwilioCallStatusRequestAdapter>();
 builder.Services.AddScoped<SignInManager<ApplicationUser>>();
 builder.Services.AddScoped<AuthenticationSessionService>();
 builder.Services.AddScoped<DemoDataSeeder>();
@@ -162,6 +172,7 @@ app.MapHealthChecks(
 app.MapHealthChecks("/health/ready");
 app.MapAuthenticationEndpoints();
 app.MapLeadEndpoints();
+app.MapTwilioWebhookEndpoints();
 
 await app.Services.SeedDemoDataAsync(
     app.Configuration,

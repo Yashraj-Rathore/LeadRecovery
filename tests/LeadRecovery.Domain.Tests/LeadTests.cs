@@ -111,6 +111,19 @@ public sealed class LeadTests
             CreatedAtUtc.ToOffset(TimeSpan.FromHours(-4))));
     }
 
+    [Fact]
+    public void CustomerActivityUpdatesLeadWithoutChangingStatus()
+    {
+        Lead lead = CreateLeadInStatus(LeadStatus.New);
+        DateTimeOffset activityAtUtc = lead.UpdatedAtUtc.AddMinutes(1);
+
+        lead.RecordCustomerActivity(activityAtUtc);
+
+        Assert.Equal(LeadStatus.New, lead.Status);
+        Assert.Equal(activityAtUtc, lead.LastCustomerActivityAtUtc);
+        Assert.Equal(activityAtUtc, lead.UpdatedAtUtc);
+    }
+
     [Theory]
     [MemberData(nameof(AllowedTransitions))]
     public void AggregateImplementsEveryAllowedTransition(

@@ -1,9 +1,12 @@
 using LeadRecovery.Application.Customers;
+using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Leads;
 using LeadRecovery.Application.PhoneNumbers;
 using LeadRecovery.Infrastructure.Identity;
+using LeadRecovery.Infrastructure.Integrations.Twilio;
 using LeadRecovery.Infrastructure.Persistence;
 using LeadRecovery.Infrastructure.Persistence.Automations;
+using LeadRecovery.Infrastructure.Persistence.Integrations;
 using LeadRecovery.Infrastructure.Persistence.Queries;
 using LeadRecovery.Infrastructure.Persistence.Repositories;
 using LeadRecovery.Infrastructure.PhoneNumbers;
@@ -44,6 +47,9 @@ public static class DependencyInjection
             .AddEntityFrameworkStores<LeadRecoveryDbContext>();
         services.AddSingleton<IPhoneNumberNormalizer, LibPhoneNumberNormalizer>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<ICallStatusPersistence, CallStatusPersistence>();
+        services.AddSingleton<ICallStatusMetrics, CallStatusMetrics>();
+        services.AddScoped<ProcessCallStatusWebhookUseCase>();
         services.AddScoped<CreateCustomerUseCase>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ILeadAutomationCancellation, ScheduledActionLeadAutomationCancellation>();
@@ -52,6 +58,16 @@ public static class DependencyInjection
         services.AddScoped<ListLeadsUseCase>();
         services.AddScoped<GetLeadUseCase>();
 
+        return services;
+    }
+
+    public static IServiceCollection AddTwilioCallIngestion(
+        this IServiceCollection services,
+        string? authToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddSingleton<ITwilioRequestValidator>(
+            new TwilioRequestValidatorAdapter(authToken));
         return services;
     }
 }
