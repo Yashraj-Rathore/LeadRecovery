@@ -97,9 +97,10 @@ The Milestone 2 shell is a Next.js App Router application deployed on the same
 browser origin as `/api`. Next.js rewrites `/api/*` to the ASP.NET Core host;
 the browser never receives an API origin or a bearer token. Server components
 forward only the incoming session cookie for authenticated rendering. The
-current UI implements login, logout, session display, and a read-only seeded
-lead inbox; operational lead actions remain Milestone 6 / LR-0501 through
-LR-0505.
+current UI implements login, logout, session display, the filtered Lead inbox,
+Lead detail/timeline, assignment, transitions, manual messaging, notes, and
+pause/resume controls. Browser mutations remain same-origin, role-authorized,
+CSRF-protected, tenant-scoped, and concurrency-aware.
 
 ASP.NET Core Identity owns passwords, lockout, security stamps, and the
 application cookie. A `TenantMembership` joins one user to one tenant role. The

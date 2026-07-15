@@ -5,19 +5,19 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  10753
+        "bytes":  23683
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  9292
+        "bytes":  10899
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  175726
+        "bytes":  184724
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  4084
+        "bytes":  4155
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "database/schema.sql",
-        "bytes":  9356
+        "bytes":  9998
     },
     {
         "path":  "diagrams/deployment.mmd",
@@ -41,19 +41,19 @@
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  12809
+        "bytes":  12936
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  15455
+        "bytes":  16172
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  10797
+        "bytes":  12066
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
-        "bytes":  5898
+        "bytes":  6474
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
@@ -61,11 +61,11 @@
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  9521
+        "bytes":  10053
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  8548
+        "bytes":  9147
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
@@ -73,15 +73,15 @@
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
-        "bytes":  4863
+        "bytes":  4952
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  8782
+        "bytes":  9357
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  13753
+        "bytes":  14508
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -144,20 +144,24 @@
         "bytes":  3601
     },
     {
+        "path":  "docs/decisions/0014-operational-dashboard-and-manual-sms.md",
+        "bytes":  3334
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  1810
+        "bytes":  1917
     },
     {
         "path":  "README.md",
-        "bytes":  11242
+        "bytes":  11405
     },
     {
         "path":  "templates/.env.example",
-        "bytes":  1483
+        "bytes":  1584
     },
     {
         "path":  "templates/appsettings.Development.example.json",
-        "bytes":  559
+        "bytes":  978
     },
     {
         "path":  "templates/definition-of-done.md",

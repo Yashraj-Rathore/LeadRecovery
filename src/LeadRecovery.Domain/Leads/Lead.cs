@@ -109,6 +109,80 @@ public sealed class Lead : ITenantOwnedEntity
         UpdatedAtUtc = utcTimestamp;
     }
 
+    public void AssignTo(Guid userId, DateTimeOffset changedAtUtc)
+    {
+        Guid requiredUserId = RequireId(userId, nameof(userId));
+        DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
+            changedAtUtc,
+            nameof(changedAtUtc));
+        if (AssignedUserId == requiredUserId)
+        {
+            return;
+        }
+
+        AssignedUserId = requiredUserId;
+        UpdatedAtUtc = utcTimestamp;
+    }
+
+    public void Unassign(DateTimeOffset changedAtUtc)
+    {
+        DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
+            changedAtUtc,
+            nameof(changedAtUtc));
+        if (AssignedUserId is null)
+        {
+            return;
+        }
+
+        AssignedUserId = null;
+        UpdatedAtUtc = utcTimestamp;
+    }
+
+    public void ChangeUrgency(LeadUrgency urgency, DateTimeOffset changedAtUtc)
+    {
+        LeadUrgency definedUrgency = RequireDefined(urgency, nameof(urgency));
+        DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
+            changedAtUtc,
+            nameof(changedAtUtc));
+        if (Urgency == definedUrgency)
+        {
+            return;
+        }
+
+        Urgency = definedUrgency;
+        UpdatedAtUtc = utcTimestamp;
+    }
+
+    public void PauseAutomation(DateTimeOffset changedAtUtc)
+    {
+        if (AutomationState != AutomationState.Active)
+        {
+            throw new InvalidOperationException(
+                $"Automation cannot be paused while it is {AutomationState}.");
+        }
+
+        AutomationState = AutomationState.PausedByUser;
+        UpdatedAtUtc = RequireCurrentOrLaterUtc(changedAtUtc, nameof(changedAtUtc));
+    }
+
+    public void ResumeAutomation(DateTimeOffset changedAtUtc)
+    {
+        if (AutomationState != AutomationState.PausedByUser)
+        {
+            throw new InvalidOperationException(
+                $"Automation cannot be resumed while it is {AutomationState}.");
+        }
+
+        if (Status is LeadStatus.Booked or LeadStatus.Closed or LeadStatus.ClosedWon)
+        {
+            throw new InvalidOperationException(
+                "Automation cannot be resumed for a terminal or booked lead.");
+        }
+
+        AutomationState = AutomationState.Active;
+        UpdatedAtUtc = RequireCurrentOrLaterUtc(changedAtUtc, nameof(changedAtUtc));
+    }
+
     public void SuppressForOptOut(DateTimeOffset changedAtUtc)
     {
         DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(

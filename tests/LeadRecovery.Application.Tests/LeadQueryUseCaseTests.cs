@@ -10,15 +10,22 @@ public sealed class LeadQueryUseCaseTests
     {
         StubLeadInboxQuery query = new();
         ListLeadsUseCase useCase = new(query);
+        LeadInboxCriteria criteria = new(
+            null,
+            null,
+            LeadAssignmentFilter.All,
+            Guid.CreateVersion7());
 
         LeadInboxPage page = await useCase.ExecuteAsync(
             25,
             "cursor",
+            criteria,
             TestContext.Current.CancellationToken);
 
         Assert.Same(query.Page, page);
         Assert.Equal(25, query.PageSize);
         Assert.Equal("cursor", query.Cursor);
+        Assert.Same(criteria, query.Criteria);
     }
 
     [Theory]
@@ -27,11 +34,17 @@ public sealed class LeadQueryUseCaseTests
     public async Task ListRejectsInvalidPageSize(int pageSize)
     {
         ListLeadsUseCase useCase = new(new StubLeadInboxQuery());
+        LeadInboxCriteria criteria = new(
+            null,
+            null,
+            LeadAssignmentFilter.All,
+            Guid.CreateVersion7());
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             useCase.ExecuteAsync(
                 pageSize,
                 null,
+                criteria,
                 TestContext.Current.CancellationToken));
     }
 
@@ -60,14 +73,18 @@ public sealed class LeadQueryUseCaseTests
 
         public Guid LeadId { get; private set; }
 
+        public LeadInboxCriteria? Criteria { get; private set; }
+
         public Task<LeadInboxPage> ListAsync(
             int pageSize,
             string? cursor,
+            LeadInboxCriteria criteria,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             PageSize = pageSize;
             Cursor = cursor;
+            Criteria = criteria;
             return Task.FromResult(Page);
         }
 
@@ -85,6 +102,11 @@ public sealed class LeadQueryUseCaseTests
                 LeadStatus.New,
                 LeadUrgency.Unknown,
                 AutomationState.Active,
+                null,
+                null,
+                DateTimeOffset.UnixEpoch,
+                false,
+                0,
                 DateTimeOffset.UnixEpoch);
             return Task.FromResult<LeadInboxItem?>(item);
         }

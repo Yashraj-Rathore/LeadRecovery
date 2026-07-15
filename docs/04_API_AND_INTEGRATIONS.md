@@ -55,21 +55,26 @@ implemented OpenAPI contract.
 
 `GET /api/v1/leads?pageSize=25&cursor=...`
 
-The Milestone 2 endpoint returns tenant-scoped summary fields only, ordered by
-creation time and ID descending. `pageSize` is 1 through 100 and `cursor` is an
-opaque encoded offset. Status, urgency, and assignment filters remain LR-0501.
+The Milestone 5 endpoint returns tenant-scoped summary fields with assignment,
+last activity, unread state, automation state, and opaque row version.
+`pageSize` is 1 through 100 and `cursor` is an opaque encoded offset. Optional
+`status`, `urgency`, `assignment=all|unassigned|mine`, and `assignedUserId`
+filters are applied before paging. Human-review and urgent work sort first.
 
 ### Get lead
 
 `GET /api/v1/leads/{leadId}`
 
-The Milestone 2 endpoint returns the same lead summary shape used by the inbox.
-It returns `404` for an unknown ID and for an ID owned by another tenant. The
-full detail, conversation timeline, pending actions, AI suggestion, and
-role-appropriate audit summary remain LR-0502.
+The Milestone 5 endpoint returns the inbox summary plus a consistently ordered
+plain-text timeline of call, SMS, system, and internal-note events; pending or
+running actions; active tenant assignees; and domain-allowed transitions. It
+returns `404` for an unknown ID and for an ID owned by another tenant. Polling
+and conflict-refresh behavior are defined in the frontend specification. AI
+suggestions remain a later milestone.
 
-The remaining write endpoints in this section describe future dashboard
-milestones and are not yet implemented or included in `api/openapi.yaml`.
+The dashboard write endpoints below are implemented and included in
+`api/openapi.yaml`. They require an authenticated Owner, Manager, or Staff
+membership and `X-CSRF-TOKEN`; ReadOnly receives `403`.
 
 ### Update lead status
 
@@ -91,6 +96,9 @@ patching of domain status.
 
 `POST /api/v1/leads/{leadId}/assignment`
 
+The request carries nullable `assignedUserId` plus `expectedRowVersion`. The
+target must be an active membership of the authenticated tenant; null unassigns.
+
 ### Pause automation
 
 `POST /api/v1/leads/{leadId}/automation/pause`
@@ -103,11 +111,19 @@ patching of domain status.
 
 `POST /api/v1/leads/{leadId}/notes`
 
+Assignment, transitions, pause, and resume return `409` with the current safe
+Lead representation when the opaque expected row version is stale. Pause
+cancels pending automated actions. Resume may recreate one future initial
+recovery action only when the missed-call Lead and tenant remain eligible.
+
 ## 5. Message endpoints
 
 - `GET /api/v1/leads/{leadId}/messages`
 - `POST /api/v1/leads/{leadId}/messages`
-- `GET /api/v1/messages/{messageId}/status`
+
+Message state is returned in the lead timeline. A separate
+`GET /api/v1/messages/{messageId}/status` route remains a future contract and is
+not included in the Milestone 5 OpenAPI document.
 
 Manual send request:
 
@@ -126,6 +142,11 @@ Server rules:
 - apply length and content validation;
 - persist queued record before provider call;
 - update delivery state asynchronously.
+
+Milestone 5 queues manual messages as durable `Message` plus `SendManualSms`
+ScheduledAction records before returning. The Worker resolves phone and body
+from tenant-scoped persistence, re-checks opt-out and Lead policy, and uses the
+same fake-by-default/live-explicitly-gated provider path as automated recovery.
 
 ## 6. Tenant configuration endpoints
 

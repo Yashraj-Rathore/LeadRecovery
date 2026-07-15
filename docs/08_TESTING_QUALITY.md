@@ -113,6 +113,15 @@ the real API and Next.js shell, and runs this test in Chromium. Later prompts
 add the remaining critical E2E scenarios as their provider and workflow
 features become available.
 
+Milestone 5 adds PostgreSQL integration coverage for CSRF-required dashboard
+mutations, ReadOnly denial, active-member assignment, stale opaque row-version
+conflicts, transition and pause audit rows, pending-action cancellation,
+manual-message idempotency, fake-provider Worker completion, and opt-out
+blocking. A 10,000-Lead tenant test measures ten warmed filtered HTTP reads and
+requires p95 below 500 ms. Playwright verifies labeled filters and keyboard
+focus, detail/timeline rendering, latest-state conflict recovery, pause state,
+notes, manual SMS queue visibility, and cross-tenant denial.
+
 ## 3. Test environments
 
 ### Local

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: LeadRecovery API
-  version: 1.0.0-milestone.4
-  description: Implemented Milestone 4 browser, lead-read, Twilio webhook, and SMS workflow contract.
+  version: 1.0.0-milestone.5
+  description: Implemented Milestone 5 browser, operational dashboard, Twilio webhook, and SMS workflow contract.
 servers:
   - url: https://app.example.com/api/v1
 paths:
@@ -212,7 +212,7 @@ paths:
   /leads:
     get:
       tags: [Leads]
-      summary: List leads owned by the authenticated tenant
+      summary: List and filter leads owned by the authenticated tenant
       security:
         - cookieSession: []
       parameters:
@@ -228,40 +228,268 @@ paths:
             minimum: 1
             maximum: 100
             default: 25
+        - in: query
+          name: status
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/LeadStatus'
+              - type: 'null'
+        - in: query
+          name: urgency
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/LeadUrgency'
+              - type: 'null'
+        - in: query
+          name: assignment
+          schema:
+            type: string
+            enum: [all, unassigned, mine]
+            default: all
+        - in: query
+          name: assignedUserId
+          schema:
+            type: [string, 'null']
+            format: uuid
       responses:
         '200':
-          description: Tenant-scoped lead page.
+          description: Filtered tenant-scoped lead page, with urgent human-review work first.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LeadPage'
         '400':
-          description: Invalid page size or cursor.
+          description: Invalid page size, cursor, or filter.
         '401':
           description: Not authenticated.
         '403':
           description: Authenticated session lacks a tenant member role.
+  /leads/assignees:
+    get:
+      tags: [Leads]
+      summary: List active assignable members of the authenticated tenant
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: Active same-tenant members.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AssignableUser'
+        '401':
+          description: Not authenticated.
   /leads/{leadId}:
     get:
       tags: [Leads]
-      summary: Get a lead summary owned by the authenticated tenant
+      summary: Get tenant-scoped lead detail, timeline, and pending actions
       security:
         - cookieSession: []
       parameters:
         - $ref: '#/components/parameters/LeadId'
       responses:
         '200':
-          description: Tenant-scoped lead summary.
+          description: Current tenant-scoped lead representation.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LeadSummary'
+                $ref: '#/components/schemas/LeadDetail'
         '401':
           description: Not authenticated.
         '403':
           description: Authenticated session lacks a tenant member role.
         '404':
           description: Lead does not exist in the active tenant.
+  /leads/{leadId}/assignment:
+    post:
+      tags: [Lead operations]
+      summary: Assign or unassign a lead
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignLeadRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery or request validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead is not in the active tenant.
+        '409':
+          $ref: '#/components/responses/LeadConflict'
+  /leads/{leadId}/transitions:
+    post:
+      tags: [Lead operations]
+      summary: Apply an allowed domain lead-status transition
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitionLeadRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery, transition, or close-reason validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead is not in the active tenant.
+        '409':
+          $ref: '#/components/responses/LeadConflict'
+  /leads/{leadId}/automation/pause:
+    post:
+      tags: [Lead operations]
+      summary: Pause lead automation and cancel pending automated actions
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadAutomationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery or state validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead is not in the active tenant.
+        '409':
+          $ref: '#/components/responses/LeadConflict'
+  /leads/{leadId}/automation/resume:
+    post:
+      tags: [Lead operations]
+      summary: Resume eligible lead automation
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadAutomationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery or state validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead is not in the active tenant.
+        '409':
+          $ref: '#/components/responses/LeadConflict'
+  /leads/{leadId}/notes:
+    post:
+      tags: [Lead operations]
+      summary: Add a plain-text internal lead note
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddLeadNoteRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery or note validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead is not in the active tenant.
+  /leads/{leadId}/messages:
+    get:
+      tags: [Lead operations]
+      summary: List SMS timeline entries for a lead
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+      responses:
+        '200':
+          description: Ordered SMS timeline entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeadTimelineItem'
+        '401':
+          description: Not authenticated.
+        '404':
+          description: Lead is not in the active tenant.
+    post:
+      tags: [Lead operations]
+      summary: Queue an idempotent manual SMS
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualMessageRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery or message validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead is not in the active tenant.
+        '409':
+          description: Opt-out, closed Lead, tenant policy, or idempotency conflict.
+        '429':
+          description: Manual-message rate limit exceeded.
 components:
   securitySchemes:
     cookieSession:
@@ -285,6 +513,19 @@ components:
       schema:
         type: string
         format: uuid
+  responses:
+    LeadOperationSucceeded:
+      description: Operation applied and the current lead representation returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LeadDetail'
+    LeadConflict:
+      description: The lead changed concurrently or tenant policy blocks the operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/LeadConflictProblem'
   schemas:
     CsrfToken:
       type: object
@@ -322,6 +563,12 @@ components:
         role:
           type: string
           enum: [Owner, Manager, Staff, ReadOnly]
+    LeadStatus:
+      type: string
+      enum: [New, Contacting, AwaitingCustomer, Qualified, BookingOffered, NeedsHuman, Booked, Closed, ClosedWon]
+    LeadUrgency:
+      type: string
+      enum: [Unknown, Low, Normal, High, CriticalReview]
     LeadSummary:
       type: object
       required:
@@ -332,6 +579,11 @@ components:
         - status
         - urgency
         - automationState
+        - assignedUserId
+        - assignedUserName
+        - lastActivityAtUtc
+        - hasUnreadCustomerActivity
+        - rowVersion
         - createdAtUtc
       properties:
         id:
@@ -344,11 +596,25 @@ components:
         source:
           type: string
         status:
-          type: string
+          $ref: '#/components/schemas/LeadStatus'
         urgency:
-          type: string
+          $ref: '#/components/schemas/LeadUrgency'
         automationState:
           type: string
+          enum: [Active, PausedByUser, PausedBySystem, Completed, SuppressedOptOut, SuppressedPolicy]
+        assignedUserId:
+          type: [string, 'null']
+          format: uuid
+        assignedUserName:
+          type: [string, 'null']
+        lastActivityAtUtc:
+          type: string
+          format: date-time
+        hasUnreadCustomerActivity:
+          type: boolean
+        rowVersion:
+          type: string
+          description: Opaque concurrency token that must be returned with write operations.
         createdAtUtc:
           type: string
           format: date-time
@@ -362,6 +628,142 @@ components:
             $ref: '#/components/schemas/LeadSummary'
         nextCursor:
           type: [string, 'null']
+    AssignableUser:
+      type: object
+      required: [userId, displayName, role]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [Owner, Manager, Staff, ReadOnly]
+    LeadTimelineItem:
+      type: object
+      required: [id, type, label, body, direction, kind, status, failureDescription, actorName, occurredAtUtc]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [Call, Sms, Note, System]
+        label:
+          type: string
+        body:
+          type: [string, 'null']
+        direction:
+          type: [string, 'null']
+          enum: [Inbound, Outbound, null]
+        kind:
+          type: [string, 'null']
+          enum: [Automated, Manual, System, null]
+        status:
+          type: [string, 'null']
+          enum: [Queued, Sent, Delivered, Failed, Received, Suppressed, null]
+        failureDescription:
+          type: [string, 'null']
+        actorName:
+          type: [string, 'null']
+        occurredAtUtc:
+          type: string
+          format: date-time
+    PendingAction:
+      type: object
+      required: [id, actionType, status, scheduledForUtc, attemptCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        actionType:
+          type: string
+        status:
+          type: string
+          enum: [Pending, Running, Completed, Cancelled, Failed]
+        scheduledForUtc:
+          type: string
+          format: date-time
+        attemptCount:
+          type: integer
+          minimum: 0
+    LeadDetail:
+      type: object
+      required: [lead, timeline, pendingActions, assignableUsers, allowedTransitions]
+      properties:
+        lead:
+          $ref: '#/components/schemas/LeadSummary'
+        timeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeadTimelineItem'
+        pendingActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingAction'
+        assignableUsers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignableUser'
+        allowedTransitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeadStatus'
+    AssignLeadRequest:
+      type: object
+      required: [assignedUserId, expectedRowVersion]
+      properties:
+        assignedUserId:
+          type: [string, 'null']
+          format: uuid
+        expectedRowVersion:
+          type: string
+          minLength: 1
+    TransitionLeadRequest:
+      type: object
+      required: [targetStatus, reason, closeReason, minimumRequiredDetailsPresent, expectedRowVersion]
+      properties:
+        targetStatus:
+          $ref: '#/components/schemas/LeadStatus'
+        reason:
+          type: [string, 'null']
+          maxLength: 500
+        closeReason:
+          type: [string, 'null']
+          enum: [LostNoResponse, LostOutOfArea, LostUnavailableService, Duplicate, Spam, OptedOut, null]
+        minimumRequiredDetailsPresent:
+          type: boolean
+        expectedRowVersion:
+          type: string
+          minLength: 1
+    LeadAutomationRequest:
+      type: object
+      required: [expectedRowVersion]
+      properties:
+        expectedRowVersion:
+          type: string
+          minLength: 1
+    AddLeadNoteRequest:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    ManualMessageRequest:
+      type: object
+      required: [body, idempotencyKey]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1600
+        idempotencyKey:
+          type: string
+          minLength: 1
+          maxLength: 200
     ProblemDetails:
       type: object
       properties:
@@ -375,3 +777,13 @@ components:
           type: string
         instance:
           type: string
+    LeadConflictProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          required: [current]
+          properties:
+            current:
+              oneOf:
+                - $ref: '#/components/schemas/LeadDetail'
+                - type: 'null'

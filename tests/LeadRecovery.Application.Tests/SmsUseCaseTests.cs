@@ -50,6 +50,33 @@ public sealed class SmsUseCaseTests
             TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task ManualPermanentProviderFailureCompletesAsFailedWithoutRetry()
+    {
+        PreparedOutboundSms prepared = CreatePrepared();
+        RecordingManualPersistence persistence = new(
+            prepared,
+            OutboundSmsOutcome.PermanentlyFailed);
+        RecordingSender sender = new(
+            SmsSendResult.Permanent("21610", "Recipient cannot receive messages."));
+        SendScheduledManualSmsUseCase useCase = new(
+            persistence,
+            sender,
+            new NoOpSmsMetrics(),
+            new FixedTimeProvider());
+
+        OutboundSmsOutcome outcome = await useCase.ExecuteAsync(
+            prepared.ActionId,
+            prepared.TenantId,
+            "correlation",
+            prepared.Request.StatusCallbackUri,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OutboundSmsOutcome.PermanentlyFailed, outcome);
+        Assert.Equal(SmsSendDisposition.PermanentFailure, persistence.CompletedResult?.Disposition);
+        Assert.Equal(prepared.Request, sender.Request);
+    }
+
     private static PreparedOutboundSms CreatePrepared()
     {
         Guid tenantId = Guid.CreateVersion7();
@@ -113,6 +140,32 @@ public sealed class SmsUseCaseTests
             DeliveryStatusWebhookEvent webhookEvent,
             DateTimeOffset now,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class RecordingManualPersistence(
+        PreparedOutboundSms prepared,
+        OutboundSmsOutcome completionOutcome) : IManualSmsWorkflowPersistence
+    {
+        public SmsSendResult? CompletedResult { get; private set; }
+
+        public Task<PreparedOutboundSms?> PrepareManualOutboundAsync(
+            Guid actionId,
+            Guid tenantId,
+            string correlationId,
+            DateTimeOffset now,
+            Uri statusCallbackUri,
+            CancellationToken cancellationToken) => Task.FromResult<PreparedOutboundSms?>(prepared);
+
+        public Task<OutboundSmsOutcome> CompleteManualOutboundAsync(
+            PreparedOutboundSms completedPrepared,
+            SmsSendResult result,
+            string correlationId,
+            DateTimeOffset now,
+            CancellationToken cancellationToken)
+        {
+            CompletedResult = result;
+            return Task.FromResult(completionOutcome);
+        }
     }
 
     private sealed class FixedTimeProvider : TimeProvider

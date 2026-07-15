@@ -54,9 +54,11 @@ public static class DependencyInjection
         services.AddSingleton<ICallStatusMetrics, CallStatusMetrics>();
         services.AddScoped<ProcessCallStatusWebhookUseCase>();
         services.AddScoped<ISmsWorkflowPersistence, SmsWorkflowPersistence>();
+        services.AddScoped<IManualSmsWorkflowPersistence, ManualSmsWorkflowPersistence>();
         services.TryAddSingleton<ISmsSender, FakeSmsSender>();
         services.AddSingleton<ISmsMetrics, SmsMetrics>();
         services.AddScoped<SendScheduledRecoverySmsUseCase>();
+        services.AddScoped<SendScheduledManualSmsUseCase>();
         services.AddScoped<ProcessInboundSmsUseCase>();
         services.AddScoped<ProcessDeliveryStatusUseCase>();
         services.AddScoped<CreateCustomerUseCase>();
@@ -64,8 +66,10 @@ public static class DependencyInjection
         services.AddScoped<ILeadAutomationCancellation, ScheduledActionLeadAutomationCancellation>();
         services.AddScoped<BookLeadUseCase>();
         services.AddScoped<ILeadInboxQuery, LeadInboxQuery>();
+        services.AddScoped<ILeadDashboardStore, LeadDashboardStore>();
         services.AddScoped<ListLeadsUseCase>();
         services.AddScoped<GetLeadUseCase>();
+        services.AddScoped<LeadDashboardUseCase>();
 
         return services;
     }

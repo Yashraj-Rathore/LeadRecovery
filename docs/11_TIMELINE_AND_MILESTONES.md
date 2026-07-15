@@ -153,6 +153,15 @@ Exit criteria:
 - accessibility smoke test passes;
 - E2E happy path passes.
 
+Implementation status (2026-07-15): complete for LR-0501 through LR-0505.
+The authenticated dashboard now provides filtered and measured tenant inbox
+reads, ordered plain-text activity, pending actions, assignment, allowed domain
+transitions, durable manual SMS, notes, audited pause/resume, and explicit
+loading/error/concurrency behavior. PostgreSQL integration and Playwright cover
+CSRF, role denial, stale writes, opt-out, worker completion, keyboard focus,
+and the end-to-end office flow. Qualification, booking-link behavior, and
+follow-up cadence remain Milestone 6.
+
 ### Milestone 6 - Qualification, booking, and follow-up (Week 6)
 
 Deliverables:

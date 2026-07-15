@@ -120,6 +120,29 @@ All notable repository and product-specification changes are recorded here.
   integration test and end-to-end signed webhook coverage.
 - ADR-0013 documenting worker ownership, at-least-once provider execution,
   provider safety gates, opt-out words, callback identity, and retry policy.
+- LR-0501 tenant-scoped operational inbox with status, urgency, unassigned,
+  current-user, and exact-assignee filters; urgent human-review ordering;
+  explicit loading, empty, retry, and unread states; keyboard-accessible
+  controls; and a measured 10,000-lead p95 acceptance test.
+- LR-0502 lead detail with a deterministic call, SMS, system, and internal-note
+  timeline; plain-text untrusted content rendering; eight-second refresh;
+  new-activity announcements; and visible pending actions.
+- LR-0503 authorized self/other assignment and domain-backed status transition
+  endpoints with CSRF, opaque Lead row versions, PostgreSQL conflict detection,
+  latest-state `409` responses, UI recovery messaging, and redacted audit rows.
+- LR-0504 durable idempotent manual SMS queueing through `Message` plus
+  `SendManualSms` ScheduledAction, Worker execution through the safe provider
+  gates, execution-time opt-out checks, delivery/failure timeline state, a
+  dedicated rate limit, and manual labels.
+- LR-0505 audited pause/resume controls that cancel pending automated work and
+  recreate only eligible future initial recovery intent without cancelling
+  explicit manual messages.
+- Tenant-owned `LeadNote` persistence and migration, operational fictional demo
+  data, dashboard API contracts, production Next.js lead-detail UI, and
+  Playwright coverage for filters, keyboard focus, conflicts, notes, messaging,
+  automation controls, and tenant isolation.
+- ADR-0014 documenting dashboard authorization, concurrency, timeline
+  projection, manual-message worker flow, polling, and resume eligibility.
 
 ### Changed
 

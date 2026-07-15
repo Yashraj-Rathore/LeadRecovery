@@ -66,12 +66,12 @@ Actions:
 - mark spam;
 - bulk actions are out of MVP scope except safe assignment/filter operations.
 
-The Milestone 2 shell is a narrower read-only acceptance slice: tenant name,
-current user/role, lead name or phone, source, status, age, summary counts,
-empty/error states, and secure logout. It server-renders authenticated data and
-redirects an expired session to login. Filters, assignment, lead navigation,
-automation controls, unread state, and performance acceptance remain LR-0501
-through LR-0505 and must not be inferred complete from this shell.
+Milestone 5 completes the operational slice: tenant-scoped status, urgency,
+assignment, and exact-user filters; lead navigation; assignment; unread and
+automation indicators; loading/empty/retry states; and manual refresh plus
+ten-second polling. Semantic labels, ordinary selects, visible focus, and
+44-pixel action targets support keyboard use. A PostgreSQL integration
+acceptance test measures the filtered endpoint with 10,000 tenant Leads.
 
 ### 3.3 Lead detail
 
@@ -101,6 +101,12 @@ Required controls:
 - copy phone number;
 - open booking link;
 - view pending follow-ups and cancel them.
+
+Milestone 5 implements the controls owned by LR-0501 through LR-0505: manual
+SMS, pause/resume, assignment, domain-allowed transitions, internal notes, copy
+phone, and pending-action display. Category/urgency editing, booking-link
+actions, AI summary controls, and arbitrary pending-action cancellation remain
+their owning later issues.
 
 ### 3.4 Settings - Business
 
@@ -197,6 +203,11 @@ Example concurrency message:
 ## 9. Real-time strategy
 
 MVP may poll lead counts and open conversations every 5-10 seconds. SignalR can replace polling after core flows are stable.
+
+The implemented inbox polls every ten seconds and an open Lead every eight.
+Composer and note drafts remain local state. If new activity arrives while the
+message composer has focus, an ARIA-live notification appears without replacing
+the draft.
 
 When a new message arrives:
 

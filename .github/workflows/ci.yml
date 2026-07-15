@@ -121,6 +121,8 @@ jobs:
           echo "E2E_ALPHA_URGENT_PHONE=+1416555${suffix}" >> "$GITHUB_ENV"
           echo "E2E_ALPHA_BOOKING_PHONE=+1416555$((10#$suffix + 1))" >> "$GITHUB_ENV"
           echo "E2E_BETA_LEAD_PHONE=+1416555$((10#$suffix + 2))" >> "$GITHUB_ENV"
+          echo "E2E_ALPHA_PROVIDER_PHONE=+1416555$((10#$suffix + 3))" >> "$GITHUB_ENV"
+          echo "E2E_BETA_PROVIDER_PHONE=+1416555$((10#$suffix + 4))" >> "$GITHUB_ENV"
 
       - name: Apply database migrations
         run: >-

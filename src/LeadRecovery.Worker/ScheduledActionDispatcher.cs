@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using Hangfire;
 
 using LeadRecovery.Application.Integrations;
+using LeadRecovery.Application.Messaging;
 using LeadRecovery.Domain.Automations;
 using LeadRecovery.Infrastructure.Persistence;
 
@@ -57,19 +58,20 @@ internal sealed partial class ScheduledActionDispatcher(
                 updated_at_utc = {now}
             where status = 'Running'
               and updated_at_utc <= {staleBefore}
-              and action_type = {ProcessCallStatusWebhookUseCase.RecoveryActionType}
+              and action_type in ({ProcessCallStatusWebhookUseCase.RecoveryActionType}, {SmsScheduledActionTypes.SendManualSms})
             """,
             cancellationToken);
 
         var dueActions = await dbContext.ScheduledActions
             .IgnoreQueryFilters()
             .Where(action =>
-                action.ActionType == ProcessCallStatusWebhookUseCase.RecoveryActionType &&
+                (action.ActionType == ProcessCallStatusWebhookUseCase.RecoveryActionType ||
+                    action.ActionType == SmsScheduledActionTypes.SendManualSms) &&
                 action.Status == ScheduledActionStatus.Pending &&
                 action.ScheduledForUtc <= now)
             .OrderBy(action => action.ScheduledForUtc)
             .ThenBy(action => action.Id)
-            .Select(action => new { action.Id, action.TenantId })
+            .Select(action => new { action.Id, action.TenantId, action.ActionType })
             .Take(100)
             .ToListAsync(cancellationToken);
 
@@ -82,11 +84,22 @@ internal sealed partial class ScheduledActionDispatcher(
             }
 
             string correlationId = $"worker:{action.Id:N}:{now.ToUnixTimeSeconds()}";
-            _ = backgroundJobs.Enqueue<ScheduledRecoverySmsJob>(job => job.ExecuteAsync(
-                action.Id,
-                action.TenantId,
-                correlationId,
-                CancellationToken.None));
+            if (action.ActionType == SmsScheduledActionTypes.SendManualSms)
+            {
+                _ = backgroundJobs.Enqueue<ScheduledManualSmsJob>(job => job.ExecuteAsync(
+                    action.Id,
+                    action.TenantId,
+                    correlationId,
+                    CancellationToken.None));
+            }
+            else
+            {
+                _ = backgroundJobs.Enqueue<ScheduledRecoverySmsJob>(job => job.ExecuteAsync(
+                    action.Id,
+                    action.TenantId,
+                    correlationId,
+                    CancellationToken.None));
+            }
             _recentlyEnqueued[action.Id] = now;
             LogEnqueued(logger, action.Id, action.TenantId);
         }

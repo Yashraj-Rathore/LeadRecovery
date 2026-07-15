@@ -267,6 +267,44 @@ public sealed class LeadTests
         Assert.Equal(LeadStatus.New, lead.Status);
     }
 
+    [Fact]
+    public void AssignmentUrgencyAndAutomationControlsMaintainAggregateRules()
+    {
+        Lead lead = CreateLead();
+        Guid userId = Guid.CreateVersion7();
+
+        lead.AssignTo(userId, CreatedAtUtc.AddMinutes(1));
+        lead.ChangeUrgency(LeadUrgency.High, CreatedAtUtc.AddMinutes(2));
+        lead.PauseAutomation(CreatedAtUtc.AddMinutes(3));
+
+        Assert.Equal(userId, lead.AssignedUserId);
+        Assert.Equal(LeadUrgency.High, lead.Urgency);
+        Assert.Equal(AutomationState.PausedByUser, lead.AutomationState);
+        Assert.Throws<InvalidOperationException>(() =>
+            lead.PauseAutomation(CreatedAtUtc.AddMinutes(4)));
+
+        lead.ResumeAutomation(CreatedAtUtc.AddMinutes(4));
+        lead.Unassign(CreatedAtUtc.AddMinutes(5));
+
+        Assert.Equal(AutomationState.Active, lead.AutomationState);
+        Assert.Null(lead.AssignedUserId);
+    }
+
+    [Fact]
+    public void AutomationCannotResumeAfterOptOutOrCompletion()
+    {
+        Lead optedOut = CreateLead();
+        optedOut.PauseAutomation(CreatedAtUtc.AddMinutes(1));
+        optedOut.SuppressForOptOut(CreatedAtUtc.AddMinutes(2));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            optedOut.ResumeAutomation(CreatedAtUtc.AddMinutes(3)));
+
+        Lead booked = CreateLeadInStatus(LeadStatus.Booked);
+        Assert.Throws<InvalidOperationException>(() =>
+            booked.ResumeAutomation(booked.UpdatedAtUtc.AddMinutes(1)));
+    }
+
     private static Lead CreateLead() =>
         new(
             Guid.CreateVersion7(),

@@ -106,6 +106,11 @@ guards as those child records and an application-managed concurrency version.
 When `AssignedUserId` is present, `(TenantId, AssignedUserId)` must reference a
 membership in the same tenant.
 
+Milestone 5 adds explicit aggregate methods for same-tenant assignment,
+unassignment, urgency changes, user pause, and user resume. Assignment target
+validity is checked in persistence against the active tenant membership;
+pause/resume state and terminal-Lead restrictions remain domain rules.
+
 Indexes:
 
 - `(TenantId, Status, CreatedAtUtc desc)`
@@ -231,6 +236,20 @@ tenant identity used by Message, and a filtered unique index that permits only
 one active template per `(TenantId, Purpose)`. Activation is rejected until the
 template is approved. Initial recovery execution requires the active approved
 `InitialMissedCallRecovery` purpose and stores its ID on the outbound Message.
+
+### LeadNote
+
+- `Id`
+- `TenantId`
+- `LeadId`
+- `AuthorUserId`
+- `Body` required, maximum 2,000 characters
+- `CreatedAtUtc`
+
+Milestone 5 persists internal notes as plain text. Compound foreign keys bind
+the note to a Lead and author membership in the same tenant. Reads and writes
+use the tenant query/write guards, and `(TenantId, LeadId, CreatedAtUtc)`
+supports ordered timeline projection. Notes never execute as HTML.
 
 ### WorkflowDefinition
 

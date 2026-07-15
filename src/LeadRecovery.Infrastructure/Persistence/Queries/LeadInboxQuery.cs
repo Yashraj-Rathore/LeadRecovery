@@ -14,12 +14,44 @@ internal sealed class LeadInboxQuery(LeadRecoveryDbContext dbContext)
     public async Task<LeadInboxPage> ListAsync(
         int pageSize,
         string? cursor,
+        LeadInboxCriteria criteria,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(criteria);
         int offset = DecodeCursor(cursor);
-        List<LeadInboxItem> items = await dbContext.Leads
+        IQueryable<Lead> leads = dbContext.Leads.AsNoTracking();
+        if (criteria.Status is LeadStatus status)
+        {
+            leads = leads.Where(lead => lead.Status == status);
+        }
+
+        if (criteria.Urgency is LeadUrgency urgency)
+        {
+            leads = leads.Where(lead => lead.Urgency == urgency);
+        }
+
+        leads = criteria.Assignment switch
+        {
+            LeadAssignmentFilter.All => leads,
+            LeadAssignmentFilter.Unassigned =>
+                leads.Where(lead => lead.AssignedUserId == null),
+            LeadAssignmentFilter.Mine =>
+                leads.Where(lead => lead.AssignedUserId == criteria.CurrentUserId),
+            _ => throw new ArgumentOutOfRangeException(nameof(criteria)),
+        };
+        if (criteria.AssignedUserId is Guid assignedUserId)
+        {
+            leads = leads.Where(lead => lead.AssignedUserId == assignedUserId);
+        }
+
+        List<LeadInboxItem> items = await leads
             .AsNoTracking()
-            .OrderByDescending(lead => lead.CreatedAtUtc)
+            .OrderByDescending(lead => lead.Status == LeadStatus.NeedsHuman)
+            .ThenByDescending(lead => lead.Urgency)
+            .ThenByDescending(lead =>
+                lead.LastCustomerActivityAtUtc ??
+                lead.LastBusinessActivityAtUtc ??
+                lead.CreatedAtUtc)
             .ThenByDescending(lead => lead.Id)
             .Skip(offset)
             .Take(pageSize + 1)
@@ -31,6 +63,20 @@ internal sealed class LeadInboxQuery(LeadRecoveryDbContext dbContext)
                 lead.Status,
                 lead.Urgency,
                 lead.AutomationState,
+                lead.AssignedUserId,
+                lead.AssignedUserId == null
+                    ? null
+                    : dbContext.Users
+                        .Where(user => user.Id == lead.AssignedUserId)
+                        .Select(user => user.DisplayName)
+                        .SingleOrDefault(),
+                lead.LastCustomerActivityAtUtc ??
+                    lead.LastBusinessActivityAtUtc ??
+                    lead.CreatedAtUtc,
+                lead.LastCustomerActivityAtUtc != null &&
+                    (lead.LastBusinessActivityAtUtc == null ||
+                        lead.LastCustomerActivityAtUtc > lead.LastBusinessActivityAtUtc),
+                lead.Version,
                 lead.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
@@ -58,6 +104,20 @@ internal sealed class LeadInboxQuery(LeadRecoveryDbContext dbContext)
                 lead.Status,
                 lead.Urgency,
                 lead.AutomationState,
+                lead.AssignedUserId,
+                lead.AssignedUserId == null
+                    ? null
+                    : dbContext.Users
+                        .Where(user => user.Id == lead.AssignedUserId)
+                        .Select(user => user.DisplayName)
+                        .SingleOrDefault(),
+                lead.LastCustomerActivityAtUtc ??
+                    lead.LastBusinessActivityAtUtc ??
+                    lead.CreatedAtUtc,
+                lead.LastCustomerActivityAtUtc != null &&
+                    (lead.LastBusinessActivityAtUtc == null ||
+                        lead.LastCustomerActivityAtUtc > lead.LastBusinessActivityAtUtc),
+                lead.Version,
                 lead.CreatedAtUtc))
             .SingleOrDefaultAsync(cancellationToken);
 

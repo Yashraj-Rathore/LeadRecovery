@@ -91,6 +91,15 @@ builder.Services.AddAuthorizationBuilder()
                 TenantRole.Staff.ToString(),
                 TenantRole.ReadOnly.ToString()))
     .AddPolicy(
+        AuthorizationPolicies.DashboardOperator,
+        policy => policy
+            .RequireAuthenticatedUser()
+            .RequireClaim(TenantClaimTypes.TenantId)
+            .RequireRole(
+                TenantRole.Owner.ToString(),
+                TenantRole.Manager.ToString(),
+                TenantRole.Staff.ToString()))
+    .AddPolicy(
         AuthorizationPolicies.OwnerOnly,
         policy => policy
             .RequireAuthenticatedUser()
@@ -121,6 +130,15 @@ builder.Services.AddRateLimiter(options =>
             "RateLimiting:LoginPermitLimit must be greater than zero.");
     }
 
+    int manualMessagePermitLimit = builder.Configuration.GetValue(
+        "RateLimiting:ManualMessagePermitLimit",
+        10);
+    if (manualMessagePermitLimit < 1)
+    {
+        throw new InvalidOperationException(
+            "RateLimiting:ManualMessagePermitLimit must be greater than zero.");
+    }
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy(
         "login",
@@ -129,6 +147,19 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = loginPermitLimit,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+                AutoReplenishment = true,
+            }));
+    options.AddPolicy(
+        "manual-message",
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ??
+                context.Connection.RemoteIpAddress?.ToString() ??
+                "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = manualMessagePermitLimit,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1),
                 AutoReplenishment = true,

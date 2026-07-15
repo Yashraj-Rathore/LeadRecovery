@@ -266,11 +266,10 @@ real Hangfire PostgreSQL integration test proves worker execution.
 - keyboard accessible;
 - performance target with 10,000 seeded leads.
 
-Prompt 3 provides only the minimum read-only authenticated shell needed to
-prove LR-0103: a tenant-scoped paged lead endpoint, seeded lead display,
-empty/error handling, and accessible login/logout. LR-0501 remains open until
-status/urgency/assignment filters, loading behavior, and the 10,000-lead
-performance acceptance are implemented in Prompt 6.
+Prompt 3 provided only the minimum read-only authenticated shell needed to
+prove LR-0103. Prompt 6 has now added status/urgency/assignment filters,
+loading behavior, lead navigation, and the 10,000-Lead performance acceptance
+required to complete LR-0501.
 
 ### LR-0502 Lead detail and timeline
 
@@ -308,6 +307,18 @@ performance acceptance are implemented in Prompt 6.
 - resume creates only valid future actions;
 - action is audited;
 - UI state is obvious.
+
+Implementation note (2026-07-15): LR-0501 through LR-0505 are complete. The
+tenant inbox filters before paging and meets the 10,000-Lead p95 target in a
+real PostgreSQL acceptance test. Detail projects call audit, SMS, system, and
+tenant-owned note records into a stable plain-text timeline and exposes pending
+work. Owner/Manager/Staff writes require CSRF, active membership, entity tenant
+scope, domain transitions, and opaque Lead versions; stale writes return the
+latest representation. Manual SMS is idempotently persisted before a
+fake-by-default Worker send and re-checks opt-out at execution. Pause cancels
+pending automated intent, while resume schedules only an eligible missed-call
+recovery that was never sent. Playwright verifies filters, keyboard focus,
+conflict recovery, notes, manual messaging, automation state, and tenant denial.
 
 ## Epic E6 - Qualification and booking
 

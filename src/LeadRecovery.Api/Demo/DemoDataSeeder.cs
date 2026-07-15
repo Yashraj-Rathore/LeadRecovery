@@ -1,6 +1,11 @@
 using System.Security.Claims;
+using System.Text.Json;
 
+using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Tenancy;
+using LeadRecovery.Domain.Audit;
+using LeadRecovery.Domain.Automations;
+using LeadRecovery.Domain.Conversations;
 using LeadRecovery.Domain.Identity;
 using LeadRecovery.Domain.Leads;
 using LeadRecovery.Domain.Tenancy;
@@ -54,29 +59,37 @@ internal sealed class DemoDataSeeder(
 
         await EnsureTenantData(
             alpha,
+            settings.AlphaProviderPhone,
             [(owner, TenantRole.Owner), (staff, TenantRole.Staff)],
             [
                 new DemoLead(
                     settings.AlphaUrgentPhone,
                     "Urgent plumbing caller",
                     LeadSource.MissedCall,
+                    LeadUrgency.CriticalReview,
+                    AssignedUserId: null,
                     RequiresHumanReview: true),
                 new DemoLead(
                     settings.AlphaBookingPhone,
                     "Booking request",
                     LeadSource.InboundSms,
+                    LeadUrgency.Normal,
+                    AssignedUserId: owner.Id,
                     RequiresHumanReview: false),
             ],
             now,
             cancellationToken);
         await EnsureTenantData(
             beta,
+            settings.BetaProviderPhone,
             [(betaOwner, TenantRole.Owner)],
             [
                 new DemoLead(
                     settings.BetaLeadPhone,
                     "Beta tenant lead",
                     LeadSource.Manual,
+                    LeadUrgency.Low,
+                    AssignedUserId: betaOwner.Id,
                     RequiresHumanReview: false),
             ],
             now,
@@ -137,6 +150,7 @@ internal sealed class DemoDataSeeder(
 
     private async Task EnsureTenantData(
         Tenant tenant,
+        string providerPhone,
         IReadOnlyCollection<(ApplicationUser User, TenantRole Role)> memberships,
         IReadOnlyCollection<DemoLead> leads,
         DateTimeOffset now,
@@ -152,6 +166,11 @@ internal sealed class DemoDataSeeder(
             {
                 User = new ClaimsPrincipal(identity),
             };
+
+            if (!tenant.AutomationEnabled)
+            {
+                tenant.SetAutomationEnabled(true, now);
+            }
 
             foreach ((ApplicationUser user, TenantRole role) in memberships)
             {
@@ -173,6 +192,27 @@ internal sealed class DemoDataSeeder(
                 }
             }
 
+            bool hasProviderNumber = await dbContext.TenantPhoneNumbers
+                .IgnoreQueryFilters()
+                .AnyAsync(
+                    number =>
+                        number.TenantId == tenant.Id &&
+                        number.PhoneNumberE164 == providerPhone,
+                    cancellationToken);
+            if (!hasProviderNumber)
+            {
+                dbContext.TenantPhoneNumbers.Add(new TenantPhoneNumber(
+                    Guid.CreateVersion7(),
+                    tenant.Id,
+                    "Twilio",
+                    providerPhone,
+                    $"PN{tenant.Id:N}",
+                    ["busy", "failed", "no-answer"],
+                    initialDelaySeconds: 60,
+                    recoveryCooldownSeconds: 3600,
+                    isPrimary: true));
+            }
+
             bool tenantHasLeads = await dbContext.Leads
                 .IgnoreQueryFilters()
                 .AnyAsync(lead => lead.TenantId == tenant.Id, cancellationToken);
@@ -189,12 +229,84 @@ internal sealed class DemoDataSeeder(
                         item.Source,
                         createdAt,
                         item.DisplayName);
+                    if (item.Urgency != LeadUrgency.Unknown)
+                    {
+                        lead.ChangeUrgency(item.Urgency, createdAt.AddSeconds(10));
+                    }
+
+                    if (item.AssignedUserId is Guid assignedUserId)
+                    {
+                        lead.AssignTo(assignedUserId, createdAt.AddSeconds(20));
+                    }
+
                     if (item.RequiresHumanReview)
                     {
                         lead.RequireHumanReview(createdAt.AddMinutes(1));
                     }
 
                     dbContext.Leads.Add(lead);
+                    if (item.Source == LeadSource.MissedCall)
+                    {
+                        ScheduledAction action = new(
+                            Guid.CreateVersion7(),
+                            tenant.Id,
+                            lead.Id,
+                            ProcessCallStatusWebhookUseCase.RecoveryActionType,
+                            now.AddMinutes(10),
+                            $"demo-recovery:{lead.Id:N}",
+                            JsonSerializer.Serialize(new { schemaVersion = 1 }),
+                            createdAt.AddMinutes(1));
+                        dbContext.ScheduledActions.Add(action);
+                        dbContext.AuditEvents.Add(new AuditEvent(
+                            Guid.CreateVersion7(),
+                            tenant.Id,
+                            "Integration",
+                            "DemoTwilio",
+                            "MissedCallRecoveryScheduled",
+                            nameof(Lead),
+                            lead.Id.ToString("N"),
+                            $"demo:{lead.Id:N}",
+                            createdAt.AddMinutes(1),
+                            afterJson: JsonSerializer.Serialize(new
+                            {
+                                result = "RecoveryScheduled",
+                                scheduledActionId = action.Id,
+                            })));
+                    }
+
+                    if (item.Source == LeadSource.InboundSms)
+                    {
+                        DateTimeOffset messageAt = createdAt.AddMinutes(2);
+                        Conversation conversation = new(
+                            Guid.CreateVersion7(),
+                            tenant.Id,
+                            lead.Id,
+                            ConversationChannel.Sms,
+                            createdAt.AddMinutes(1));
+                        Message message = Message.ReceiveInbound(
+                            Guid.CreateVersion7(),
+                            tenant.Id,
+                            lead.Id,
+                            conversation.Id,
+                            MessageKind.Manual,
+                            "Twilio",
+                            $"SM{lead.Id:N}",
+                            $"demo-inbound:{lead.Id:N}",
+                            "Could someone help me schedule a service visit?",
+                            messageAt);
+                        lead.RecordCustomerActivity(messageAt);
+                        dbContext.Conversations.Add(conversation);
+                        dbContext.Messages.Add(message);
+                        Guid noteAuthor = item.AssignedUserId ?? memberships.First().User.Id;
+                        dbContext.LeadNotes.Add(new LeadNote(
+                            Guid.CreateVersion7(),
+                            tenant.Id,
+                            lead.Id,
+                            noteAuthor,
+                            "Customer prefers an afternoon appointment.",
+                            messageAt.AddMinutes(1)));
+                    }
+
                     offset += 15;
                 }
             }
@@ -211,5 +323,7 @@ internal sealed class DemoDataSeeder(
         string Phone,
         string DisplayName,
         LeadSource Source,
+        LeadUrgency Urgency,
+        Guid? AssignedUserId,
         bool RequiresHumanReview);
 }

@@ -144,6 +144,24 @@ create index ix_leads_tenant_assigned_status
 create index ix_leads_tenant_urgency_status
     on leads(tenant_id, urgency, status);
 
+create table lead_notes (
+    id uuid primary key,
+    tenant_id uuid not null references tenants(id),
+    lead_id uuid not null,
+    author_user_id uuid not null,
+    body varchar(2000) not null,
+    created_at_utc timestamptz not null,
+    unique(tenant_id, id),
+    foreign key (tenant_id, lead_id) references leads(tenant_id, id),
+    foreign key (tenant_id, author_user_id)
+        references tenant_memberships(tenant_id, user_id)
+);
+
+create index ix_lead_notes_tenant_lead_created
+    on lead_notes(tenant_id, lead_id, created_at_utc);
+create index ix_lead_notes_tenant_id_author_user_id
+    on lead_notes(tenant_id, author_user_id);
+
 create table conversations (
     id uuid primary key,
     tenant_id uuid not null references tenants(id),

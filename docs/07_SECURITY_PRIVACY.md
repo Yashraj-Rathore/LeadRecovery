@@ -113,6 +113,14 @@ in the session. Client-supplied tenant headers are ignored, lead list/detail
 queries execute under the EF tenant filter, and integration plus Playwright
 tests exercise cross-tenant denial in CI.
 
+LR-0501 through LR-0505 keep TenantMember reads separate from the
+Owner/Manager/Staff DashboardOperator mutation policy. Every dashboard write
+validates antiforgery, derives actor and tenant from the session, re-checks
+entity ownership in filtered persistence, and records a redacted audit event.
+Manual SMS uses a per-user fixed-window rate limit and enforces opt-out both
+when queued and immediately before provider execution. ReadOnly users receive
+`403`; cross-tenant identifiers remain indistinguishable from missing records.
+
 ## 6. Webhook security
 
 - validate Twilio signatures;

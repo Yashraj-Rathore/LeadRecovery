@@ -23,18 +23,17 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 3 are complete. LR-0101 through LR-0103, LR-0201 through
-LR-0204, and LR-0301 through LR-0303 are implemented. In addition to the modular-monolith domain and
-PostgreSQL foundation, the repository now contains ASP.NET Core Identity users,
-tenant memberships and roles, audited same-origin cookie sessions, CSRF and
-login-rate-limit controls, tenant-scoped lead queries, opt-in fictional demo
-seeding, and a minimal Next.js login and lead-inbox shell. Integration and
-Playwright tests cover Owner/Staff login, logout invalidation, role policies,
-and cross-tenant denial. Signed Twilio call-status callbacks now resolve a
-tenant-owned provider number, persist an idempotency receipt, create or update
-a lead, and schedule a pending initial-recovery action with cooldown, audit,
-and metrics. Hangfire execution, outbound SMS, inbound SMS, and the operational
-dashboard actions remain later milestones.
+Milestones 0 through 5 are complete. LR-0101 through LR-0505 are implemented.
+The modular monolith now includes the PostgreSQL domain and tenant foundation,
+secure Identity cookie sessions, signed Twilio call/SMS ingestion,
+PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
+opt-out suppression, and the operational Next.js dashboard. Staff can filter
+the tenant inbox, inspect the ordered call/SMS/system/note timeline, assign and
+transition Leads, send idempotent manual SMS, and pause or resume eligible
+automation. All browser writes use CSRF and role authorization; Lead writes use
+opaque optimistic-concurrency tokens and return the latest safe representation
+on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
+cover these flows without enabling live SMS.
 
 The currently implemented browser and health contract is:
 
@@ -43,14 +42,18 @@ The currently implemented browser and health contract is:
 - `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`,
   `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
   session;
-- `GET /api/v1/leads` and `GET /api/v1/leads/{leadId}` return only leads owned
-  by the authenticated session tenant;
+- `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
+  `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
+  assignees, ordered timeline, pending actions, and allowed transitions;
+- lead assignment, transition, note, manual-message, pause, and resume endpoints
+  are CSRF-protected and restricted to Owner, Manager, and Staff memberships;
 - `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
   form callbacks and records recovery intent;
 - `POST /api/v1/webhooks/twilio/sms/inbound` and
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
-- the worker executes due recovery actions through PostgreSQL-backed Hangfire,
+- the worker executes due recovery and manual-message actions through
+  PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
 
@@ -862,9 +865,10 @@ The Milestone 2 shell is a Next.js App Router application deployed on the same
 browser origin as `/api`. Next.js rewrites `/api/*` to the ASP.NET Core host;
 the browser never receives an API origin or a bearer token. Server components
 forward only the incoming session cookie for authenticated rendering. The
-current UI implements login, logout, session display, and a read-only seeded
-lead inbox; operational lead actions remain Milestone 6 / LR-0501 through
-LR-0505.
+current UI implements login, logout, session display, the filtered Lead inbox,
+Lead detail/timeline, assignment, transitions, manual messaging, notes, and
+pause/resume controls. Browser mutations remain same-origin, role-authorized,
+CSRF-protected, tenant-scoped, and concurrency-aware.
 
 ASP.NET Core Identity owns passwords, lockout, security stamps, and the
 application cookie. A `TenantMembership` joins one user to one tenant role. The
@@ -1291,6 +1295,11 @@ guards as those child records and an application-managed concurrency version.
 When `AssignedUserId` is present, `(TenantId, AssignedUserId)` must reference a
 membership in the same tenant.
 
+Milestone 5 adds explicit aggregate methods for same-tenant assignment,
+unassignment, urgency changes, user pause, and user resume. Assignment target
+validity is checked in persistence against the active tenant membership;
+pause/resume state and terminal-Lead restrictions remain domain rules.
+
 Indexes:
 
 - `(TenantId, Status, CreatedAtUtc desc)`
@@ -1416,6 +1425,20 @@ tenant identity used by Message, and a filtered unique index that permits only
 one active template per `(TenantId, Purpose)`. Activation is rejected until the
 template is approved. Initial recovery execution requires the active approved
 `InitialMissedCallRecovery` purpose and stores its ID on the outbound Message.
+
+### LeadNote
+
+- `Id`
+- `TenantId`
+- `LeadId`
+- `AuthorUserId`
+- `Body` required, maximum 2,000 characters
+- `CreatedAtUtc`
+
+Milestone 5 persists internal notes as plain text. Compound foreign keys bind
+the note to a Lead and author membership in the same tenant. Reads and writes
+use the tenant query/write guards, and `(TenantId, LeadId, CreatedAtUtc)`
+supports ordered timeline projection. Notes never execute as HTML.
 
 ### WorkflowDefinition
 
@@ -1714,21 +1737,26 @@ implemented OpenAPI contract.
 
 `GET /api/v1/leads?pageSize=25&cursor=...`
 
-The Milestone 2 endpoint returns tenant-scoped summary fields only, ordered by
-creation time and ID descending. `pageSize` is 1 through 100 and `cursor` is an
-opaque encoded offset. Status, urgency, and assignment filters remain LR-0501.
+The Milestone 5 endpoint returns tenant-scoped summary fields with assignment,
+last activity, unread state, automation state, and opaque row version.
+`pageSize` is 1 through 100 and `cursor` is an opaque encoded offset. Optional
+`status`, `urgency`, `assignment=all|unassigned|mine`, and `assignedUserId`
+filters are applied before paging. Human-review and urgent work sort first.
 
 ### Get lead
 
 `GET /api/v1/leads/{leadId}`
 
-The Milestone 2 endpoint returns the same lead summary shape used by the inbox.
-It returns `404` for an unknown ID and for an ID owned by another tenant. The
-full detail, conversation timeline, pending actions, AI suggestion, and
-role-appropriate audit summary remain LR-0502.
+The Milestone 5 endpoint returns the inbox summary plus a consistently ordered
+plain-text timeline of call, SMS, system, and internal-note events; pending or
+running actions; active tenant assignees; and domain-allowed transitions. It
+returns `404` for an unknown ID and for an ID owned by another tenant. Polling
+and conflict-refresh behavior are defined in the frontend specification. AI
+suggestions remain a later milestone.
 
-The remaining write endpoints in this section describe future dashboard
-milestones and are not yet implemented or included in `api/openapi.yaml`.
+The dashboard write endpoints below are implemented and included in
+`api/openapi.yaml`. They require an authenticated Owner, Manager, or Staff
+membership and `X-CSRF-TOKEN`; ReadOnly receives `403`.
 
 ### Update lead status
 
@@ -1750,6 +1778,9 @@ patching of domain status.
 
 `POST /api/v1/leads/{leadId}/assignment`
 
+The request carries nullable `assignedUserId` plus `expectedRowVersion`. The
+target must be an active membership of the authenticated tenant; null unassigns.
+
 ### Pause automation
 
 `POST /api/v1/leads/{leadId}/automation/pause`
@@ -1762,11 +1793,19 @@ patching of domain status.
 
 `POST /api/v1/leads/{leadId}/notes`
 
+Assignment, transitions, pause, and resume return `409` with the current safe
+Lead representation when the opaque expected row version is stale. Pause
+cancels pending automated actions. Resume may recreate one future initial
+recovery action only when the missed-call Lead and tenant remain eligible.
+
 ## 5. Message endpoints
 
 - `GET /api/v1/leads/{leadId}/messages`
 - `POST /api/v1/leads/{leadId}/messages`
-- `GET /api/v1/messages/{messageId}/status`
+
+Message state is returned in the lead timeline. A separate
+`GET /api/v1/messages/{messageId}/status` route remains a future contract and is
+not included in the Milestone 5 OpenAPI document.
 
 Manual send request:
 
@@ -1785,6 +1824,11 @@ Server rules:
 - apply length and content validation;
 - persist queued record before provider call;
 - update delivery state asynchronously.
+
+Milestone 5 queues manual messages as durable `Message` plus `SendManualSms`
+ScheduledAction records before returning. The Worker resolves phone and body
+from tenant-scoped persistence, re-checks opt-out and Lead policy, and uses the
+same fake-by-default/live-explicitly-gated provider path as automated recovery.
 
 ## 6. Tenant configuration endpoints
 
@@ -2042,12 +2086,12 @@ Actions:
 - mark spam;
 - bulk actions are out of MVP scope except safe assignment/filter operations.
 
-The Milestone 2 shell is a narrower read-only acceptance slice: tenant name,
-current user/role, lead name or phone, source, status, age, summary counts,
-empty/error states, and secure logout. It server-renders authenticated data and
-redirects an expired session to login. Filters, assignment, lead navigation,
-automation controls, unread state, and performance acceptance remain LR-0501
-through LR-0505 and must not be inferred complete from this shell.
+Milestone 5 completes the operational slice: tenant-scoped status, urgency,
+assignment, and exact-user filters; lead navigation; assignment; unread and
+automation indicators; loading/empty/retry states; and manual refresh plus
+ten-second polling. Semantic labels, ordinary selects, visible focus, and
+44-pixel action targets support keyboard use. A PostgreSQL integration
+acceptance test measures the filtered endpoint with 10,000 tenant Leads.
 
 ### 3.3 Lead detail
 
@@ -2077,6 +2121,12 @@ Required controls:
 - copy phone number;
 - open booking link;
 - view pending follow-ups and cancel them.
+
+Milestone 5 implements the controls owned by LR-0501 through LR-0505: manual
+SMS, pause/resume, assignment, domain-allowed transitions, internal notes, copy
+phone, and pending-action display. Category/urgency editing, booking-link
+actions, AI summary controls, and arbitrary pending-action cancellation remain
+their owning later issues.
 
 ### 3.4 Settings - Business
 
@@ -2173,6 +2223,11 @@ Example concurrency message:
 ## 9. Real-time strategy
 
 MVP may poll lead counts and open conversations every 5-10 seconds. SignalR can replace polling after core flows are stable.
+
+The implemented inbox polls every ten seconds and an open Lead every eight.
+Composer and note drafts remain local state. If new activity arrives while the
+message composer has focus, an ARIA-live notification appears without replacing
+the draft.
 
 When a new message arrives:
 
@@ -2474,6 +2529,14 @@ in the session. Client-supplied tenant headers are ignored, lead list/detail
 queries execute under the EF tenant filter, and integration plus Playwright
 tests exercise cross-tenant denial in CI.
 
+LR-0501 through LR-0505 keep TenantMember reads separate from the
+Owner/Manager/Staff DashboardOperator mutation policy. Every dashboard write
+validates antiforgery, derives actor and tenant from the session, re-checks
+entity ownership in filtered persistence, and records a redacted audit event.
+Manual SMS uses a per-user fixed-window rate limit and enforces opt-out both
+when queued and immediately before provider execution. ReadOnly users receive
+`403`; cross-tenant identifiers remain indistinguishable from missing records.
+
 ## 6. Webhook security
 
 - validate Twilio signatures;
@@ -2750,6 +2813,15 @@ the production frontend, applies all migrations to isolated PostgreSQL, starts
 the real API and Next.js shell, and runs this test in Chromium. Later prompts
 add the remaining critical E2E scenarios as their provider and workflow
 features become available.
+
+Milestone 5 adds PostgreSQL integration coverage for CSRF-required dashboard
+mutations, ReadOnly denial, active-member assignment, stale opaque row-version
+conflicts, transition and pause audit rows, pending-action cancellation,
+manual-message idempotency, fake-provider Worker completion, and opt-out
+blocking. A 10,000-Lead tenant test measures ten warmed filtered HTTP reads and
+requires p95 below 500 ms. Playwright verifies labeled filters and keyboard
+focus, detail/timeline rendering, latest-state conflict recovery, pause state,
+notes, manual SMS queue visibility, and cross-tenant denial.
 
 ## 3. Test environments
 
@@ -3297,9 +3369,10 @@ Business metrics must be tenant-scoped and access-controlled.
 Milestone 4 emits fixed-cardinality counters from the
 `LeadRecovery.Messaging.Sms` meter for outbound, inbound, and delivery outcomes.
 Worker logs carry TenantId, ScheduledActionId, CorrelationId, and outcome in a
-structured scope; they exclude phone numbers and message bodies. Durable audit
-events provide the tenant dashboard activity source until the Milestone 5 live
-timeline transport is added.
+structured scope; they exclude phone numbers and message bodies. Milestone 5
+projects durable Message, LeadNote, and redacted Lead AuditEvent records into
+the polled tenant timeline. SignalR remains an optional later transport and is
+not required for operational correctness.
 
 ## 5. Alerts
 
@@ -3575,6 +3648,15 @@ Exit criteria:
 - office workflow can be completed entirely through UI;
 - accessibility smoke test passes;
 - E2E happy path passes.
+
+Implementation status (2026-07-15): complete for LR-0501 through LR-0505.
+The authenticated dashboard now provides filtered and measured tenant inbox
+reads, ordered plain-text activity, pending actions, assignment, allowed domain
+transitions, durable manual SMS, notes, audited pause/resume, and explicit
+loading/error/concurrency behavior. PostgreSQL integration and Playwright cover
+CSRF, role denial, stale writes, opt-out, worker completion, keyboard focus,
+and the end-to-end office flow. Qualification, booking-link behavior, and
+follow-up cadence remain Milestone 6.
 
 ### Milestone 6 - Qualification, booking, and follow-up (Week 6)
 
@@ -4059,11 +4141,10 @@ real Hangfire PostgreSQL integration test proves worker execution.
 - keyboard accessible;
 - performance target with 10,000 seeded leads.
 
-Prompt 3 provides only the minimum read-only authenticated shell needed to
-prove LR-0103: a tenant-scoped paged lead endpoint, seeded lead display,
-empty/error handling, and accessible login/logout. LR-0501 remains open until
-status/urgency/assignment filters, loading behavior, and the 10,000-lead
-performance acceptance are implemented in Prompt 6.
+Prompt 3 provided only the minimum read-only authenticated shell needed to
+prove LR-0103. Prompt 6 has now added status/urgency/assignment filters,
+loading behavior, lead navigation, and the 10,000-Lead performance acceptance
+required to complete LR-0501.
 
 ### LR-0502 Lead detail and timeline
 
@@ -4101,6 +4182,18 @@ performance acceptance are implemented in Prompt 6.
 - resume creates only valid future actions;
 - action is audited;
 - UI state is obvious.
+
+Implementation note (2026-07-15): LR-0501 through LR-0505 are complete. The
+tenant inbox filters before paging and meets the 10,000-Lead p95 target in a
+real PostgreSQL acceptance test. Detail projects call audit, SMS, system, and
+tenant-owned note records into a stable plain-text timeline and exposes pending
+work. Owner/Manager/Staff writes require CSRF, active membership, entity tenant
+scope, domain transitions, and opaque Lead versions; stale writes return the
+latest representation. Manual SMS is idempotently persisted before a
+fake-by-default Worker send and re-checks opt-out at execution. Pause cancels
+pending automated intent, while resume schedules only an eligible missed-call
+recovery that was never sent. Playwright verifies filters, keyboard focus,
+conflict recovery, notes, manual messaging, automation state, and tenant denial.
 
 ## Epic E6 - Qualification and booking
 
@@ -4634,6 +4727,7 @@ updated in the same change so they remain aligned.
 | [0011](0011-identity-membership-and-browser-session.md) | Identity, tenant membership, and browser session | Accepted |
 | [0012](0012-twilio-call-status-ingestion.md) | Twilio call-status ingestion and recovery routing | Accepted |
 | [0013](0013-sms-worker-and-webhook-lifecycle.md) | SMS worker and webhook lifecycle | Accepted |
+| [0014](0014-operational-dashboard-and-manual-sms.md) | Operational dashboard and manual SMS | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -5303,6 +5397,71 @@ real message.
 
 ---
 
+<!-- SOURCE: docs/decisions/0014-operational-dashboard-and-manual-sms.md -->
+
+# ADR-0014: Operational dashboard and manual SMS
+
+- Status: Accepted
+- Date: 2026-07-15
+- Owners: LeadRecovery engineering
+
+## Context
+
+Milestone 5 must turn the authenticated read-only shell into an operational
+inbox without weakening tenant isolation, optimistic concurrency, opt-out
+enforcement, or the API/worker separation established by earlier milestones.
+The specifications also require a single ordered timeline even though call
+activity, messages, internal notes, audits, and scheduled work have different
+persistence models.
+
+## Decision
+
+1. Owner, Manager, and Staff memberships use a `DashboardOperator` policy for
+   mutations. ReadOnly remains able to inspect tenant-owned leads but cannot
+   assign, transition, pause, resume, add notes, or send messages. Every browser
+   mutation validates the same-origin antiforgery token.
+2. Assignment, status, pause, and resume requests carry the opaque Lead
+   `expectedRowVersion`. Domain methods enforce legal state changes, PostgreSQL
+   retains the `bigint` concurrency token, and stale writes return `409` with
+   the latest safe lead representation.
+3. `LeadNote` is a tenant-owned entity with a compound Lead foreign key and a
+   same-tenant membership author. The detail timeline projects SMS records,
+   notes, and redacted call/system audit activity into one deterministic order.
+   The UI renders all bodies as plain React text and never executes HTML.
+4. A manual send first persists a `Message` with `Kind=Manual` and a client
+   idempotency key, then persists a `SendManualSms` ScheduledAction containing
+   only its Message ID. The Worker re-checks tenant state, Lead policy,
+   customer opt-out, provider number, and queued Message state before using the
+   existing fake-or-explicitly-gated Twilio adapter. Delivery callbacks remain
+   asynchronous.
+5. Pausing changes the Lead to `PausedByUser` and cancels pending automated
+   actions, never explicit manual-message intent. Resume is valid only from
+   `PausedByUser` while tenant automation is operational. It creates a future
+   initial-recovery action only for an eligible missed-call Lead with no prior
+   automated Message and no pending/running recovery action; otherwise it
+   safely creates none.
+6. The inbox polls every ten seconds and an open Lead every eight seconds.
+   Local composer text is not derived from refreshed server data. When activity
+   arrives while the composer is focused, the UI announces it instead of
+   changing the draft.
+7. The inbox query applies status, urgency, assignment, and exact-assignee
+   filters before paging, prioritizes urgent human-review work, and retains the
+   documented PostgreSQL indexes. Integration acceptance seeds 10,000 tenant
+   Leads and requires measured p95 HTTP latency below 500 ms.
+
+## Consequences
+
+- Manual SMS remains at-least-once with the same narrow provider crash window
+  documented in ADR-0013, while database identity prevents ordinary duplicate
+  sends.
+- The timeline is a read projection rather than a new event-sourcing model.
+- Live push, bulk operations, arbitrary reopening, follow-up cadence, booking
+  links, category editing, and AI controls remain later issues.
+- A worker must be running for a queued manual Message to progress from Queued
+  to Sent; the dashboard exposes the queued and failure states while polling.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -5338,6 +5497,8 @@ Implementation status (2026-07-15): complete. Continue with Prompt 6.
 ## Prompt 6 - Dashboard operations
 
 Implement LR-0501 through LR-0505. Build lead inbox/detail, assignment, allowed transitions, manual messaging, pause/resume, pending actions, loading/error/concurrency states, and accessibility checks.
+
+Implementation status (2026-07-15): complete. Continue with Prompt 7.
 
 ## Prompt 7 - Qualification and booking
 

@@ -9,7 +9,9 @@ internal sealed record DemoSeedSettings(
     string BetaOwnerPassword,
     string AlphaUrgentPhone,
     string AlphaBookingPhone,
-    string BetaLeadPhone)
+    string BetaLeadPhone,
+    string AlphaProviderPhone,
+    string BetaProviderPhone)
 {
     public static DemoSeedSettings FromConfiguration(IConfiguration configuration)
     {
@@ -23,7 +25,9 @@ internal sealed record DemoSeedSettings(
             Require(configuration, "DemoSeed:BetaOwnerPassword"),
             Require(configuration, "DemoSeed:AlphaUrgentPhone"),
             Require(configuration, "DemoSeed:AlphaBookingPhone"),
-            Require(configuration, "DemoSeed:BetaLeadPhone"));
+            Require(configuration, "DemoSeed:BetaLeadPhone"),
+            Require(configuration, "DemoSeed:AlphaProviderPhone"),
+            Require(configuration, "DemoSeed:BetaProviderPhone"));
     }
 
     private static string Require(IConfiguration configuration, string key)

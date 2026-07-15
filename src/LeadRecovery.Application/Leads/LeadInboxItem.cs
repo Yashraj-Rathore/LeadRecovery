@@ -10,4 +10,9 @@ public sealed record LeadInboxItem(
     LeadStatus Status,
     LeadUrgency Urgency,
     AutomationState AutomationState,
+    Guid? AssignedUserId,
+    string? AssignedUserName,
+    DateTimeOffset LastActivityAtUtc,
+    bool HasUnreadCustomerActivity,
+    long Version,
     DateTimeOffset CreatedAtUtc);

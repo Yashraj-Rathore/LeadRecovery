@@ -32,6 +32,8 @@ Implementation status (2026-07-15): complete. Continue with Prompt 6.
 
 Implement LR-0501 through LR-0505. Build lead inbox/detail, assignment, allowed transitions, manual messaging, pause/resume, pending actions, loading/error/concurrency states, and accessibility checks.
 
+Implementation status (2026-07-15): complete. Continue with Prompt 7.
+
 ## Prompt 7 - Qualification and booking
 
 Implement LR-0601 through LR-0604. Keep rules deterministic. Add business-hours and DST tests. Booking may be a tenant-configured link; do not add unnecessary calendar integrations.

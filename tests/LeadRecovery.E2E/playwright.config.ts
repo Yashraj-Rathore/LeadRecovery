@@ -22,6 +22,8 @@ const betaOwnerPassword = required("E2E_BETA_OWNER_PASSWORD");
 const alphaUrgentPhone = required("E2E_ALPHA_URGENT_PHONE");
 const alphaBookingPhone = required("E2E_ALPHA_BOOKING_PHONE");
 const betaLeadPhone = required("E2E_BETA_LEAD_PHONE");
+const alphaProviderPhone = required("E2E_ALPHA_PROVIDER_PHONE");
+const betaProviderPhone = required("E2E_BETA_PROVIDER_PHONE");
 
 export default defineConfig({
   testDir: "./tests",
@@ -62,6 +64,8 @@ export default defineConfig({
         DemoSeed__AlphaUrgentPhone: alphaUrgentPhone,
         DemoSeed__AlphaBookingPhone: alphaBookingPhone,
         DemoSeed__BetaLeadPhone: betaLeadPhone,
+        DemoSeed__AlphaProviderPhone: alphaProviderPhone,
+        DemoSeed__BetaProviderPhone: betaProviderPhone,
       },
       url: "http://127.0.0.1:8080/health/live",
       timeout: 120_000,

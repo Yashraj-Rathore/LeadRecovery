@@ -33,6 +33,8 @@ public sealed class LeadRecoveryDbContext(
 
     public DbSet<Lead> Leads => Set<Lead>();
 
+    public DbSet<LeadNote> LeadNotes => Set<LeadNote>();
+
     public DbSet<Conversation> Conversations => Set<Conversation>();
 
     public DbSet<Message> Messages => Set<Message>();
@@ -53,6 +55,7 @@ public sealed class LeadRecoveryDbContext(
         EnforceTenantOwnership<Customer>("customer");
         EnforceTenantOwnership<TenantPhoneNumber>("tenant phone number");
         EnforceTenantOwnership<Lead>("lead");
+        EnforceTenantOwnership<LeadNote>("lead note");
         EnforceTenantOwnership<Conversation>("conversation");
         EnforceTenantOwnership<Message>("message");
         EnforceTenantOwnership<MessageTemplate>("message template");
@@ -71,6 +74,7 @@ public sealed class LeadRecoveryDbContext(
         EnforceTenantOwnership<Customer>("customer");
         EnforceTenantOwnership<TenantPhoneNumber>("tenant phone number");
         EnforceTenantOwnership<Lead>("lead");
+        EnforceTenantOwnership<LeadNote>("lead note");
         EnforceTenantOwnership<Conversation>("conversation");
         EnforceTenantOwnership<Message>("message");
         EnforceTenantOwnership<MessageTemplate>("message template");
@@ -94,6 +98,8 @@ public sealed class LeadRecoveryDbContext(
             .HasQueryFilter(number => number.TenantId == ActiveTenantId);
         builder.Entity<Lead>()
             .HasQueryFilter(lead => lead.TenantId == ActiveTenantId);
+        builder.Entity<LeadNote>()
+            .HasQueryFilter(note => note.TenantId == ActiveTenantId);
         builder.Entity<Conversation>()
             .HasQueryFilter(conversation => conversation.TenantId == ActiveTenantId);
         builder.Entity<Message>()

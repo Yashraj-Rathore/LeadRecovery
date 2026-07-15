@@ -16,18 +16,17 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 3 are complete. LR-0101 through LR-0103, LR-0201 through
-LR-0204, and LR-0301 through LR-0303 are implemented. In addition to the modular-monolith domain and
-PostgreSQL foundation, the repository now contains ASP.NET Core Identity users,
-tenant memberships and roles, audited same-origin cookie sessions, CSRF and
-login-rate-limit controls, tenant-scoped lead queries, opt-in fictional demo
-seeding, and a minimal Next.js login and lead-inbox shell. Integration and
-Playwright tests cover Owner/Staff login, logout invalidation, role policies,
-and cross-tenant denial. Signed Twilio call-status callbacks now resolve a
-tenant-owned provider number, persist an idempotency receipt, create or update
-a lead, and schedule a pending initial-recovery action with cooldown, audit,
-and metrics. Hangfire execution, outbound SMS, inbound SMS, and the operational
-dashboard actions remain later milestones.
+Milestones 0 through 5 are complete. LR-0101 through LR-0505 are implemented.
+The modular monolith now includes the PostgreSQL domain and tenant foundation,
+secure Identity cookie sessions, signed Twilio call/SMS ingestion,
+PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
+opt-out suppression, and the operational Next.js dashboard. Staff can filter
+the tenant inbox, inspect the ordered call/SMS/system/note timeline, assign and
+transition Leads, send idempotent manual SMS, and pause or resume eligible
+automation. All browser writes use CSRF and role authorization; Lead writes use
+opaque optimistic-concurrency tokens and return the latest safe representation
+on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
+cover these flows without enabling live SMS.
 
 The currently implemented browser and health contract is:
 
@@ -36,14 +35,18 @@ The currently implemented browser and health contract is:
 - `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`,
   `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
   session;
-- `GET /api/v1/leads` and `GET /api/v1/leads/{leadId}` return only leads owned
-  by the authenticated session tenant;
+- `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
+  `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
+  assignees, ordered timeline, pending actions, and allowed transitions;
+- lead assignment, transition, note, manual-message, pause, and resume endpoints
+  are CSRF-protected and restricted to Owner, Manager, and Staff memberships;
 - `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
   form callbacks and records recovery intent;
 - `POST /api/v1/webhooks/twilio/sms/inbound` and
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
-- the worker executes due recovery actions through PostgreSQL-backed Hangfire,
+- the worker executes due recovery and manual-message actions through
+  PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
 

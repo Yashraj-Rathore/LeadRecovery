@@ -45,6 +45,50 @@ public sealed class SendScheduledRecoverySmsUseCase(
     }
 }
 
+public sealed class SendScheduledManualSmsUseCase(
+    IManualSmsWorkflowPersistence persistence,
+    ISmsSender sender,
+    ISmsMetrics metrics,
+    TimeProvider timeProvider)
+{
+    public async Task<OutboundSmsOutcome> ExecuteAsync(
+        Guid actionId,
+        Guid tenantId,
+        string correlationId,
+        Uri statusCallbackUri,
+        CancellationToken cancellationToken)
+    {
+        PreparedOutboundSms? prepared = await persistence.PrepareManualOutboundAsync(
+            actionId,
+            tenantId,
+            correlationId,
+            timeProvider.GetUtcNow(),
+            statusCallbackUri,
+            cancellationToken);
+        if (prepared is null)
+        {
+            metrics.RecordOutbound(OutboundSmsOutcome.Ignored);
+            return OutboundSmsOutcome.Ignored;
+        }
+
+        SmsSendResult result = await sender.SendAsync(prepared.Request, cancellationToken);
+        OutboundSmsOutcome outcome = await persistence.CompleteManualOutboundAsync(
+            prepared,
+            result,
+            correlationId,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        metrics.RecordOutbound(outcome);
+        if (outcome == OutboundSmsOutcome.RetryScheduled)
+        {
+            throw new TransientSmsException(
+                result.FailureDescription ?? "The SMS provider is temporarily unavailable.");
+        }
+
+        return outcome;
+    }
+}
+
 public sealed class ProcessInboundSmsUseCase(
     ISmsWorkflowPersistence persistence,
     ISmsMetrics metrics,
