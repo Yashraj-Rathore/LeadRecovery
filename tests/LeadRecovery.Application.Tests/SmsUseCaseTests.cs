@@ -77,6 +77,32 @@ public sealed class SmsUseCaseTests
         Assert.Equal(prepared.Request, sender.Request);
     }
 
+    [Fact]
+    public async Task WorkflowAcceptedSendUsesPreparedProviderPayloadAndCompletes()
+    {
+        PreparedOutboundSms prepared = CreatePrepared();
+        RecordingWorkflowPersistence persistence = new(
+            prepared,
+            OutboundSmsOutcome.Accepted);
+        RecordingSender sender = new(SmsSendResult.Accepted($"SM{Guid.NewGuid():N}"));
+        SendScheduledWorkflowSmsUseCase useCase = new(
+            persistence,
+            sender,
+            new NoOpSmsMetrics(),
+            new FixedTimeProvider());
+
+        OutboundSmsOutcome outcome = await useCase.ExecuteAsync(
+            prepared.ActionId,
+            prepared.TenantId,
+            "correlation",
+            prepared.Request.StatusCallbackUri,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OutboundSmsOutcome.Accepted, outcome);
+        Assert.Equal(prepared.Request, sender.Request);
+        Assert.NotNull(persistence.CompletedResult);
+    }
+
     private static PreparedOutboundSms CreatePrepared()
     {
         Guid tenantId = Guid.CreateVersion7();
@@ -157,6 +183,32 @@ public sealed class SmsUseCaseTests
             CancellationToken cancellationToken) => Task.FromResult<PreparedOutboundSms?>(prepared);
 
         public Task<OutboundSmsOutcome> CompleteManualOutboundAsync(
+            PreparedOutboundSms completedPrepared,
+            SmsSendResult result,
+            string correlationId,
+            DateTimeOffset now,
+            CancellationToken cancellationToken)
+        {
+            CompletedResult = result;
+            return Task.FromResult(completionOutcome);
+        }
+    }
+
+    private sealed class RecordingWorkflowPersistence(
+        PreparedOutboundSms prepared,
+        OutboundSmsOutcome completionOutcome) : IWorkflowSmsPersistence
+    {
+        public SmsSendResult? CompletedResult { get; private set; }
+
+        public Task<PreparedOutboundSms?> PrepareWorkflowOutboundAsync(
+            Guid actionId,
+            Guid tenantId,
+            string correlationId,
+            DateTimeOffset now,
+            Uri statusCallbackUri,
+            CancellationToken cancellationToken) => Task.FromResult<PreparedOutboundSms?>(prepared);
+
+        public Task<OutboundSmsOutcome> CompleteWorkflowOutboundAsync(
             PreparedOutboundSms completedPrepared,
             SmsSendResult result,
             string correlationId,

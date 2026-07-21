@@ -170,6 +170,50 @@ public sealed class LeadDashboardUseCase(
             cancellationToken);
     }
 
+    public Task<LeadOperationResult> QueueBookingLinkAsync(
+        Guid leadId,
+        long expectedVersion,
+        Guid actorUserId,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        RequireLeadId(leadId);
+        RequireActor(actorUserId);
+        RequireVersion(expectedVersion);
+        return store.QueueBookingLinkAsync(
+            leadId,
+            expectedVersion,
+            actorUserId,
+            RequireCorrelationId(correlationId),
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+    }
+
+    public Task<LeadOperationResult> CancelScheduledActionAsync(
+        Guid leadId,
+        Guid actionId,
+        Guid actorUserId,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        RequireLeadId(leadId);
+        if (actionId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A non-empty scheduled-action ID is required.",
+                nameof(actionId));
+        }
+
+        RequireActor(actorUserId);
+        return store.CancelScheduledActionAsync(
+            leadId,
+            actionId,
+            actorUserId,
+            RequireCorrelationId(correlationId),
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+    }
+
     private static void RequireLeadId(Guid leadId)
     {
         if (leadId == Guid.Empty)

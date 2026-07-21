@@ -37,6 +37,7 @@ $sourcePaths = @(
     'docs/decisions/0012-twilio-call-status-ingestion.md'
     'docs/decisions/0013-sms-worker-and-webhook-lifecycle.md'
     'docs/decisions/0014-operational-dashboard-and-manual-sms.md'
+    'docs/decisions/0015-deterministic-qualification-booking-and-follow-up.md'
     'CODEX_PROMPT_SEQUENCE.md'
     'templates/definition-of-done.md'
 )

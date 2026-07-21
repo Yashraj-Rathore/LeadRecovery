@@ -102,11 +102,14 @@ Required controls:
 - open booking link;
 - view pending follow-ups and cancel them.
 
-Milestone 5 implements the controls owned by LR-0501 through LR-0505: manual
+Milestone 5 implemented the controls owned by LR-0501 through LR-0505: manual
 SMS, pause/resume, assignment, domain-allowed transitions, internal notes, copy
-phone, and pending-action display. Category/urgency editing, booking-link
-actions, AI summary controls, and arbitrary pending-action cancellation remain
-their owning later issues.
+phone, and pending-action display. Milestone 6 adds structured qualification
+answers and the current unanswered prompt, the approved booking destination,
+booking-link queueing for active Qualified Leads, and cancellation buttons for
+Pending actions. Marking `Booked` removes pending automated follow-ups from the
+view after the server transaction. Category/urgency editing and AI summary
+controls remain their owning later issues.
 
 ### 3.4 Settings - Business
 

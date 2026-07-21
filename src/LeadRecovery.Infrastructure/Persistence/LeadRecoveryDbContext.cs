@@ -35,6 +35,8 @@ public sealed class LeadRecoveryDbContext(
 
     public DbSet<LeadNote> LeadNotes => Set<LeadNote>();
 
+    public DbSet<QualificationAnswer> QualificationAnswers => Set<QualificationAnswer>();
+
     public DbSet<Conversation> Conversations => Set<Conversation>();
 
     public DbSet<Message> Messages => Set<Message>();
@@ -42,6 +44,8 @@ public sealed class LeadRecoveryDbContext(
     public DbSet<MessageTemplate> MessageTemplates => Set<MessageTemplate>();
 
     public DbSet<ScheduledAction> ScheduledActions => Set<ScheduledAction>();
+
+    public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
 
     public DbSet<ExternalEventReceipt> ExternalEventReceipts =>
         Set<ExternalEventReceipt>();
@@ -56,10 +60,12 @@ public sealed class LeadRecoveryDbContext(
         EnforceTenantOwnership<TenantPhoneNumber>("tenant phone number");
         EnforceTenantOwnership<Lead>("lead");
         EnforceTenantOwnership<LeadNote>("lead note");
+        EnforceTenantOwnership<QualificationAnswer>("qualification answer");
         EnforceTenantOwnership<Conversation>("conversation");
         EnforceTenantOwnership<Message>("message");
         EnforceTenantOwnership<MessageTemplate>("message template");
         EnforceTenantOwnership<ScheduledAction>("scheduled action");
+        EnforceTenantOwnership<WorkflowDefinition>("workflow definition");
         EnforceTenantOwnership<TenantMembership>("tenant membership");
         EnforceExternalEventReceiptTenantImmutability();
         EnforceAuditEventTenantImmutability();
@@ -75,10 +81,12 @@ public sealed class LeadRecoveryDbContext(
         EnforceTenantOwnership<TenantPhoneNumber>("tenant phone number");
         EnforceTenantOwnership<Lead>("lead");
         EnforceTenantOwnership<LeadNote>("lead note");
+        EnforceTenantOwnership<QualificationAnswer>("qualification answer");
         EnforceTenantOwnership<Conversation>("conversation");
         EnforceTenantOwnership<Message>("message");
         EnforceTenantOwnership<MessageTemplate>("message template");
         EnforceTenantOwnership<ScheduledAction>("scheduled action");
+        EnforceTenantOwnership<WorkflowDefinition>("workflow definition");
         EnforceTenantOwnership<TenantMembership>("tenant membership");
         EnforceExternalEventReceiptTenantImmutability();
         EnforceAuditEventTenantImmutability();
@@ -100,6 +108,8 @@ public sealed class LeadRecoveryDbContext(
             .HasQueryFilter(lead => lead.TenantId == ActiveTenantId);
         builder.Entity<LeadNote>()
             .HasQueryFilter(note => note.TenantId == ActiveTenantId);
+        builder.Entity<QualificationAnswer>()
+            .HasQueryFilter(answer => answer.TenantId == ActiveTenantId);
         builder.Entity<Conversation>()
             .HasQueryFilter(conversation => conversation.TenantId == ActiveTenantId);
         builder.Entity<Message>()
@@ -108,6 +118,8 @@ public sealed class LeadRecoveryDbContext(
             .HasQueryFilter(template => template.TenantId == ActiveTenantId);
         builder.Entity<ScheduledAction>()
             .HasQueryFilter(action => action.TenantId == ActiveTenantId);
+        builder.Entity<WorkflowDefinition>()
+            .HasQueryFilter(workflow => workflow.TenantId == ActiveTenantId);
         builder.Entity<TenantMembership>()
             .HasQueryFilter(membership => membership.TenantId == ActiveTenantId);
     }

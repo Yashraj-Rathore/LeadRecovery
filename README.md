@@ -16,11 +16,13 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 5 are complete. LR-0101 through LR-0505 are implemented.
+Milestones 0 through 6 are complete. LR-0101 through LR-0604 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
-opt-out suppression, and the operational Next.js dashboard. Staff can filter
+opt-out suppression, deterministic tenant-configured qualification and
+follow-up workflows, approved booking links, business-hours scheduling, and
+the operational Next.js dashboard. Staff can filter
 the tenant inbox, inspect the ordered call/SMS/system/note timeline, assign and
 transition Leads, send idempotent manual SMS, and pause or resume eligible
 automation. All browser writes use CSRF and role authorization; Lead writes use
@@ -37,15 +39,19 @@ The currently implemented browser and health contract is:
   session;
 - `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
   `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
-  assignees, ordered timeline, pending actions, and allowed transitions;
+  assignees, ordered timeline, structured qualification answers, approved
+  booking destination, pending actions, and allowed transitions;
 - lead assignment, transition, note, manual-message, pause, and resume endpoints
   are CSRF-protected and restricted to Owner, Manager, and Staff memberships;
+- booking-link queue and pending-action cancellation endpoints use the same
+  tenant, role, CSRF, and concurrency controls;
 - `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
   form callbacks and records recovery intent;
 - `POST /api/v1/webhooks/twilio/sms/inbound` and
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
-- the worker executes due recovery and manual-message actions through
+- the worker executes due recovery, qualification, booking, follow-up, and
+  manual-message actions through
   PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.

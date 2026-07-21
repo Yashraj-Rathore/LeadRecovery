@@ -816,6 +816,42 @@ textarea {
   background: #f1f0ea;
 }
 
+.pending-actions li > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.qualification-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.qualification-list div {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 0.2rem;
+  padding-bottom: 0.65rem;
+}
+
+.qualification-list dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.qualification-list dd {
+  margin: 0;
+}
+
+.next-question {
+  background: #f1f0ea;
+  border-radius: 0.65rem;
+  line-height: 1.5;
+  margin-bottom: 0;
+  padding: 0.75rem;
+}
+
 .pending-actions span {
   color: var(--muted);
   font-size: 0.76rem;

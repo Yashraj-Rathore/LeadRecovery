@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Leads;
 using LeadRecovery.Application.Messaging;
@@ -19,7 +20,8 @@ namespace LeadRecovery.Infrastructure.Persistence.Queries;
 
 internal sealed class LeadDashboardStore(
     LeadRecoveryDbContext dbContext,
-    ITenantContext tenantContext)
+    ITenantContext tenantContext,
+    IWorkflowActionScheduler workflowActionScheduler)
     : ILeadDashboardStore
 {
     public async Task<LeadDetail?> GetDetailAsync(
@@ -169,8 +171,52 @@ internal sealed class LeadDashboardStore(
                 action.ActionType,
                 action.Status,
                 action.ScheduledForUtc,
-                action.AttemptCount))
+                action.AttemptCount,
+                action.Status == ScheduledActionStatus.Pending))
             .ToArrayAsync(cancellationToken);
+
+        WorkflowDefinition? workflow = await dbContext.WorkflowDefinitions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.IsActive, cancellationToken);
+        var persistedAnswers = await dbContext.QualificationAnswers
+            .AsNoTracking()
+            .Where(answer => answer.LeadId == leadId)
+            .OrderBy(answer => answer.CreatedAtUtc)
+            .ThenBy(answer => answer.Id)
+            .Select(answer => new
+            {
+                answer.Id,
+                answer.QuestionKey,
+                answer.Value,
+                answer.Outcome,
+                answer.CreatedAtUtc,
+            })
+            .ToArrayAsync(cancellationToken);
+        Dictionary<string, QualificationQuestionPolicy> questionByKey = workflow?
+            .GetQualificationQuestions()
+            .ToDictionary(question => question.Key, StringComparer.OrdinalIgnoreCase) ?? [];
+        QualificationAnswerItem[] qualificationAnswers = persistedAnswers
+            .Select(answer => new QualificationAnswerItem(
+                answer.Id,
+                answer.QuestionKey,
+                questionByKey.TryGetValue(answer.QuestionKey, out QualificationQuestionPolicy? question)
+                    ? question.Prompt
+                    : answer.QuestionKey,
+                answer.Value,
+                answer.Outcome.ToString(),
+                answer.CreatedAtUtc))
+            .ToArray();
+        HashSet<string> answeredKeys = persistedAnswers
+            .Select(answer => answer.QuestionKey)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string? currentQualificationQuestion = workflow?
+            .GetQualificationQuestions()
+            .FirstOrDefault(question => !answeredKeys.Contains(question.Key))?
+            .Prompt;
+        string? bookingUrl = workflow is not null &&
+            lead.Status is LeadStatus.Qualified or LeadStatus.BookingOffered
+                ? workflow.BookingUrl
+                : null;
 
         IReadOnlyList<AssignableUserItem> users =
             await ListAssignableUsersAsync(cancellationToken);
@@ -182,7 +228,10 @@ internal sealed class LeadDashboardStore(
             timeline,
             pendingActions,
             users,
-            allowedTransitions);
+            allowedTransitions,
+            qualificationAnswers,
+            currentQualificationQuestion,
+            bookingUrl);
     }
 
     public async Task<IReadOnlyList<AssignableUserItem>> ListAssignableUsersAsync(
@@ -601,6 +650,147 @@ internal sealed class LeadDashboardStore(
         return result with { ResourceId = message.Id };
     }
 
+    public async Task<LeadOperationResult> QueueBookingLinkAsync(
+        Guid leadId,
+        long expectedVersion,
+        Guid actorUserId,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        await using IDbContextTransaction transaction = await Begin(cancellationToken);
+        Lead? lead = await dbContext.Leads.SingleOrDefaultAsync(
+            candidate => candidate.Id == leadId,
+            cancellationToken);
+        if (lead is null)
+        {
+            return await Rollback(transaction, LeadOperationResult.NotFound(), cancellationToken);
+        }
+
+        if (lead.Version != expectedVersion)
+        {
+            return await Rollback(transaction, LeadOperationResult.Conflict(), cancellationToken);
+        }
+
+        if (lead.Status is not (LeadStatus.Qualified or LeadStatus.BookingOffered) ||
+            lead.AutomationState != AutomationState.Active)
+        {
+            return await Rollback(
+                transaction,
+                LeadOperationResult.Invalid(
+                    "A booking link can be queued only for an active qualified lead."),
+                cancellationToken);
+        }
+
+        Tenant tenant = await dbContext.Tenants.SingleAsync(
+            candidate => candidate.Id == tenantContext.TenantId,
+            cancellationToken);
+        WorkflowDefinition? workflow = await dbContext.WorkflowDefinitions
+            .SingleOrDefaultAsync(candidate => candidate.IsActive, cancellationToken);
+        if (workflow is null)
+        {
+            return await Rollback(
+                transaction,
+                LeadOperationResult.PolicyBlocked(
+                    "An active tenant workflow with an approved booking URL is required."),
+                cancellationToken);
+        }
+
+        LeadStatus beforeStatus = lead.Status;
+        if (lead.Status == LeadStatus.Qualified)
+        {
+            lead.OfferBooking(now);
+        }
+
+        bool queued = await workflowActionScheduler.ScheduleBookingLinkAsync(
+            tenant,
+            lead,
+            workflow,
+            LeadStatus.BookingOffered.ToString(),
+            now,
+            cancellationToken);
+        if (!queued)
+        {
+            return await Rollback(
+                transaction,
+                LeadOperationResult.Invalid(
+                    "The booking link is already queued or sent for this stage."),
+                cancellationToken);
+        }
+
+        AddAudit(
+            lead,
+            actorUserId,
+            "BookingLinkQueued",
+            correlationId,
+            now,
+            before: null,
+            after: new
+            {
+                workflowVersion = workflow.Version,
+                stage = LeadStatus.BookingOffered.ToString(),
+            });
+        return await Save(transaction, cancellationToken);
+    }
+
+    public async Task<LeadOperationResult> CancelScheduledActionAsync(
+        Guid leadId,
+        Guid actionId,
+        Guid actorUserId,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        await using IDbContextTransaction transaction = await Begin(cancellationToken);
+        Lead? lead = await dbContext.Leads.SingleOrDefaultAsync(
+            candidate => candidate.Id == leadId,
+            cancellationToken);
+        if (lead is null)
+        {
+            return await Rollback(transaction, LeadOperationResult.NotFound(), cancellationToken);
+        }
+
+        ScheduledAction? action = await dbContext.ScheduledActions.SingleOrDefaultAsync(
+            candidate => candidate.Id == actionId && candidate.LeadId == leadId,
+            cancellationToken);
+        if (action is null)
+        {
+            return await Rollback(transaction, LeadOperationResult.NotFound(), cancellationToken);
+        }
+
+        if (action.Status != ScheduledActionStatus.Pending)
+        {
+            return await Rollback(
+                transaction,
+                LeadOperationResult.Invalid("Only a pending action can be cancelled."),
+                cancellationToken);
+        }
+
+        ScheduledActionStatus beforeStatus = action.Status;
+        action.Cancel(now);
+        if (action.ActionType == SmsScheduledActionTypes.SendManualSms &&
+            TryReadMessageId(action.PayloadJson, out Guid messageId))
+        {
+            Message? message = await dbContext.Messages.SingleOrDefaultAsync(
+                candidate => candidate.Id == messageId,
+                cancellationToken);
+            if (message?.Status == MessageStatus.Queued)
+            {
+                message.Suppress();
+            }
+        }
+
+        AddAudit(
+            lead,
+            actorUserId,
+            "ScheduledActionCancelled",
+            correlationId,
+            now,
+            before: new { status = beforeStatus.ToString(), action.ActionType },
+            after: new { status = ScheduledActionStatus.Cancelled.ToString(), action.Id });
+        return await Save(transaction, cancellationToken);
+    }
+
     private async Task<IDbContextTransaction> Begin(CancellationToken cancellationToken) =>
         await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
@@ -778,6 +968,23 @@ internal sealed class LeadDashboardStore(
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private static bool TryReadMessageId(string payloadJson, out Guid messageId)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(payloadJson);
+            messageId = default;
+            return document.RootElement.TryGetProperty("messageId", out JsonElement value) &&
+                value.TryGetGuid(out messageId) &&
+                messageId != Guid.Empty;
+        }
+        catch (JsonException)
+        {
+            messageId = Guid.Empty;
+            return false;
+        }
+    }
+
     private static string GetAuditLabel(string action) => action switch
     {
         "MissedCallRecoveryScheduled" => "Missed call captured",
@@ -786,6 +993,8 @@ internal sealed class LeadDashboardStore(
         "LeadAutomationPaused" => "Automation paused",
         "LeadAutomationResumed" => "Automation resumed",
         "ManualSmsQueued" => "Manual SMS queued",
+        "BookingLinkQueued" => "Booking link queued",
+        "ScheduledActionCancelled" => "Scheduled action cancelled",
         "LeadNoteAdded" => "Internal note added",
         _ => "Lead activity updated",
     };

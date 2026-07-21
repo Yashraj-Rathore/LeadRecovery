@@ -141,9 +141,21 @@ The system asks a small, pre-approved sequence of questions, for example:
 
 Question order is deterministic. AI may summarize answers but may not control all branching without rules.
 
+Milestone 6 stores the ordered questions in one active versioned tenant
+workflow. Required-text and approved-choice answers are evaluated without AI
+and persisted as structured qualification answers. Unknown or multi-match
+responses move the Lead to `NeedsHuman`, set `CriticalReview`, cancel pending
+automation, and create immediate or business-hours-aligned review audit data
+according to tenant policy.
+
 ### UC-04 Book or request callback
 
 The system sends a tenant-configured booking URL or records a callback request. Booking confirmation may be manual in MVP unless a calendar integration is configured.
+
+The implemented MVP accepts only an absolute HTTPS booking URL without
+embedded credentials. Owner, Manager, or Staff can queue that approved link
+for a qualified Lead and manually mark the Lead booked; no calendar dependency
+is required.
 
 ### UC-05 Staff takeover
 
@@ -159,6 +171,11 @@ Default pilot cadence:
 - follow-up 1: after 2 hours during permitted hours;
 - follow-up 2: next business morning;
 - then stop unless tenant policy explicitly allows another step.
+
+The implemented tenant workflow allows zero through three uniquely ordered
+follow-ups. Every action is moved into the next permitted tenant-timezone
+window and re-checks tenant automation, Lead state, opt-out, customer activity,
+workflow stage, and approved template at execution.
 
 ### UC-07 Close a lead
 

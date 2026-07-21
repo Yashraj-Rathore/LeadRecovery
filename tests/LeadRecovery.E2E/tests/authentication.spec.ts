@@ -115,6 +115,8 @@ test("staff operates a lead with accessible filters, conflict recovery, and safe
   await page.getByRole("button", { name: "Pause automation" }).click();
   await expect(page.getByText("Automation: PausedByUser")).toBeVisible();
   await expect(page.getByText("SendInitialRecoverySms")).toHaveCount(0);
+  await page.getByRole("button", { name: "Resume automation" }).click();
+  await expect(page.getByText("Automation: Active")).toBeVisible();
 
   await page.getByLabel("Note").fill("Call the customer after 3 PM.");
   await page.getByRole("button", { name: "Add note" }).click();
@@ -132,4 +134,15 @@ test("staff operates a lead with accessible filters, conflict recovery, and safe
   await page.getByLabel("Reason or context").fill("Staff confirmed required details by phone.");
   await page.getByRole("button", { name: "Update status" }).click();
   await expect(page.getByText("Qualified", { exact: true })).toBeVisible();
+
+  await expect(page.getByRole("link", { name: "Open approved booking page" })).toBeVisible();
+  await page.getByRole("button", { name: "Queue booking link" }).click();
+  await expect(page.getByText("BookingOffered", { exact: true })).toBeVisible();
+  await expect(page.getByText("SendBookingLink")).toBeVisible();
+
+  await page.getByLabel("Next status").selectOption("Booked");
+  await page.getByLabel("Reason or context").fill("Customer confirmed the appointment.");
+  await page.getByRole("button", { name: "Update status" }).click();
+  await expect(page.getByText("Booked", { exact: true })).toBeVisible();
+  await expect(page.getByText("SendBookingLink")).toHaveCount(0);
 });

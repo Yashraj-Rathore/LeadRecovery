@@ -56,6 +56,34 @@ public sealed class LeadDashboardUseCaseTests
         Assert.Null(store.LeadId);
     }
 
+    [Fact]
+    public async Task BookingAndCancellationDelegateValidatedServerContext()
+    {
+        StubDashboardStore store = new();
+        LeadDashboardUseCase useCase = new(store, new FixedTimeProvider(Now));
+        Guid leadId = Guid.CreateVersion7();
+        Guid actionId = Guid.CreateVersion7();
+        Guid actorId = Guid.CreateVersion7();
+
+        await useCase.QueueBookingLinkAsync(
+            leadId,
+            4,
+            actorId,
+            "booking-correlation",
+            TestContext.Current.CancellationToken);
+        await useCase.CancelScheduledActionAsync(
+            leadId,
+            actionId,
+            actorId,
+            "cancel-correlation",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(leadId, store.LeadId);
+        Assert.Equal(actionId, store.ActionId);
+        Assert.Equal(actorId, store.ActorUserId);
+        Assert.Equal(Now, store.Now);
+    }
+
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
@@ -66,6 +94,8 @@ public sealed class LeadDashboardUseCaseTests
         public Guid? LeadId { get; private set; }
 
         public Guid? ActorUserId { get; private set; }
+
+        public Guid? ActionId { get; private set; }
 
         public QueueManualMessageCommand? ManualMessageCommand { get; private set; }
 
@@ -131,6 +161,35 @@ public sealed class LeadDashboardUseCaseTests
             LeadId = leadId;
             ActorUserId = actorUserId;
             ManualMessageCommand = command;
+            Now = now;
+            return Task.FromResult(LeadOperationResult.Success());
+        }
+
+        public Task<LeadOperationResult> QueueBookingLinkAsync(
+            Guid leadId,
+            long expectedVersion,
+            Guid actorUserId,
+            string correlationId,
+            DateTimeOffset now,
+            CancellationToken cancellationToken)
+        {
+            LeadId = leadId;
+            ActorUserId = actorUserId;
+            Now = now;
+            return Task.FromResult(LeadOperationResult.Success());
+        }
+
+        public Task<LeadOperationResult> CancelScheduledActionAsync(
+            Guid leadId,
+            Guid actionId,
+            Guid actorUserId,
+            string correlationId,
+            DateTimeOffset now,
+            CancellationToken cancellationToken)
+        {
+            LeadId = leadId;
+            ActionId = actionId;
+            ActorUserId = actorUserId;
             Now = now;
             return Task.FromResult(LeadOperationResult.Success());
         }

@@ -1,3 +1,4 @@
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Customers;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Leads;
@@ -55,15 +56,20 @@ public static class DependencyInjection
         services.AddScoped<ProcessCallStatusWebhookUseCase>();
         services.AddScoped<ISmsWorkflowPersistence, SmsWorkflowPersistence>();
         services.AddScoped<IManualSmsWorkflowPersistence, ManualSmsWorkflowPersistence>();
+        services.AddScoped<IWorkflowSmsPersistence, WorkflowSmsPersistence>();
         services.TryAddSingleton<ISmsSender, FakeSmsSender>();
         services.AddSingleton<ISmsMetrics, SmsMetrics>();
         services.AddScoped<SendScheduledRecoverySmsUseCase>();
         services.AddScoped<SendScheduledManualSmsUseCase>();
+        services.AddScoped<SendScheduledWorkflowSmsUseCase>();
         services.AddScoped<ProcessInboundSmsUseCase>();
         services.AddScoped<ProcessDeliveryStatusUseCase>();
+        services.AddSingleton<IBusinessHoursScheduler, BusinessHoursScheduler>();
+        services.AddSingleton<IQualificationEvaluator, QualificationEvaluator>();
         services.AddScoped<CreateCustomerUseCase>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ILeadAutomationCancellation, ScheduledActionLeadAutomationCancellation>();
+        services.AddScoped<IWorkflowActionScheduler, WorkflowActionScheduler>();
         services.AddScoped<BookLeadUseCase>();
         services.AddScoped<ILeadInboxQuery, LeadInboxQuery>();
         services.AddScoped<ILeadDashboardStore, LeadDashboardStore>();

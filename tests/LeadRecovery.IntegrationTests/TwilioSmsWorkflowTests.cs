@@ -8,6 +8,7 @@ using System.Text.Json;
 
 using Hangfire;
 
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Automations;
@@ -36,6 +37,7 @@ using SmsWorkerOptions = WorkerAssembly::LeadRecovery.Worker.SmsWorkerOptions;
 public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
 {
     private const string AuthToken = "integration-test-twilio-auth-token";
+    private static int workflowPhoneSequence;
 
     [Fact]
     public async Task DueActionUsesApprovedTemplateAndDuplicateExecutionDoesNotResend()
@@ -284,6 +286,284 @@ public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
     }
 
     [Fact]
+    public async Task QualificationResponseStoresStructuredAnswerAndOffersBooking()
+    {
+        ConfigurableWorkflowSeed seed = await SeedConfigurableWorkflowAsync();
+        Dictionary<string, string> form = new(StringComparer.Ordinal)
+        {
+            ["MessageSid"] = $"SM{Guid.NewGuid():N}",
+            ["From"] = seed.CustomerPhone,
+            ["To"] = seed.BusinessPhone,
+            ["Body"] = "plumbing",
+        };
+
+        using HttpResponseMessage response = await PostSignedAsync(
+            "/api/v1/webhooks/twilio/sms/inbound",
+            form);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        Lead lead = await dbContext.Leads.IgnoreQueryFilters().SingleAsync(
+            candidate => candidate.Id == seed.LeadId,
+            TestContext.Current.CancellationToken);
+        QualificationAnswer answer = await dbContext.QualificationAnswers
+            .IgnoreQueryFilters()
+            .SingleAsync(
+                candidate => candidate.LeadId == seed.LeadId,
+                TestContext.Current.CancellationToken);
+        ScheduledAction booking = await dbContext.ScheduledActions.IgnoreQueryFilters()
+            .SingleAsync(
+                candidate => candidate.LeadId == seed.LeadId &&
+                    candidate.ActionType == WorkflowScheduledActionTypes.SendBookingLink,
+                TestContext.Current.CancellationToken);
+        ScheduledAction priorFollowUp = await dbContext.ScheduledActions.IgnoreQueryFilters()
+            .SingleAsync(
+                candidate => candidate.Id == seed.PendingFollowUpId,
+                TestContext.Current.CancellationToken);
+
+        Assert.Equal(LeadStatus.BookingOffered, lead.Status);
+        Assert.Equal(QualificationAnswerOutcome.Accepted, answer.Outcome);
+        Assert.Equal("Plumbing", answer.Value);
+        Assert.Equal(ScheduledActionStatus.Pending, booking.Status);
+        Assert.Equal(ScheduledActionStatus.Cancelled, priorFollowUp.Status);
+    }
+
+    [Theory]
+    [InlineData("plumbing or HVAC", QualificationAnswerOutcome.Ambiguous)]
+    [InlineData("something else", QualificationAnswerOutcome.Unknown)]
+    public async Task UnresolvedQualificationRoutesToHumanAndCancelsAutomation(
+        string responseBody,
+        QualificationAnswerOutcome expectedOutcome)
+    {
+        ConfigurableWorkflowSeed seed = await SeedConfigurableWorkflowAsync();
+        Dictionary<string, string> form = new(StringComparer.Ordinal)
+        {
+            ["MessageSid"] = $"SM{Guid.NewGuid():N}",
+            ["From"] = seed.CustomerPhone,
+            ["To"] = seed.BusinessPhone,
+            ["Body"] = responseBody,
+        };
+
+        using HttpResponseMessage response = await PostSignedAsync(
+            "/api/v1/webhooks/twilio/sms/inbound",
+            form);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        Lead lead = await dbContext.Leads.IgnoreQueryFilters().SingleAsync(
+            candidate => candidate.Id == seed.LeadId,
+            TestContext.Current.CancellationToken);
+        QualificationAnswer answer = await dbContext.QualificationAnswers
+            .IgnoreQueryFilters()
+            .SingleAsync(
+                candidate => candidate.LeadId == seed.LeadId,
+                TestContext.Current.CancellationToken);
+        ScheduledAction priorFollowUp = await dbContext.ScheduledActions.IgnoreQueryFilters()
+            .SingleAsync(
+                candidate => candidate.Id == seed.PendingFollowUpId,
+                TestContext.Current.CancellationToken);
+
+        Assert.Equal(LeadStatus.NeedsHuman, lead.Status);
+        Assert.Equal(LeadUrgency.CriticalReview, lead.Urgency);
+        Assert.Equal(expectedOutcome, answer.Outcome);
+        Assert.Null(answer.Value);
+        Assert.Equal(ScheduledActionStatus.Cancelled, priorFollowUp.Status);
+        Assert.Contains(
+            await dbContext.AuditEvents.IgnoreQueryFilters()
+                .Where(candidate => candidate.TenantId == seed.TenantId)
+                .Select(candidate => candidate.AfterJson)
+                .ToArrayAsync(TestContext.Current.CancellationToken),
+            json => json is not null &&
+                json.Contains("humanReviewAtUtc", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BookingLinkSendsOnceSchedulesConfiguredMaximumAndRechecksClosure()
+    {
+        ConfigurableWorkflowSeed seed = await SeedConfigurableWorkflowAsync(
+            bookingOffered: true);
+        OutboundSmsOutcome first;
+        OutboundSmsOutcome duplicate;
+        await using (AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope())
+        {
+            SendScheduledWorkflowSmsUseCase useCase =
+                scope.ServiceProvider.GetRequiredService<SendScheduledWorkflowSmsUseCase>();
+            first = await useCase.ExecuteAsync(
+                seed.PrimaryActionId,
+                seed.TenantId,
+                "booking-send",
+                new Uri("https://webhooks.example.test/api/v1/webhooks/twilio/sms/status"),
+                TestContext.Current.CancellationToken);
+            duplicate = await useCase.ExecuteAsync(
+                seed.PrimaryActionId,
+                seed.TenantId,
+                "booking-duplicate",
+                new Uri("https://webhooks.example.test/api/v1/webhooks/twilio/sms/status"),
+                TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(OutboundSmsOutcome.Accepted, first);
+        Assert.Equal(OutboundSmsOutcome.Ignored, duplicate);
+        Guid followUpId;
+        DateTimeOffset followUpDueUtc;
+        await using (AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope())
+        {
+            using TenantClaimScope tenantClaim = new(scope.ServiceProvider, seed.TenantId);
+            LeadRecoveryDbContext dbContext =
+                scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+            Message bookingMessage = await dbContext.Messages.SingleAsync(
+                candidate => candidate.LeadId == seed.LeadId,
+                TestContext.Current.CancellationToken);
+            ScheduledAction[] followUps = await dbContext.ScheduledActions
+                .Where(candidate => candidate.LeadId == seed.LeadId &&
+                    candidate.ActionType == WorkflowScheduledActionTypes.SendFollowUpSms)
+                .OrderBy(candidate => candidate.ScheduledForUtc)
+                .ToArrayAsync(TestContext.Current.CancellationToken);
+            Assert.Equal("Book here: https://booking.example.test/acme", bookingMessage.Body);
+            Assert.Equal(3, followUps.Length);
+            Assert.All(followUps, action =>
+                Assert.Equal(ScheduledActionStatus.Pending, action.Status));
+
+            Lead lead = await dbContext.Leads.SingleAsync(
+                candidate => candidate.Id == seed.LeadId,
+                TestContext.Current.CancellationToken);
+            lead.Book(DateTimeOffset.UtcNow);
+            followUpId = followUps[0].Id;
+            followUpDueUtc = followUps[0].ScheduledForUtc;
+            await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using (AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope())
+        {
+            IWorkflowSmsPersistence persistence =
+                scope.ServiceProvider.GetRequiredService<IWorkflowSmsPersistence>();
+            PreparedOutboundSms? prepared = await persistence.PrepareWorkflowOutboundAsync(
+                followUpId,
+                seed.TenantId,
+                "closed-recheck",
+                followUpDueUtc,
+                new Uri("https://webhooks.example.test/api/v1/webhooks/twilio/sms/status"),
+                TestContext.Current.CancellationToken);
+            Assert.Null(prepared);
+        }
+
+        await using AsyncServiceScope verificationScope =
+            fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext verification =
+            verificationScope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        Assert.Equal(
+            ScheduledActionStatus.Cancelled,
+            await verification.ScheduledActions.IgnoreQueryFilters()
+                .Where(candidate => candidate.Id == followUpId)
+                .Select(candidate => candidate.Status)
+                .SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(
+            1,
+            await verification.Messages.IgnoreQueryFilters().CountAsync(
+                candidate => candidate.LeadId == seed.LeadId,
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WorkflowActionOutsideBusinessHoursIsDeferredWithoutSending()
+    {
+        ConfigurableWorkflowSeed seed = await SeedConfigurableWorkflowAsync(
+            bookingOffered: true,
+            forceAfterHours: true);
+
+        OutboundSmsOutcome outcome;
+        await using (AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope())
+        {
+            SendScheduledWorkflowSmsUseCase useCase =
+                scope.ServiceProvider.GetRequiredService<SendScheduledWorkflowSmsUseCase>();
+            outcome = await useCase.ExecuteAsync(
+                seed.PrimaryActionId,
+                seed.TenantId,
+                "after-hours",
+                new Uri("https://webhooks.example.test/api/v1/webhooks/twilio/sms/status"),
+                TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(OutboundSmsOutcome.Ignored, outcome);
+        await using AsyncServiceScope verificationScope =
+            fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext dbContext =
+            verificationScope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        ScheduledAction action = await dbContext.ScheduledActions.IgnoreQueryFilters()
+            .SingleAsync(
+                candidate => candidate.Id == seed.PrimaryActionId,
+                TestContext.Current.CancellationToken);
+        Assert.Equal(ScheduledActionStatus.Pending, action.Status);
+        Assert.True(action.ScheduledForUtc > DateTimeOffset.UtcNow);
+        Assert.Equal("Deferred outside configured business hours.", action.LastError);
+        Assert.Equal(
+            0,
+            await dbContext.Messages.IgnoreQueryFilters().CountAsync(
+                candidate => candidate.LeadId == seed.LeadId,
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WorkflowActionIsCancelledAtExecutionAfterCustomerOptOut()
+    {
+        ConfigurableWorkflowSeed seed = await SeedConfigurableWorkflowAsync(
+            bookingOffered: true);
+        await using (AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope())
+        {
+            using TenantClaimScope tenantClaim = new(scope.ServiceProvider, seed.TenantId);
+            LeadRecoveryDbContext dbContext =
+                scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            Customer customer = new(
+                Guid.CreateVersion7(),
+                seed.TenantId,
+                seed.CustomerPhone,
+                now);
+            customer.OptOut(now);
+            dbContext.Customers.Add(customer);
+            Lead lead = await dbContext.Leads.SingleAsync(
+                candidate => candidate.Id == seed.LeadId,
+                TestContext.Current.CancellationToken);
+            lead.AssociateCustomer(customer.Id, now);
+            await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        OutboundSmsOutcome outcome;
+        await using (AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope())
+        {
+            SendScheduledWorkflowSmsUseCase useCase =
+                scope.ServiceProvider.GetRequiredService<SendScheduledWorkflowSmsUseCase>();
+            outcome = await useCase.ExecuteAsync(
+                seed.PrimaryActionId,
+                seed.TenantId,
+                "opted-out-recheck",
+                new Uri("https://webhooks.example.test/api/v1/webhooks/twilio/sms/status"),
+                TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(OutboundSmsOutcome.Ignored, outcome);
+        await using AsyncServiceScope verificationScope =
+            fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext verification =
+            verificationScope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        Assert.Equal(
+            ScheduledActionStatus.Cancelled,
+            await verification.ScheduledActions.IgnoreQueryFilters()
+                .Where(candidate => candidate.Id == seed.PrimaryActionId)
+                .Select(candidate => candidate.Status)
+                .SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(
+            0,
+            await verification.Messages.IgnoreQueryFilters().CountAsync(
+                candidate => candidate.LeadId == seed.LeadId,
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task PostgreSqlHangfireServerProcessesScheduledRecoveryJob()
     {
         WorkflowSeed seed = await SeedWorkflowAsync("+14165550240", "+14165550241");
@@ -423,6 +703,210 @@ public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
             customerPhone);
     }
 
+    private async Task<ConfigurableWorkflowSeed> SeedConfigurableWorkflowAsync(
+        bool bookingOffered = false,
+        bool forceAfterHours = false)
+    {
+        int sequence = Interlocked.Increment(ref workflowPhoneSequence);
+        string businessPhone = $"+1416556{sequence:D4}";
+        string customerPhone = $"+1416557{sequence:D4}";
+        Guid tenantId = Guid.CreateVersion7();
+        Guid leadId = Guid.CreateVersion7();
+        Guid primaryActionId = Guid.CreateVersion7();
+        Guid pendingFollowUpId = Guid.CreateVersion7();
+        Guid userId = Guid.CreateVersion7();
+        DateTimeOffset now = DateTimeOffset.UtcNow.AddSeconds(-2);
+        Tenant tenant = new(
+            tenantId,
+            "Configurable Workflow Test",
+            $"workflow-{tenantId:N}",
+            "UTC",
+            now);
+        tenant.ChangeStatus(TenantStatus.Active, now);
+        tenant.SetAutomationEnabled(true, now);
+        TenantPhoneNumber number = new(
+            Guid.CreateVersion7(),
+            tenantId,
+            "Twilio",
+            businessPhone,
+            $"PN{Guid.NewGuid():N}",
+            ["no-answer"],
+            0,
+            300,
+            isPrimary: true);
+        Lead lead = new(
+            leadId,
+            tenantId,
+            customerPhone,
+            LeadSource.MissedCall,
+            now);
+        lead.BeginContacting(now);
+        lead.AwaitCustomer(now);
+        if (bookingOffered)
+        {
+            lead.Qualify(true, null, now);
+            lead.OfferBooking(now);
+        }
+
+        WorkflowDefinition workflow = new(
+            Guid.CreateVersion7(),
+            tenantId,
+            "Tenant recovery workflow",
+            1,
+            "https://booking.example.test/acme",
+            [
+                new QualificationQuestionPolicy(
+                    "service",
+                    "Which service do you need?",
+                    QualificationAnswerKind.Choice,
+                    ["Plumbing", "HVAC"]),
+            ],
+            forceAfterHours
+                ? new BusinessHoursPolicy(
+                    [
+                        new BusinessDayHours(
+                            now.UtcDateTime.AddDays(1).DayOfWeek,
+                            new TimeOnly(9, 0),
+                            new TimeOnly(17, 0)),
+                    ],
+                    true)
+                : new BusinessHoursPolicy(
+                    Enum.GetValues<DayOfWeek>()
+                        .Select(day => new BusinessDayHours(
+                            day,
+                            new TimeOnly(0, 0),
+                            new TimeOnly(23, 59)))
+                        .ToArray(),
+                    true),
+            [
+                new FollowUpStepPolicy(1, 1, "WorkflowFollowUpOne"),
+                new FollowUpStepPolicy(2, 5, "WorkflowFollowUpTwo"),
+                new FollowUpStepPolicy(3, 15, "WorkflowFollowUpThree"),
+            ],
+            now);
+        workflow.Activate(now);
+
+        string primaryActionType = bookingOffered
+            ? WorkflowScheduledActionTypes.SendBookingLink
+            : WorkflowScheduledActionTypes.SendQualificationQuestion;
+        WorkflowScheduledActionPayload primaryPayload = bookingOffered
+            ? new(
+                1,
+                "booking:BookingOffered",
+                null,
+                null,
+                SmsTemplatePurposes.BookingLink,
+                null)
+            : new(1, "qualification:service", "service", null, null, null);
+        ScheduledAction primaryAction = new(
+            primaryActionId,
+            tenantId,
+            leadId,
+            primaryActionType,
+            now,
+            $"workflow-test:{primaryActionId:N}",
+            WorkflowScheduledActionPayloadSerializer.Serialize(primaryPayload),
+            now);
+        if (!bookingOffered)
+        {
+            primaryAction.Start(now);
+            primaryAction.Complete(now);
+        }
+
+        ScheduledAction pendingFollowUp = new(
+            pendingFollowUpId,
+            tenantId,
+            leadId,
+            WorkflowScheduledActionTypes.SendFollowUpSms,
+            now.AddMinutes(20),
+            $"workflow-test:{pendingFollowUpId:N}",
+            WorkflowScheduledActionPayloadSerializer.Serialize(new(
+                1,
+                "qualification:service",
+                null,
+                1,
+                "WorkflowFollowUpOne",
+                null)),
+            now);
+        MessageTemplate[] templates =
+        [
+            CreateTemplate(
+                tenantId,
+                userId,
+                "Booking link",
+                SmsTemplatePurposes.BookingLink,
+                "Book here: {{BookingUrl}}",
+                now),
+            CreateTemplate(
+                tenantId,
+                userId,
+                "Follow-up one",
+                "WorkflowFollowUpOne",
+                "Are you still interested?",
+                now),
+            CreateTemplate(
+                tenantId,
+                userId,
+                "Follow-up two",
+                "WorkflowFollowUpTwo",
+                "We can still help.",
+                now),
+            CreateTemplate(
+                tenantId,
+                userId,
+                "Follow-up three",
+                "WorkflowFollowUpThree",
+                "Reply if you would like a call.",
+                now),
+        ];
+
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        using TenantClaimScope tenantClaim = new(scope.ServiceProvider, tenantId);
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        dbContext.Tenants.Add(tenant);
+        dbContext.TenantPhoneNumbers.Add(number);
+        dbContext.Leads.Add(lead);
+        dbContext.WorkflowDefinitions.Add(workflow);
+        dbContext.ScheduledActions.Add(primaryAction);
+        if (!bookingOffered)
+        {
+            dbContext.ScheduledActions.Add(pendingFollowUp);
+        }
+
+        dbContext.MessageTemplates.AddRange(templates);
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return new ConfigurableWorkflowSeed(
+            tenantId,
+            leadId,
+            primaryActionId,
+            pendingFollowUpId,
+            businessPhone,
+            customerPhone);
+    }
+
+    private static MessageTemplate CreateTemplate(
+        Guid tenantId,
+        Guid userId,
+        string name,
+        string purpose,
+        string body,
+        DateTimeOffset now)
+    {
+        MessageTemplate template = new(
+            Guid.CreateVersion7(),
+            tenantId,
+            name,
+            purpose,
+            body,
+            1,
+            userId,
+            now);
+        template.Approve(userId, now);
+        template.Activate();
+        return template;
+    }
+
     private async Task<HttpResponseMessage> PostSignedAsync(
         string path,
         IReadOnlyDictionary<string, string> form)
@@ -460,6 +944,14 @@ public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
         Guid LeadId,
         Guid ActionId,
         Guid TemplateId,
+        string BusinessPhone,
+        string CustomerPhone);
+
+    private sealed record ConfigurableWorkflowSeed(
+        Guid TenantId,
+        Guid LeadId,
+        Guid PrimaryActionId,
+        Guid PendingFollowUpId,
         string BusinessPhone,
         string CustomerPhone);
 

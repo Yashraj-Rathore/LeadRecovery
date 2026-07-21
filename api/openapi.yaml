@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: LeadRecovery API
-  version: 1.0.0-milestone.5
-  description: Implemented Milestone 5 browser, operational dashboard, Twilio webhook, and SMS workflow contract.
+  version: 1.0.0-milestone.6
+  description: Implemented Milestone 6 browser, deterministic qualification, booking, follow-up, Twilio webhook, and SMS workflow contract.
 servers:
   - url: https://app.example.com/api/v1
 paths:
@@ -490,6 +490,55 @@ paths:
           description: Opt-out, closed Lead, tenant policy, or idempotency conflict.
         '429':
           description: Manual-message rate limit exceeded.
+  /leads/{leadId}/booking-link:
+    post:
+      tags: [Lead operations]
+      summary: Queue the active tenant workflow's approved booking link
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadBookingRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery, state, or request validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead is not in the active tenant.
+        '409':
+          $ref: '#/components/responses/LeadConflict'
+  /leads/{leadId}/scheduled-actions/{actionId}/cancel:
+    post:
+      tags: [Lead operations]
+      summary: Cancel a pending action owned by the active tenant and lead
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/ActionId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery validation failed or the action is not Pending.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead or action is not in the active tenant.
 components:
   securitySchemes:
     cookieSession:
@@ -509,6 +558,13 @@ components:
     LeadId:
       in: path
       name: leadId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ActionId:
+      in: path
+      name: actionId
       required: true
       schema:
         type: string
@@ -672,7 +728,7 @@ components:
           format: date-time
     PendingAction:
       type: object
-      required: [id, actionType, status, scheduledForUtc, attemptCount]
+      required: [id, actionType, status, scheduledForUtc, attemptCount, isCancellable]
       properties:
         id:
           type: string
@@ -688,9 +744,30 @@ components:
         attemptCount:
           type: integer
           minimum: 0
+        isCancellable:
+          type: boolean
+    QualificationAnswer:
+      type: object
+      required: [id, questionKey, questionPrompt, value, outcome, createdAtUtc]
+      properties:
+        id:
+          type: string
+          format: uuid
+        questionKey:
+          type: string
+        questionPrompt:
+          type: string
+        value:
+          type: [string, 'null']
+        outcome:
+          type: string
+          enum: [Accepted, Unknown, Ambiguous]
+        createdAtUtc:
+          type: string
+          format: date-time
     LeadDetail:
       type: object
-      required: [lead, timeline, pendingActions, assignableUsers, allowedTransitions]
+      required: [lead, timeline, pendingActions, assignableUsers, allowedTransitions, qualificationAnswers, currentQualificationQuestion, bookingUrl]
       properties:
         lead:
           $ref: '#/components/schemas/LeadSummary'
@@ -710,6 +787,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/LeadStatus'
+        qualificationAnswers:
+          type: array
+          items:
+            $ref: '#/components/schemas/QualificationAnswer'
+        currentQualificationQuestion:
+          type: [string, 'null']
+        bookingUrl:
+          type: [string, 'null']
+          format: uri
     AssignLeadRequest:
       type: object
       required: [assignedUserId, expectedRowVersion]
@@ -738,6 +824,13 @@ components:
           type: string
           minLength: 1
     LeadAutomationRequest:
+      type: object
+      required: [expectedRowVersion]
+      properties:
+        expectedRowVersion:
+          type: string
+          minLength: 1
+    LeadBookingRequest:
       type: object
       required: [expectedRowVersion]
       properties:

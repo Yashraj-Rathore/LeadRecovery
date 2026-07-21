@@ -197,6 +197,26 @@ create unique index ux_message_templates_tenant_purpose_active
     on message_templates(tenant_id, purpose)
     where is_active;
 
+create table workflow_definitions (
+    id uuid primary key,
+    tenant_id uuid not null references tenants(id) on delete cascade,
+    name varchar(120) not null,
+    version integer not null,
+    is_active boolean not null,
+    booking_url varchar(2048) not null,
+    follow_up_policy_json jsonb not null,
+    business_hours_policy_json jsonb not null,
+    qualification_policy_json jsonb not null,
+    created_at_utc timestamptz not null,
+    updated_at_utc timestamptz not null,
+    unique(tenant_id, id),
+    unique(tenant_id, version)
+);
+
+create unique index ux_workflow_definitions_tenant_active
+    on workflow_definitions(tenant_id)
+    where is_active;
+
 create table messages (
     id uuid primary key,
     tenant_id uuid not null references tenants(id),
@@ -229,6 +249,25 @@ create unique index ux_messages_provider_sid
 
 create index ix_messages_tenant_conversation_created
     on messages(tenant_id, conversation_id, created_at_utc);
+
+create table qualification_answers (
+    id uuid primary key,
+    tenant_id uuid not null references tenants(id) on delete cascade,
+    lead_id uuid not null,
+    source_message_id uuid not null,
+    question_key varchar(80) not null,
+    value varchar(500) null,
+    outcome varchar(16) not null
+        check (outcome in ('Accepted', 'Unknown', 'Ambiguous')),
+    created_at_utc timestamptz not null,
+    unique(tenant_id, id),
+    unique(tenant_id, lead_id, question_key),
+    unique(tenant_id, source_message_id),
+    foreign key (tenant_id, lead_id)
+        references leads(tenant_id, id) on delete cascade,
+    foreign key (tenant_id, source_message_id)
+        references messages(tenant_id, id)
+);
 
 create table external_event_receipts (
     id uuid primary key,

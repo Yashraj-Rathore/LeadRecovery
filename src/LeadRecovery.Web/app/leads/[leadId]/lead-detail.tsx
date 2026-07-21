@@ -430,13 +430,80 @@ export function LeadDetailView({
               <ul className="pending-actions">
                 {detail.pendingActions.map((action) => (
                   <li key={action.id}>
-                    <strong>{action.actionType}</strong>
-                    <span>{action.status} · {formatTimestamp(action.scheduledForUtc)}</span>
+                    <div>
+                      <strong>{action.actionType}</strong>
+                      <span>{action.status} · {formatTimestamp(action.scheduledForUtc)}</span>
+                    </div>
+                    {canManage && action.isCancellable ? (
+                      <button
+                        className="text-button"
+                        type="button"
+                        disabled={pendingAction !== null}
+                        onClick={() => void mutate(
+                          "Scheduled action cancellation",
+                          `/api/v1/leads/${leadId}/scheduled-actions/${action.id}/cancel`,
+                          {},
+                        )}
+                      >
+                        Cancel
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             )}
           </section>
+
+          <section className="action-card">
+            <p className="eyebrow">Deterministic workflow</p>
+            <h2>Qualification</h2>
+            {detail.qualificationAnswers.length === 0 ? (
+              <p className="muted">No structured answers collected yet.</p>
+            ) : (
+              <dl className="qualification-list">
+                {detail.qualificationAnswers.map((answer) => (
+                  <div key={answer.id}>
+                    <dt>{answer.questionPrompt}</dt>
+                    <dd>{answer.value ?? answer.outcome}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {detail.currentQualificationQuestion ? (
+              <p className="next-question">
+                <strong>Next question:</strong> {detail.currentQualificationQuestion}
+              </p>
+            ) : null}
+          </section>
+
+          {detail.bookingUrl ? (
+            <section className="action-card">
+              <p className="eyebrow">Approved destination</p>
+              <h2>Booking</h2>
+              <a
+                className="open-lead-link full-width"
+                href={detail.bookingUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open approved booking page
+              </a>
+              {canManage && lead.status === "Qualified" ? (
+                <button
+                  className="primary-button full-width"
+                  type="button"
+                  disabled={pendingAction !== null}
+                  onClick={() => void mutate(
+                    "Booking link",
+                    `/api/v1/leads/${leadId}/booking-link`,
+                    { expectedRowVersion: lead.rowVersion },
+                  )}
+                >
+                  Queue booking link
+                </button>
+              ) : null}
+            </section>
+          ) : null}
 
           {canManage ? (
             <section className="action-card">

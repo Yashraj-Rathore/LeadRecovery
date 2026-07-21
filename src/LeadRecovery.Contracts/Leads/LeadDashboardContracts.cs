@@ -17,7 +17,16 @@ public sealed record PendingActionResponse(
     string ActionType,
     string Status,
     DateTimeOffset ScheduledForUtc,
-    int AttemptCount);
+    int AttemptCount,
+    bool IsCancellable);
+
+public sealed record QualificationAnswerResponse(
+    Guid Id,
+    string QuestionKey,
+    string QuestionPrompt,
+    string? Value,
+    string Outcome,
+    DateTimeOffset CreatedAtUtc);
 
 public sealed record AssignableUserResponse(
     Guid UserId,
@@ -29,7 +38,10 @@ public sealed record LeadDetailResponse(
     IReadOnlyList<LeadTimelineItemResponse> Timeline,
     IReadOnlyList<PendingActionResponse> PendingActions,
     IReadOnlyList<AssignableUserResponse> AssignableUsers,
-    IReadOnlyList<string> AllowedTransitions);
+    IReadOnlyList<string> AllowedTransitions,
+    IReadOnlyList<QualificationAnswerResponse> QualificationAnswers,
+    string? CurrentQualificationQuestion,
+    string? BookingUrl);
 
 public sealed record AssignLeadRequest(
     Guid? AssignedUserId,
@@ -43,6 +55,8 @@ public sealed record TransitionLeadRequest(
     string ExpectedRowVersion);
 
 public sealed record LeadAutomationRequest(string ExpectedRowVersion);
+
+public sealed record LeadBookingRequest(string ExpectedRowVersion);
 
 public sealed record ManualMessageRequest(
     string Body,

@@ -47,6 +47,16 @@ export type PendingAction = {
   status: string;
   scheduledForUtc: string;
   attemptCount: number;
+  isCancellable: boolean;
+};
+
+export type QualificationAnswer = {
+  id: string;
+  questionKey: string;
+  questionPrompt: string;
+  value: string | null;
+  outcome: string;
+  createdAtUtc: string;
 };
 
 export type AssignableUser = {
@@ -61,6 +71,9 @@ export type LeadDetail = {
   pendingActions: PendingAction[];
   assignableUsers: AssignableUser[];
   allowedTransitions: string[];
+  qualificationAnswers: QualificationAnswer[];
+  currentQualificationQuestion: string | null;
+  bookingUrl: string | null;
 };
 
 export type ApiProblem = {

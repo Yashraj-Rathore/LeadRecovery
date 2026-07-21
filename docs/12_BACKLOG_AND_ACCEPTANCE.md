@@ -359,6 +359,18 @@ conflict recovery, notes, manual messaging, automation state, and tenant denial.
 - all actions visible/cancellable;
 - no sends after closure/opt-out.
 
+Implementation note (2026-07-21): LR-0601 through LR-0604 are complete. A
+versioned tenant workflow validates ordered required-text/choice questions, an
+absolute HTTPS booking URL, local business windows, urgent-review behavior,
+and zero through three follow-ups. Inbound answers persist tenant-bound
+structured values; unresolved responses route to `NeedsHuman` and
+`CriticalReview`. Qualification, booking, and follow-up actions use durable
+stage/version idempotency, move outside-hours work to the next permitted
+window, and re-check workflow, tenant, Lead, opt-out, reply baseline, template,
+and send-count eligibility at execution. Authorized dashboard operators can
+queue/cancel visible actions, and booking or closure cancels remaining
+automated work. No AI or calendar provider was added.
+
 ## Epic E7 - AI assistance
 
 ### LR-0701 Structured analysis adapter

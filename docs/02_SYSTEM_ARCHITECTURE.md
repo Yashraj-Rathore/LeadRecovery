@@ -384,11 +384,26 @@ use case can require and persist its audit event.
 - External sends are at-least-once attempts; idempotency keys prevent duplicate business effects.
 - Do not assume exactly-once delivery from Twilio, Kubernetes, or job runners.
 
-LR-0204 implements the durable `ScheduledAction` record and the
+Milestone 6 extends this model with a single active, versioned
+`WorkflowDefinition` per tenant. Its validated JSON policies define ordered
+qualification questions, one local-time window per configured day, an urgent
+human-review after-hours choice, and at most three follow-ups. Qualification,
+booking, and follow-up work all remain `ScheduledAction` records; the Worker
+revalidates the active workflow, tenant/Lead/customer eligibility, stage,
+customer activity baseline, and approved active template before sending.
+
+Business-hour conversion uses the tenant's `TimezoneId`. Invalid local times
+during a spring-forward gap advance to the first valid minute. Ambiguous local
+times choose the larger UTC offset, producing the earliest matching instant.
+Urgent human review is durable dashboard/audit work and may bypass ordinary
+send hours when the tenant policy allows it.
+
+LR-0204 introduced the durable `ScheduledAction` record and the
 `ExternalEventReceipt` system ledger without dispatching work or calling a
-provider. Booking uses the same scoped EF context to persist the Lead transition
-and cancel only its pending actions in one transaction. Hangfire notification,
-reconciliation, leasing, and external execution remain later issues.
+provider. Milestones 4 through 6 now dispatch and reconcile that intent through
+PostgreSQL-backed Hangfire. Booking uses the same scoped EF context to persist
+the Lead transition and cancel only its pending automated actions in one
+transaction.
 
 ## 13. Caching
 

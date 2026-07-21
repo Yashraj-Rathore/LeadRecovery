@@ -5,19 +5,19 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  23683
+        "bytes":  26656
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  10899
+        "bytes":  12008
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  184724
+        "bytes":  195261
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  4155
+        "bytes":  4226
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "database/schema.sql",
-        "bytes":  9998
+        "bytes":  11369
     },
     {
         "path":  "diagrams/deployment.mmd",
@@ -37,23 +37,23 @@
     },
     {
         "path":  "docs/01_PRODUCT_REQUIREMENTS.md",
-        "bytes":  10671
+        "bytes":  11600
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  12936
+        "bytes":  13826
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  16172
+        "bytes":  17147
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  12066
+        "bytes":  12831
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
-        "bytes":  6474
+        "bytes":  6726
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
@@ -65,7 +65,7 @@
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  9147
+        "bytes":  9825
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
@@ -73,15 +73,15 @@
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
-        "bytes":  4952
+        "bytes":  5415
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  9357
+        "bytes":  9985
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  14508
+        "bytes":  15306
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -148,12 +148,16 @@
         "bytes":  3334
     },
     {
+        "path":  "docs/decisions/0015-deterministic-qualification-booking-and-follow-up.md",
+        "bytes":  3506
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  1917
+        "bytes":  2052
     },
     {
         "path":  "README.md",
-        "bytes":  11405
+        "bytes":  11755
     },
     {
         "path":  "templates/.env.example",

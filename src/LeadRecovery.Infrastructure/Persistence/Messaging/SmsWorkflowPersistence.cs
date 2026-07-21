@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Tenancy;
@@ -19,7 +20,10 @@ namespace LeadRecovery.Infrastructure.Persistence.Messaging;
 
 internal sealed class SmsWorkflowPersistence(
     LeadRecoveryDbContext dbContext,
-    ITenantExecutionScope tenantExecutionScope)
+    ITenantExecutionScope tenantExecutionScope,
+    IWorkflowActionScheduler workflowActionScheduler,
+    IQualificationEvaluator qualificationEvaluator,
+    IBusinessHoursScheduler businessHoursScheduler)
     : ISmsWorkflowPersistence
 {
     private static readonly HashSet<string> OptOutKeywords = new(
@@ -230,6 +234,21 @@ internal sealed class SmsWorkflowPersistence(
                     lead.BeginContacting(now);
                 }
 
+                Tenant tenant = await dbContext.Tenants.SingleAsync(
+                    candidate => candidate.Id == prepared.TenantId,
+                    cancellationToken);
+                WorkflowDefinition? workflow = await dbContext.WorkflowDefinitions
+                    .SingleOrDefaultAsync(candidate => candidate.IsActive, cancellationToken);
+                if (workflow is not null)
+                {
+                    _ = await workflowActionScheduler.ScheduleFirstQualificationAsync(
+                        tenant,
+                        lead,
+                        workflow,
+                        now,
+                        cancellationToken);
+                }
+
                 outcome = OutboundSmsOutcome.Accepted;
                 break;
             case SmsSendDisposition.TransientFailure:
@@ -405,6 +424,9 @@ internal sealed class SmsWorkflowPersistence(
             dbContext.Messages.Add(message);
 
             bool optedOut = OptOutKeywords.Contains(webhookEvent.Body.Trim().ToUpperInvariant());
+            string? qualificationQuestionKey = null;
+            QualificationAnswerOutcome? qualificationOutcome = null;
+            DateTimeOffset? humanReviewAtUtc = null;
             if (optedOut)
             {
                 customer.OptOut(now);
@@ -412,12 +434,108 @@ internal sealed class SmsWorkflowPersistence(
                 List<ScheduledAction> pendingActions = await dbContext.ScheduledActions
                     .Where(action =>
                         action.LeadId == lead.Id &&
-                        action.ActionType == ProcessCallStatusWebhookUseCase.RecoveryActionType &&
                         action.Status == ScheduledActionStatus.Pending)
                     .ToListAsync(cancellationToken);
                 foreach (ScheduledAction pendingAction in pendingActions)
                 {
                     pendingAction.Cancel(now);
+                }
+            }
+            else
+            {
+                _ = await workflowActionScheduler.CancelPendingFollowUpsAsync(
+                    lead.Id,
+                    now,
+                    cancellationToken);
+                WorkflowDefinition? workflow = await dbContext.WorkflowDefinitions
+                    .SingleOrDefaultAsync(candidate => candidate.IsActive, cancellationToken);
+                if (workflow is not null)
+                {
+                    Tenant tenant = await dbContext.Tenants.SingleAsync(
+                        candidate => candidate.Id == route.TenantId,
+                        cancellationToken);
+                    QualificationQuestionPolicy? currentQuestion =
+                        await GetCurrentQualificationQuestion(
+                            lead.Id,
+                            workflow,
+                            cancellationToken);
+                    if (currentQuestion is null)
+                    {
+                        _ = await workflowActionScheduler.ScheduleFirstQualificationAsync(
+                            tenant,
+                            lead,
+                            workflow,
+                            now,
+                            cancellationToken);
+                    }
+                    else
+                    {
+                        QualificationEvaluation evaluation = qualificationEvaluator.Evaluate(
+                            currentQuestion,
+                            webhookEvent.Body);
+                        qualificationQuestionKey = currentQuestion.Key;
+                        qualificationOutcome = evaluation.Outcome;
+                        dbContext.QualificationAnswers.Add(new QualificationAnswer(
+                            Guid.CreateVersion7(),
+                            route.TenantId,
+                            lead.Id,
+                            message.Id,
+                            currentQuestion.Key,
+                            evaluation.Value,
+                            evaluation.Outcome,
+                            now));
+                        if (evaluation.Outcome != QualificationAnswerOutcome.Accepted)
+                        {
+                            if (lead.Status != LeadStatus.NeedsHuman)
+                            {
+                                lead.RequireHumanReview(now);
+                            }
+
+                            lead.ChangeUrgency(LeadUrgency.CriticalReview, now);
+                            humanReviewAtUtc =
+                                businessHoursScheduler.GetUrgentHumanReviewUtc(
+                                    now,
+                                    tenant.TimezoneId,
+                                    workflow.GetBusinessHoursPolicy());
+                            await CancelPendingAutomatedActions(
+                                lead.Id,
+                                now,
+                                cancellationToken);
+                        }
+                        else if (lead.Status != LeadStatus.NeedsHuman)
+                        {
+                            QualificationQuestionPolicy[] questions =
+                                workflow.GetQualificationQuestions();
+                            int currentIndex = Array.FindIndex(
+                                questions,
+                                question => question.Key.Equals(
+                                    currentQuestion.Key,
+                                    StringComparison.OrdinalIgnoreCase));
+                            if (currentIndex + 1 < questions.Length)
+                            {
+                                _ = await workflowActionScheduler
+                                    .ScheduleQualificationQuestionAsync(
+                                        tenant,
+                                        lead,
+                                        workflow,
+                                        questions[currentIndex + 1].Key,
+                                        now,
+                                        cancellationToken);
+                            }
+                            else
+                            {
+                                lead.Qualify(true, null, now);
+                                lead.OfferBooking(now);
+                                _ = await workflowActionScheduler.ScheduleBookingLinkAsync(
+                                    tenant,
+                                    lead,
+                                    workflow,
+                                    LeadStatus.BookingOffered.ToString(),
+                                    now,
+                                    cancellationToken);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -432,7 +550,14 @@ internal sealed class SmsWorkflowPersistence(
                 lead.Id,
                 webhookEvent.CorrelationId,
                 now,
-                new { result = outcome.ToString(), messageId = message.Id });
+                new
+                {
+                    result = outcome.ToString(),
+                    messageId = message.Id,
+                    qualificationQuestionKey,
+                    qualificationOutcome = qualificationOutcome?.ToString(),
+                    humanReviewAtUtc,
+                });
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return outcome;
@@ -440,6 +565,66 @@ internal sealed class SmsWorkflowPersistence(
         finally
         {
             tenantScope?.Dispose();
+        }
+    }
+
+    private async Task<QualificationQuestionPolicy?> GetCurrentQualificationQuestion(
+        Guid leadId,
+        WorkflowDefinition workflow,
+        CancellationToken cancellationToken)
+    {
+        HashSet<string> answeredKeys = (await dbContext.QualificationAnswers
+                .Where(answer => answer.LeadId == leadId)
+                .Select(answer => answer.QuestionKey)
+                .ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string[] payloads = await dbContext.ScheduledActions
+            .Where(action =>
+                action.LeadId == leadId &&
+                action.ActionType ==
+                    WorkflowScheduledActionTypes.SendQualificationQuestion &&
+                action.Status == ScheduledActionStatus.Completed)
+            .OrderByDescending(action => action.UpdatedAtUtc)
+            .ThenByDescending(action => action.Id)
+            .Select(action => action.PayloadJson)
+            .ToArrayAsync(cancellationToken);
+        QualificationQuestionPolicy[] questions = workflow.GetQualificationQuestions();
+        foreach (string payloadJson in payloads)
+        {
+            if (!WorkflowScheduledActionPayloadSerializer.TryDeserialize(
+                    payloadJson,
+                    out WorkflowScheduledActionPayload? payload) ||
+                string.IsNullOrWhiteSpace(payload!.QuestionKey) ||
+                answeredKeys.Contains(payload.QuestionKey))
+            {
+                continue;
+            }
+
+            return questions.SingleOrDefault(question => question.Key.Equals(
+                payload.QuestionKey,
+                StringComparison.OrdinalIgnoreCase));
+        }
+
+        return null;
+    }
+
+    private async Task CancelPendingAutomatedActions(
+        Guid leadId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        List<ScheduledAction> pendingActions = await dbContext.ScheduledActions
+            .Where(action =>
+                action.LeadId == leadId &&
+                action.ActionType != SmsScheduledActionTypes.SendManualSms &&
+                action.Status == ScheduledActionStatus.Pending)
+            .ToListAsync(cancellationToken);
+        foreach (ScheduledAction pendingAction in pendingActions)
+        {
+            if (pendingAction.Status == ScheduledActionStatus.Pending)
+            {
+                pendingAction.Cancel(now);
+            }
         }
     }
 

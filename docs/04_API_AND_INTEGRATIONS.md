@@ -262,6 +262,19 @@ Level 2:
 
 Never place sensitive lead data directly in an unsigned query string.
 
+Milestone 6 implements level 1. `POST /api/v1/leads/{leadId}/booking-link`
+requires a DashboardOperator session, CSRF token, and current opaque Lead
+version. It accepts no caller-provided URL: the Worker renders only the active
+workflow's validated HTTPS `BookingUrl` through an approved active
+`BookingLink` template. The tenant/workflow/Lead/stage idempotency key and
+persisted Message identity prevent a repeat send. Staff use the existing
+transition endpoint to mark `Booked`, which atomically cancels pending
+automated actions.
+
+`POST /api/v1/leads/{leadId}/scheduled-actions/{actionId}/cancel` lets a
+DashboardOperator cancel a visible Pending action owned by the same tenant and
+Lead. Cross-tenant identifiers remain indistinguishable from missing records.
+
 ## 10. Email integration
 
 Use for staff notifications, not customer marketing in MVP.

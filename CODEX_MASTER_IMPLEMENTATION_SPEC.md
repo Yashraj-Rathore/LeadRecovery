@@ -23,11 +23,13 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 5 are complete. LR-0101 through LR-0505 are implemented.
+Milestones 0 through 6 are complete. LR-0101 through LR-0604 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
-opt-out suppression, and the operational Next.js dashboard. Staff can filter
+opt-out suppression, deterministic tenant-configured qualification and
+follow-up workflows, approved booking links, business-hours scheduling, and
+the operational Next.js dashboard. Staff can filter
 the tenant inbox, inspect the ordered call/SMS/system/note timeline, assign and
 transition Leads, send idempotent manual SMS, and pause or resume eligible
 automation. All browser writes use CSRF and role authorization; Lead writes use
@@ -44,15 +46,19 @@ The currently implemented browser and health contract is:
   session;
 - `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
   `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
-  assignees, ordered timeline, pending actions, and allowed transitions;
+  assignees, ordered timeline, structured qualification answers, approved
+  booking destination, pending actions, and allowed transitions;
 - lead assignment, transition, note, manual-message, pause, and resume endpoints
   are CSRF-protected and restricted to Owner, Manager, and Staff memberships;
+- booking-link queue and pending-action cancellation endpoints use the same
+  tenant, role, CSRF, and concurrency controls;
 - `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
   form callbacks and records recovery intent;
 - `POST /api/v1/webhooks/twilio/sms/inbound` and
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
-- the worker executes due recovery and manual-message actions through
+- the worker executes due recovery, qualification, booking, follow-up, and
+  manual-message actions through
   PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
@@ -547,9 +553,21 @@ The system asks a small, pre-approved sequence of questions, for example:
 
 Question order is deterministic. AI may summarize answers but may not control all branching without rules.
 
+Milestone 6 stores the ordered questions in one active versioned tenant
+workflow. Required-text and approved-choice answers are evaluated without AI
+and persisted as structured qualification answers. Unknown or multi-match
+responses move the Lead to `NeedsHuman`, set `CriticalReview`, cancel pending
+automation, and create immediate or business-hours-aligned review audit data
+according to tenant policy.
+
 ### UC-04 Book or request callback
 
 The system sends a tenant-configured booking URL or records a callback request. Booking confirmation may be manual in MVP unless a calendar integration is configured.
+
+The implemented MVP accepts only an absolute HTTPS booking URL without
+embedded credentials. Owner, Manager, or Staff can queue that approved link
+for a qualified Lead and manually mark the Lead booked; no calendar dependency
+is required.
 
 ### UC-05 Staff takeover
 
@@ -565,6 +583,11 @@ Default pilot cadence:
 - follow-up 1: after 2 hours during permitted hours;
 - follow-up 2: next business morning;
 - then stop unless tenant policy explicitly allows another step.
+
+The implemented tenant workflow allows zero through three uniquely ordered
+follow-ups. Every action is moved into the next permitted tenant-timezone
+window and re-checks tenant automation, Lead state, opt-out, customer activity,
+workflow stage, and approved template at execution.
 
 ### UC-07 Close a lead
 
@@ -1152,11 +1175,26 @@ use case can require and persist its audit event.
 - External sends are at-least-once attempts; idempotency keys prevent duplicate business effects.
 - Do not assume exactly-once delivery from Twilio, Kubernetes, or job runners.
 
-LR-0204 implements the durable `ScheduledAction` record and the
+Milestone 6 extends this model with a single active, versioned
+`WorkflowDefinition` per tenant. Its validated JSON policies define ordered
+qualification questions, one local-time window per configured day, an urgent
+human-review after-hours choice, and at most three follow-ups. Qualification,
+booking, and follow-up work all remain `ScheduledAction` records; the Worker
+revalidates the active workflow, tenant/Lead/customer eligibility, stage,
+customer activity baseline, and approved active template before sending.
+
+Business-hour conversion uses the tenant's `TimezoneId`. Invalid local times
+during a spring-forward gap advance to the first valid minute. Ambiguous local
+times choose the larger UTC offset, producing the earliest matching instant.
+Urgent human review is durable dashboard/audit work and may bypass ordinary
+send hours when the tenant policy allows it.
+
+LR-0204 introduced the durable `ScheduledAction` record and the
 `ExternalEventReceipt` system ledger without dispatching work or calling a
-provider. Booking uses the same scoped EF context to persist the Lead transition
-and cancel only its pending actions in one transaction. Hangfire notification,
-reconciliation, leasing, and external execution remain later issues.
+provider. Milestones 4 through 6 now dispatch and reconcile that intent through
+PostgreSQL-backed Hangfire. Booking uses the same scoped EF context to persist
+the Lead transition and cancel only its pending automated actions in one
+transaction.
 
 ## 13. Caching
 
@@ -1449,10 +1487,33 @@ MVP can use configuration rather than a general visual workflow engine.
 - `Name`
 - `Version`
 - `IsActive`
-- `InitialDelaySeconds`
+- `BookingUrl` - absolute HTTPS without embedded credentials
 - `FollowUpPolicyJson`
 - `BusinessHoursPolicyJson`
 - `QualificationPolicyJson`
+- audit timestamps
+
+Milestone 6 persists one active workflow per tenant through a filtered unique
+index and retains unique `(TenantId, Version)` history. Construction validates
+one through ten unique ordered questions, at least one business-hours window,
+one window per day, and at most three follow-ups with unique sequence numbers
+and template purposes. JSON is a persistence format for validated policy, not
+an untrusted dynamic execution language.
+
+### QualificationAnswer
+
+- `Id`
+- `TenantId`
+- `LeadId`
+- `SourceMessageId`
+- `QuestionKey`
+- `Value` nullable when unresolved
+- `Outcome` - Accepted, Unknown, Ambiguous
+- `CreatedAtUtc`
+
+Unique constraints on `(TenantId, LeadId, QuestionKey)` and
+`(TenantId, SourceMessageId)` prevent duplicate structured capture. Compound
+foreign keys bind the answer, Lead, and source Message to the same tenant.
 
 ### ScheduledAction
 
@@ -1473,15 +1534,15 @@ Unique: `(TenantId, IdempotencyKey)`.
 Actions start `Pending`. Allowed transitions are `Pending -> Running`,
 `Pending -> Cancelled`, `Running -> Completed`, `Running -> Failed`, and
 `Running -> Pending` for a retry with a new due time at or after the retry
-decision. Starting an attempt increments `AttemptCount`. Completed, Failed, and
-Cancelled are terminal. The due-work index is `(Status, ScheduledForUtc)`; a
+decision. A Pending action may also be deferred to a future permitted window
+without consuming an attempt. Starting an attempt increments `AttemptCount`.
+Completed, Failed, and Cancelled are terminal. The due-work index is `(Status, ScheduledForUtc)`; a
 separate `(TenantId, LeadId, Status)` index supports deterministic cancellation.
 
-LR-0204 persists durable workflow intent without executing it. The booking use
-case and its PostgreSQL adapter use one scoped DbContext save to persist the
-booked Lead and cancel only that lead's Pending actions. Running or terminal
-actions are not rewritten, and no Hangfire or provider call occurs in this
-issue.
+Milestone 6 uses action types `SendQualificationQuestion`, `SendBookingLink`,
+and `SendFollowUpSms`. Idempotency keys include Lead, workflow version, stage,
+and sequence as applicable. The booking transition cancels that Lead's pending
+automated actions; running and terminal actions are not rewritten.
 
 ### ExternalEventReceipt
 
@@ -1944,6 +2005,19 @@ Level 2:
 
 Never place sensitive lead data directly in an unsigned query string.
 
+Milestone 6 implements level 1. `POST /api/v1/leads/{leadId}/booking-link`
+requires a DashboardOperator session, CSRF token, and current opaque Lead
+version. It accepts no caller-provided URL: the Worker renders only the active
+workflow's validated HTTPS `BookingUrl` through an approved active
+`BookingLink` template. The tenant/workflow/Lead/stage idempotency key and
+persisted Message identity prevent a repeat send. Staff use the existing
+transition endpoint to mark `Booked`, which atomically cancels pending
+automated actions.
+
+`POST /api/v1/leads/{leadId}/scheduled-actions/{actionId}/cancel` lets a
+DashboardOperator cancel a visible Pending action owned by the same tenant and
+Lead. Cross-tenant identifiers remain indistinguishable from missing records.
+
 ## 10. Email integration
 
 Use for staff notifications, not customer marketing in MVP.
@@ -2122,11 +2196,14 @@ Required controls:
 - open booking link;
 - view pending follow-ups and cancel them.
 
-Milestone 5 implements the controls owned by LR-0501 through LR-0505: manual
+Milestone 5 implemented the controls owned by LR-0501 through LR-0505: manual
 SMS, pause/resume, assignment, domain-allowed transitions, internal notes, copy
-phone, and pending-action display. Category/urgency editing, booking-link
-actions, AI summary controls, and arbitrary pending-action cancellation remain
-their owning later issues.
+phone, and pending-action display. Milestone 6 adds structured qualification
+answers and the current unanswered prompt, the approved booking destination,
+booking-link queueing for active Qualified Leads, and cancellation buttons for
+Pending actions. Marking `Booked` removes pending automated follow-ups from the
+view after the server transaction. Category/urgency editing and AI summary
+controls remain their owning later issues.
 
 ### 3.4 Settings - Business
 
@@ -2823,6 +2900,16 @@ requires p95 below 500 ms. Playwright verifies labeled filters and keyboard
 focus, detail/timeline rendering, latest-state conflict recovery, pause state,
 notes, manual SMS queue visibility, and cross-tenant denial.
 
+Milestone 6 adds domain tests for workflow and structured-answer invariants;
+unit tests for deterministic exact, single-match, ambiguous, and unknown
+qualification outcomes; and tenant-timezone scheduler tests spanning both
+Toronto DST changes. PostgreSQL tests apply the migration and verify structured
+answer capture, urgent human routing, business-stage cancellation, approved
+booking rendering once, the three-follow-up maximum, execution-time closure
+suppression, CSRF, action cancellation, and cross-tenant denial. Playwright
+extends the office flow through queueing the approved booking link and marking
+the Lead booked, after which its pending automated booking action disappears.
+
 ## 3. Test environments
 
 ### Local
@@ -2838,7 +2925,7 @@ Docker is unavailable may point
 database; the fixture still applies migrations and runs the identical suite.
 Never point this override at a shared or persistent database.
 
-Safe Milestone 4 local validation keeps real delivery disabled:
+Safe local validation keeps real delivery disabled:
 
 ```powershell
 $env:SMS_PROVIDER = 'fake'
@@ -3374,6 +3461,13 @@ projects durable Message, LeadNote, and redacted Lead AuditEvent records into
 the polled tenant timeline. SignalR remains an optional later transport and is
 not required for operational correctness.
 
+Milestone 6 records redacted audit outcomes for booking queue/cancellation,
+workflow deferral, suppression, provider completion, qualification result, and
+the computed human-review timestamp. Payloads contain IDs, stages, enums, and
+timestamps only; message bodies, phone numbers, and booking credentials are not
+logged. Scheduled-action state and the Lead detail projection make every
+pending workflow action visible and cancellable to authorized tenant staff.
+
 ## 5. Alerts
 
 Initial alerts:
@@ -3674,6 +3768,16 @@ Exit criteria:
 - qualification flow works without AI;
 - no follow-up sent outside configured hours;
 - booking transition cancels remaining jobs.
+
+Implementation status (2026-07-21): complete for LR-0601 through LR-0604.
+One active versioned tenant policy drives deterministic qualification,
+timezone-aware permitted windows, the approved HTTPS booking link, and a
+maximum of three follow-ups. Unknown or ambiguous answers route to urgent human
+review without AI. The Worker re-checks eligibility at execution; dashboard
+operators can queue the booking link, cancel pending work, and mark a Lead
+booked to cancel remaining automation. Unit, PostgreSQL, and Playwright tests
+cover DST, idempotency, tenant isolation, closure/opt-out suppression, and the
+office booking flow.
 
 ### Milestone 7 - AI assistance and safety (Week 7)
 
@@ -4234,6 +4338,18 @@ conflict recovery, notes, manual messaging, automation state, and tenant denial.
 - all actions visible/cancellable;
 - no sends after closure/opt-out.
 
+Implementation note (2026-07-21): LR-0601 through LR-0604 are complete. A
+versioned tenant workflow validates ordered required-text/choice questions, an
+absolute HTTPS booking URL, local business windows, urgent-review behavior,
+and zero through three follow-ups. Inbound answers persist tenant-bound
+structured values; unresolved responses route to `NeedsHuman` and
+`CriticalReview`. Qualification, booking, and follow-up actions use durable
+stage/version idempotency, move outside-hours work to the next permitted
+window, and re-check workflow, tenant, Lead, opt-out, reply baseline, template,
+and send-count eligibility at execution. Authorized dashboard operators can
+queue/cancel visible actions, and booking or closure cancels remaining
+automated work. No AI or calendar provider was added.
+
 ## Epic E7 - AI assistance
 
 ### LR-0701 Structured analysis adapter
@@ -4728,6 +4844,7 @@ updated in the same change so they remain aligned.
 | [0012](0012-twilio-call-status-ingestion.md) | Twilio call-status ingestion and recovery routing | Accepted |
 | [0013](0013-sms-worker-and-webhook-lifecycle.md) | SMS worker and webhook lifecycle | Accepted |
 | [0014](0014-operational-dashboard-and-manual-sms.md) | Operational dashboard and manual SMS | Accepted |
+| [0015](0015-deterministic-qualification-booking-and-follow-up.md) | Deterministic qualification, booking, and follow-up | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -5462,6 +5579,72 @@ persistence models.
 
 ---
 
+<!-- SOURCE: docs/decisions/0015-deterministic-qualification-booking-and-follow-up.md -->
+
+# ADR-0015: Deterministic qualification, booking, and follow-up
+
+- Status: Accepted
+- Date: 2026-07-21
+- Owners: LeadRecovery engineering
+
+## Context
+
+Milestone 6 must collect tenant-specific answers, schedule customer contact in
+local permitted hours, offer a booking path, and stop follow-ups reliably. The
+requirements deliberately avoid making AI or a calendar provider responsible
+for workflow correctness. They also leave DST conversion, ambiguous answers,
+booking-link identity, and the maximum cadence needing explicit decisions.
+
+## Decision
+
+1. Each tenant has at most one active, versioned `WorkflowDefinition`.
+   Validated JSON policies contain one through ten ordered RequiredText or
+   Choice questions, at least one local business-hours window, an urgent-review
+   after-hours flag, an approved absolute HTTPS booking URL without embedded
+   credentials, and zero through three uniquely ordered follow-ups.
+2. `QualificationEvaluator` is deterministic. Required text accepts a trimmed
+   bounded value. Choice accepts an exact or single contained approved value;
+   zero matches is Unknown and multiple matches is Ambiguous. Every result is
+   stored as a tenant-bound `QualificationAnswer`. Unknown and Ambiguous move
+   the Lead to `NeedsHuman`, set `CriticalReview`, cancel pending automation,
+   and audit the policy-derived review timestamp. No AI call occurs.
+3. Business hours use the tenant `TimezoneId`. Work already inside a configured
+   half-open `[open, close)` window keeps its instant; otherwise it moves to the
+   next opening. Spring-forward invalid local times advance to the first valid
+   minute. Fall-back ambiguous times select the larger offset, the earliest UTC
+   occurrence. Urgent human review may bypass send hours only when configured.
+4. Qualification, booking, and follow-up work is durable `ScheduledAction`
+   intent. Idempotency includes tenant scope implicitly plus Lead, workflow
+   version, stage, question, or sequence. A Pending action may be deferred
+   without incrementing its attempt count. The Worker re-checks the active
+   workflow, tenant automation, Lead status/automation, opt-out, route,
+   customer-activity baseline, approved template, stage, and cadence limit
+   immediately before a send.
+5. A booking action renders only the active approved `BookingLink` template and
+   the validated workflow URL. The dashboard never accepts a URL in the queue
+   request. Staff may mark the Lead Booked through the existing transition;
+   that transaction cancels all pending automated actions. A calendar adapter
+   remains a later optional integration.
+6. Owner, Manager, and Staff may queue a booking link or cancel a visible
+   Pending action. Both operations retain tenant query filters, entity
+   ownership checks, CSRF protection, audit rows, and not-found behavior for
+   cross-tenant identifiers. Booking queueing also uses the Lead concurrency
+   token.
+
+## Consequences
+
+- The core qualification and booking flow continues when AI or calendar
+  providers are unavailable.
+- Policy JSON is versioned configuration, not executable user-authored code.
+- Only one window per weekday is supported in this milestone; split shifts
+  require a future policy version.
+- Human notification is represented immediately in durable dashboard state and
+  redacted audit data. Email delivery remains a separate future adapter.
+- Provider execution remains at-least-once, while action and Message identities
+  prevent ordinary duplicate business effects.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -5503,6 +5686,8 @@ Implementation status (2026-07-15): complete. Continue with Prompt 7.
 ## Prompt 7 - Qualification and booking
 
 Implement LR-0601 through LR-0604. Keep rules deterministic. Add business-hours and DST tests. Booking may be a tenant-configured link; do not add unnecessary calendar integrations.
+
+Implementation status (2026-07-21): complete. Continue with Prompt 8.
 
 ## Prompt 8 - AI assistance
 

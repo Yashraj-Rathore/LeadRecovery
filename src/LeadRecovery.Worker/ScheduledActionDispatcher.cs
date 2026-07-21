@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 
 using Hangfire;
 
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Domain.Automations;
@@ -58,7 +59,12 @@ internal sealed partial class ScheduledActionDispatcher(
                 updated_at_utc = {now}
             where status = 'Running'
               and updated_at_utc <= {staleBefore}
-              and action_type in ({ProcessCallStatusWebhookUseCase.RecoveryActionType}, {SmsScheduledActionTypes.SendManualSms})
+              and action_type in (
+                  {ProcessCallStatusWebhookUseCase.RecoveryActionType},
+                  {SmsScheduledActionTypes.SendManualSms},
+                  {WorkflowScheduledActionTypes.SendQualificationQuestion},
+                  {WorkflowScheduledActionTypes.SendBookingLink},
+                  {WorkflowScheduledActionTypes.SendFollowUpSms})
             """,
             cancellationToken);
 
@@ -66,7 +72,11 @@ internal sealed partial class ScheduledActionDispatcher(
             .IgnoreQueryFilters()
             .Where(action =>
                 (action.ActionType == ProcessCallStatusWebhookUseCase.RecoveryActionType ||
-                    action.ActionType == SmsScheduledActionTypes.SendManualSms) &&
+                    action.ActionType == SmsScheduledActionTypes.SendManualSms ||
+                    action.ActionType ==
+                        WorkflowScheduledActionTypes.SendQualificationQuestion ||
+                    action.ActionType == WorkflowScheduledActionTypes.SendBookingLink ||
+                    action.ActionType == WorkflowScheduledActionTypes.SendFollowUpSms) &&
                 action.Status == ScheduledActionStatus.Pending &&
                 action.ScheduledForUtc <= now)
             .OrderBy(action => action.ScheduledForUtc)
@@ -87,6 +97,14 @@ internal sealed partial class ScheduledActionDispatcher(
             if (action.ActionType == SmsScheduledActionTypes.SendManualSms)
             {
                 _ = backgroundJobs.Enqueue<ScheduledManualSmsJob>(job => job.ExecuteAsync(
+                    action.Id,
+                    action.TenantId,
+                    correlationId,
+                    CancellationToken.None));
+            }
+            else if (WorkflowScheduledActionTypes.IsWorkflowSms(action.ActionType))
+            {
+                _ = backgroundJobs.Enqueue<ScheduledWorkflowSmsJob>(job => job.ExecuteAsync(
                     action.Id,
                     action.TenantId,
                     correlationId,

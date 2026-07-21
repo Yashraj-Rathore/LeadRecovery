@@ -38,6 +38,8 @@ Implementation status (2026-07-15): complete. Continue with Prompt 7.
 
 Implement LR-0601 through LR-0604. Keep rules deterministic. Add business-hours and DST tests. Booking may be a tenant-configured link; do not add unnecessary calendar integrations.
 
+Implementation status (2026-07-21): complete. Continue with Prompt 8.
+
 ## Prompt 8 - AI assistance
 
 Implement LR-0701 through LR-0703. Use strict structured output, minimum data, human review, confidence handling, and fallback. No autonomous customer-facing generation.

@@ -143,6 +143,22 @@ All notable repository and product-specification changes are recorded here.
   automation controls, and tenant isolation.
 - ADR-0014 documenting dashboard authorization, concurrency, timeline
   projection, manual-message worker flow, polling, and resume eligibility.
+- LR-0601 versioned tenant workflow definitions, deterministic qualification
+  questions, structured answer persistence, and unknown/ambiguous routing to
+  urgent human review without an AI dependency.
+- LR-0602 tenant-timezone business-hours scheduling with explicit after-hours
+  deferral, a separate urgent-review policy, and spring/fall DST coverage.
+- LR-0603 approved absolute HTTPS booking destinations, one action per workflow
+  version and lead stage, dashboard queue/cancel controls, and booked-state
+  cancellation of remaining automated actions.
+- LR-0604 policy-derived follow-ups capped at three, execution-time tenant,
+  lead, opt-out, reply, stage, and template checks, worker dispatch, and
+  dashboard visibility/cancellation.
+- Qualification-answer and workflow-definition PostgreSQL persistence,
+  migration, API/OpenAPI projections, fictional demo workflow, and unit,
+  PostgreSQL integration, and Playwright booking-flow coverage.
+- ADR-0015 documenting deterministic workflow policy, business-hours and DST
+  semantics, booking-link identity, follow-up limits, and human-review routing.
 
 ### Changed
 
