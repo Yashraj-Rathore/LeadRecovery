@@ -141,6 +141,10 @@ All notable repository and product-specification changes are recorded here.
   data, dashboard API contracts, production Next.js lead-detail UI, and
   Playwright coverage for filters, keyboard focus, conflicts, notes, messaging,
   automation controls, and tenant isolation.
+- Cohesive dashboard visual and usability refresh with a tenant workspace
+  header, attention-first queue, human-readable workflow labels, clearer
+  timeline and action hierarchy, skeleton/global failure states, high-contrast
+  focus treatment, reduced-motion support, and verified 390-pixel mobile use.
 - ADR-0014 documenting dashboard authorization, concurrency, timeline
   projection, manual-message worker flow, polling, and resume eligibility.
 - LR-0601 versioned tenant workflow definitions, deterministic qualification

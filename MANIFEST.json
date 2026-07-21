@@ -9,11 +9,11 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  12746
+        "bytes":  13050
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  207006
+        "bytes":  208489
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
@@ -53,7 +53,7 @@
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
-        "bytes":  6726
+        "bytes":  7447
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
@@ -65,7 +65,7 @@
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  10279
+        "bytes":  10620
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
@@ -161,7 +161,7 @@
     },
     {
         "path":  "README.md",
-        "bytes":  12836
+        "bytes":  13257
     },
     {
         "path":  "templates/.env.example",

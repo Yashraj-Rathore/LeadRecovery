@@ -111,6 +111,17 @@ Pending actions. Marking `Booked` removes pending automated follow-ups from the
 view after the server transaction. Category/urgency editing and AI summary
 controls remain their owning later issues.
 
+A pre-LR-0702 visual and usability refresh applies one tokenized interface
+system to login, inbox, and Lead detail without adding new product navigation or
+changing workflow behavior. The refresh prioritizes human-review/unread rows,
+replaces raw enum values with staff-readable labels, provides explicit polling
+and mutation feedback, separates inbound/outbound timeline messages, and adds
+consistent global error, not-found, empty, and skeleton states. Desktop, tablet,
+and 390-pixel mobile layouts preserve essential controls without horizontal
+overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
+high-contrast outline, and reduced-motion and increased-contrast preferences
+are respected.
+
 ### 3.4 Settings - Business
 
 - business name;

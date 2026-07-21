@@ -38,6 +38,13 @@ opaque optimistic-concurrency tokens and return the latest safe representation
 on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
 cover these flows without enabling live SMS.
 
+The implemented dashboard now uses one responsive, high-contrast workspace
+system across login, inbox, and Lead detail. Human-readable workflow labels,
+attention-first queue rows, clearer loading/empty/error feedback, consistent
+44-pixel controls, skip navigation, reduced-motion support, and mobile overflow
+coverage improve daily use without adding a component-library dependency or
+changing an API/workflow contract.
+
 LR-0701 adds a provider-neutral analysis contract, independent strict schema
 validation, and an optional OpenAI Responses API adapter. The adapter is
 disabled by default, sends a redacted and bounded recent transcript with
@@ -2263,6 +2270,17 @@ Pending actions. Marking `Booked` removes pending automated follow-ups from the
 view after the server transaction. Category/urgency editing and AI summary
 controls remain their owning later issues.
 
+A pre-LR-0702 visual and usability refresh applies one tokenized interface
+system to login, inbox, and Lead detail without adding new product navigation or
+changing workflow behavior. The refresh prioritizes human-review/unread rows,
+replaces raw enum values with staff-readable labels, provides explicit polling
+and mutation feedback, separates inbound/outbound timeline messages, and adds
+consistent global error, not-found, empty, and skeleton states. Desktop, tablet,
+and 390-pixel mobile layouts preserve essential controls without horizontal
+overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
+high-contrast outline, and reduced-motion and increased-contrast preferences
+are respected.
+
 ### 3.4 Settings - Business
 
 - business name;
@@ -3090,6 +3108,12 @@ Expected result: no duplicate business action.
 - expired session -> reauthentication;
 - secret patterns absent from logs;
 - rate limits function without data loss.
+
+The dashboard Playwright suite also verifies skip-link keyboard focus, 44-pixel
+mobile filter and Lead-action targets, and absence of horizontal overflow at a
+390-pixel viewport. Its timeline assertions are scoped and count-based so a
+repeat run against a disposable seeded database still proves that a new note or
+manual message appeared.
 
 ## 8. Performance tests
 

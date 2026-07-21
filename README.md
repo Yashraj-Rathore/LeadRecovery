@@ -31,6 +31,13 @@ opaque optimistic-concurrency tokens and return the latest safe representation
 on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
 cover these flows without enabling live SMS.
 
+The implemented dashboard now uses one responsive, high-contrast workspace
+system across login, inbox, and Lead detail. Human-readable workflow labels,
+attention-first queue rows, clearer loading/empty/error feedback, consistent
+44-pixel controls, skip navigation, reduced-motion support, and mobile overflow
+coverage improve daily use without adding a component-library dependency or
+changing an API/workflow contract.
+
 LR-0701 adds a provider-neutral analysis contract, independent strict schema
 validation, and an optional OpenAI Responses API adapter. The adapter is
 disabled by default, sends a redacted and bounded recent transcript with

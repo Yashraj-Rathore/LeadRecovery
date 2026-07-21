@@ -229,6 +229,12 @@ Expected result: no duplicate business action.
 - secret patterns absent from logs;
 - rate limits function without data loss.
 
+The dashboard Playwright suite also verifies skip-link keyboard focus, 44-pixel
+mobile filter and Lead-action targets, and absence of horizontal overflow at a
+390-pixel viewport. Its timeline assertions are scoped and count-based so a
+repeat run against a disposable seeded database still proves that a new note or
+manual message appeared.
+
 ## 8. Performance tests
 
 Before pilot:
