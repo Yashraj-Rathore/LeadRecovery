@@ -22,6 +22,7 @@ updated in the same change so they remain aligned.
 | [0013](0013-sms-worker-and-webhook-lifecycle.md) | SMS worker and webhook lifecycle | Accepted |
 | [0014](0014-operational-dashboard-and-manual-sms.md) | Operational dashboard and manual SMS | Accepted |
 | [0015](0015-deterministic-qualification-booking-and-follow-up.md) | Deterministic qualification, booking, and follow-up | Accepted |
+| [0016](0016-structured-lead-analysis-adapter.md) | Structured lead-analysis adapter | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.

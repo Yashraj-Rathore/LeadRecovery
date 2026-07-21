@@ -383,6 +383,16 @@ automated work. No AI or calendar provider was added.
 - minimum data sent;
 - invalid output creates failure, not trusted suggestion.
 
+Implementation note (2026-07-21): complete. Application owns the version 1.0
+provider-neutral contracts and an exact-property validator. Infrastructure
+uses a typed HTTP client for strict OpenAI Responses API JSON Schema output,
+disables provider storage, masks phone/email values, caps recent context and
+response size, and returns failure without a suggestion for refusal or invalid
+output. Timeout is 1-30 seconds per attempt and only transient network/HTTP
+failures receive zero through two retries. The adapter is disabled by default
+and is not yet invoked or persisted; review UI and workflow fallback remain
+LR-0702 and LR-0703.
+
 ### LR-0702 Human review UI
 
 **Acceptance:**

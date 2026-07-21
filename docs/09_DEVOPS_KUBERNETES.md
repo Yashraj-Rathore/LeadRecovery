@@ -197,6 +197,7 @@ Non-secret ConfigMap values:
 - default job concurrency;
 - telemetry endpoint names;
 - public application URL.
+- AI enable/provider/model selection and bounded timeout/retry/output settings.
 
 Secrets:
 

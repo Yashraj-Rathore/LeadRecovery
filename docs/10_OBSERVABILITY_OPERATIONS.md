@@ -81,6 +81,11 @@ timestamps only; message bodies, phone numbers, and booking credentials are not
 logged. Scheduled-action state and the Lead detail projection make every
 pending workflow action visible and cancellable to authorized tenant staff.
 
+LR-0701 emits structured provider success/failure logs with provider name,
+model reference, attempt count, and a fixed bounded outcome. It never logs the
+API key, prompt, conversation text, raw structured output, contact details, or
+provider error body. AI metrics and alerts remain LR-0801.
+
 ## 5. Alerts
 
 Initial alerts:

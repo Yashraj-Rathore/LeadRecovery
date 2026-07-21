@@ -206,6 +206,14 @@ Exit criteria:
 - AI outage leaves core workflow working;
 - low-confidence output requires review.
 
+Implementation status (2026-07-21): LR-0701 is complete; LR-0702 and LR-0703
+remain. Application defines the provider-neutral request/result and strict
+schema validator. The optional Worker registration uses a bounded OpenAI
+Responses API adapter with redacted recent input, `store: false`, local output
+validation, typed failures, a per-attempt timeout, and at most two transient
+retries. No workflow invokes or persists analysis yet, and no AI output reaches
+the dashboard or a customer.
+
 ### Milestone 8 - Production hardening (Week 8)
 
 Deliverables:

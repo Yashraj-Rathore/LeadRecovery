@@ -159,6 +159,17 @@ All notable repository and product-specification changes are recorded here.
   PostgreSQL integration, and Playwright booking-flow coverage.
 - ADR-0015 documenting deterministic workflow policy, business-hours and DST
   semantics, booking-link identity, follow-up limits, and human-review routing.
+- LR-0701 provider-neutral lead-analysis contracts, version 1.0 strict local
+  schema validation, conservative confidence/safety review policy, and typed
+  provider failures that never carry an invalid suggestion.
+- Optional OpenAI Responses API adapter with strict JSON Schema output,
+  `store: false`, bounded/redacted recent context, phone/email masking,
+  per-attempt timeout, at most two transient retries, a 64 KiB response cap,
+  PII-safe logs, and fake-HTTP contract coverage without a live provider.
+- ADR-0016 documenting the structured-analysis boundary, current
+  `gpt-5.6-sol` default, data minimization, failure classification, and the
+  deferral of persistence, workflow invocation, and staff review to LR-0702/
+  LR-0703.
 
 ### Changed
 

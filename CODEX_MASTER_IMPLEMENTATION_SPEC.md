@@ -23,7 +23,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 6 are complete. LR-0101 through LR-0604 are implemented.
+Milestones 0 through 6 are complete. LR-0101 through LR-0604 and LR-0701 are
+implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -36,6 +37,14 @@ automation. All browser writes use CSRF and role authorization; Lead writes use
 opaque optimistic-concurrency tokens and return the latest safe representation
 on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
 cover these flows without enabling live SMS.
+
+LR-0701 adds a provider-neutral analysis contract, independent strict schema
+validation, and an optional OpenAI Responses API adapter. The adapter is
+disabled by default, sends a redacted and bounded recent transcript with
+`store: false`, and returns typed failures for timeouts, refusals, HTTP errors,
+or invalid output. It does not yet persist suggestions, invoke analysis from a
+workflow, expose AI controls in the dashboard, or send customer-facing text;
+those remain LR-0702 and LR-0703.
 
 The currently implemented browser and health contract is:
 
@@ -72,6 +81,7 @@ The currently implemented browser and health contract is:
 | C# | 14.0 | Backend language version |
 | PostgreSQL | 18.4 | Local database container |
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
+| Microsoft.Extensions.Http | 10.0.9 | Typed HTTP client for optional analysis |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
 | Twilio .NET SDK | 7.14.9 | Webhook signature validation and gated outbound adapter |
@@ -85,6 +95,7 @@ The currently implemented browser and health contract is:
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
+| Default OpenAI analysis model | gpt-5.6-sol | Operator-overridable structured analysis default |
 
 ## Local development
 
@@ -143,6 +154,13 @@ provider SID without network access. A live Twilio request is possible only
 when `SMS_PROVIDER=twilio` and `ALLOW_REAL_SMS=true` are both set and the
 Twilio account SID/auth token are present. Keep the fake defaults for automated
 tests and local workflow development.
+
+AI analysis also stays disabled by default. LR-0701 registers the adapter only
+when `AI_ENABLED=true`; provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
+(default `gpt-5.6-sol`), and the bounded timeout/retry settings from
+`templates/.env.example`. The current Worker has no analysis job yet, so
+enabling this registration alone does not persist a suggestion or send any
+customer-facing content.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the worker separately after setting
@@ -680,6 +698,12 @@ Optional features:
 
 All AI output must be structured, versioned, confidence-scored, and editable by staff.
 
+LR-0701 implements the optional provider-neutral request/result contract,
+version 1.0 strict local validator, and an OpenAI Responses API adapter with
+bounded redacted input, timeouts, retries, and typed failures. It does not yet
+invoke or persist analysis, expose suggestions to staff, or send a suggested
+reply. Editable review and workflow fallback remain LR-0702 and LR-0703.
+
 ### FR-007 Reporting
 
 MVP metrics:
@@ -915,6 +939,13 @@ and status webhooks remain in the API and commit receipts plus business state
 before returning. The default sender is an in-process fake; live Twilio access
 requires two explicit configuration gates.
 
+LR-0701 adds a provider-neutral Application analysis interface and strict
+validator plus an optional Infrastructure OpenAI Responses API adapter. The
+Worker registers it only when explicitly enabled, but no job invokes analysis
+yet. Provider translation, bounded retry/timeout, minimum-data redaction, and
+response-envelope handling remain outside Domain and Application. Persistence,
+workflow invocation, and dashboard review remain LR-0702/LR-0703.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -1048,6 +1079,11 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0009: conversation and message lifecycle, identity, and limits;
 - ADR-0010: scheduled actions, durable cancellation, and external receipts;
 - ADR-0011: Identity, tenant memberships, and same-origin browser sessions.
+- ADR-0012: Twilio call-status ingestion and recovery routing;
+- ADR-0013: SMS worker and webhook lifecycle;
+- ADR-0014: operational dashboard and manual SMS;
+- ADR-0015: deterministic qualification, booking, and follow-up;
+- ADR-0016: structured lead-analysis adapter.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -1595,6 +1631,11 @@ later integration handlers must authorize its system-level access explicitly.
 
 Do not store hidden chain-of-thought or unnecessary provider metadata.
 
+LR-0701 defines and validates the structured suggestion in memory only. The
+`AiAnalysis` entity, migration, input-hash deduplication, acceptance fields, and
+tenant dashboard projection remain LR-0702/LR-0703 and are not present in the
+current database schema.
+
 ### AuditEvent
 
 - `Id`
@@ -2052,6 +2093,23 @@ Input should include only:
 
 Output must conform to the schema in `docs/06_AI_GUARDRAILS.md`.
 
+LR-0701 implements this interface in Application and an optional OpenAI
+Responses API adapter in Infrastructure. Provider requests use strict
+`text.format` JSON Schema, `store: false`, a bounded output size, and no tools.
+The provider receives approved categories, optional redacted service-area
+guidance, and at most eight recent redacted conversation turns (1,200
+characters each and 6,000 total). Raw TenantId, names, notes, authentication
+data, and provider metadata are not explicit input fields; email addresses and
+phone-like values are masked. A SHA-256-derived tenant safety identifier is
+sent instead of the raw tenant ID.
+
+Every attempt has a configured 1-30 second timeout. Network failures and HTTP
+408, 409, 429, and 5xx responses receive at most two bounded exponential-delay
+retries. Refusal, non-transient HTTP failure, an invalid provider envelope, or
+locally schema-invalid output returns a typed failure with no suggestion.
+LR-0701 does not persist or invoke analysis and does not send the suggested
+reply; those application flows remain LR-0702 and LR-0703.
+
 ## 12. Webhook idempotency algorithm
 
 1. Validate signature.
@@ -2382,6 +2440,14 @@ AI must not independently:
 
 The API must validate this schema. Invalid output is discarded and logged as a provider failure, not passed through.
 
+LR-0701 validates the exact property set again after provider-side strict
+schema generation. It rejects missing, duplicate, or additional properties;
+unapproved categories; undefined urgency values; confidence outside 0-1;
+invalid or duplicate reason codes; blank or over-limit strings; refusals; and
+malformed provider envelopes. Medium/low confidence and known safety-sensitive
+reason codes force `requiresHumanReview=true` even if the provider returned
+false. A failure result never carries a suggestion.
+
 ## 5. Confidence policy
 
 Suggested baseline:
@@ -2431,6 +2497,11 @@ public sealed record LeadAnalysisRequest(
 
 Provider-specific adapters translate the request and response.
 
+The LR-0701 OpenAI adapter uses the Responses API with strict `json_schema`
+output and `store: false`. Its default model is `gpt-5.6-sol`, configurable by
+operators for later evaluation. Application and Domain contain no OpenAI or
+HTTP references.
+
 ## 9. Fallback behavior
 
 If AI fails:
@@ -2442,6 +2513,11 @@ If AI fails:
 - no customer-facing error mentions AI;
 - retry only transient failures with bounded attempts;
 - avoid duplicate analysis using input hash and schema version.
+
+LR-0701 bounds each attempt to 1-30 seconds, retries only network/408/409/429/
+5xx failures, permits at most two retries, and caps a provider response at 64
+KiB. Workflow continuation, durable input-hash deduplication, persistence, and
+NeedsHuman routing remain LR-0703.
 
 ## 10. Human review
 
@@ -2649,6 +2725,14 @@ safety gate are enabled; automated tests always use the in-process fake.
 - AI output is untrusted and schema-validated;
 - prevent CSV formula injection in exports;
 - limit file uploads because they are out of MVP scope.
+
+LR-0701 sends only approved categories, optional service-area guidance, and a
+bounded recent conversation window to the AI adapter. Email and phone-like
+values are masked, response storage is disabled in the provider request, and a
+hashed tenant safety identifier replaces raw TenantId. Provider logs contain
+only provider/model, attempt count, and bounded outcome; they exclude keys,
+request/response bodies, and contact details. Strict local validation treats
+every provider response as untrusted.
 
 ## 8. Secrets management
 
@@ -2909,6 +2993,13 @@ booking rendering once, the three-follow-up maximum, execution-time closure
 suppression, CSRF, action cancellation, and cross-tenant denial. Playwright
 extends the office flow through queueing the approved booking link and marking
 the Lead booked, after which its pending automated booking action disappears.
+
+LR-0701 adds application unit coverage for request bounds, exact schema
+validation, approved-category enforcement, additional-property rejection, and
+confidence/safety review policy. Fake-HTTP provider contract tests inspect the
+strict Responses API request, `store: false`, recent-context limits, phone/email
+masking, raw-tenant omission, transient retry cap, timeout, refusal, and invalid
+output. No test calls a live AI provider or needs an API key.
 
 ## 3. Test environments
 
@@ -3270,6 +3361,7 @@ Non-secret ConfigMap values:
 - default job concurrency;
 - telemetry endpoint names;
 - public application URL.
+- AI enable/provider/model selection and bounded timeout/retry/output settings.
 
 Secrets:
 
@@ -3467,6 +3559,11 @@ the computed human-review timestamp. Payloads contain IDs, stages, enums, and
 timestamps only; message bodies, phone numbers, and booking credentials are not
 logged. Scheduled-action state and the Lead detail projection make every
 pending workflow action visible and cancellable to authorized tenant staff.
+
+LR-0701 emits structured provider success/failure logs with provider name,
+model reference, attempt count, and a fixed bounded outcome. It never logs the
+API key, prompt, conversation text, raw structured output, contact details, or
+provider error body. AI metrics and alerts remain LR-0801.
 
 ## 5. Alerts
 
@@ -3795,6 +3892,14 @@ Exit criteria:
 - invalid JSON never reaches UI as trusted data;
 - AI outage leaves core workflow working;
 - low-confidence output requires review.
+
+Implementation status (2026-07-21): LR-0701 is complete; LR-0702 and LR-0703
+remain. Application defines the provider-neutral request/result and strict
+schema validator. The optional Worker registration uses a bounded OpenAI
+Responses API adapter with redacted recent input, `store: false`, local output
+validation, typed failures, a per-attempt timeout, and at most two transient
+retries. No workflow invokes or persists analysis yet, and no AI output reaches
+the dashboard or a customer.
 
 ### Milestone 8 - Production hardening (Week 8)
 
@@ -4362,6 +4467,16 @@ automated work. No AI or calendar provider was added.
 - minimum data sent;
 - invalid output creates failure, not trusted suggestion.
 
+Implementation note (2026-07-21): complete. Application owns the version 1.0
+provider-neutral contracts and an exact-property validator. Infrastructure
+uses a typed HTTP client for strict OpenAI Responses API JSON Schema output,
+disables provider storage, masks phone/email values, caps recent context and
+response size, and returns failure without a suggestion for refusal or invalid
+output. Timeout is 1-30 seconds per attempt and only transient network/HTTP
+failures receive zero through two retries. The adapter is disabled by default
+and is not yet invoked or persisted; review UI and workflow fallback remain
+LR-0702 and LR-0703.
+
 ### LR-0702 Human review UI
 
 **Acceptance:**
@@ -4845,6 +4960,7 @@ updated in the same change so they remain aligned.
 | [0013](0013-sms-worker-and-webhook-lifecycle.md) | SMS worker and webhook lifecycle | Accepted |
 | [0014](0014-operational-dashboard-and-manual-sms.md) | Operational dashboard and manual SMS | Accepted |
 | [0015](0015-deterministic-qualification-booking-and-follow-up.md) | Deterministic qualification, booking, and follow-up | Accepted |
+| [0016](0016-structured-lead-analysis-adapter.md) | Structured lead-analysis adapter | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -5645,6 +5761,87 @@ booking-link identity, and the maximum cadence needing explicit decisions.
 
 ---
 
+<!-- SOURCE: docs/decisions/0016-structured-lead-analysis-adapter.md -->
+
+# ADR-0016: Structured lead-analysis adapter
+
+- Status: Accepted
+- Date: 2026-07-21
+- Decision owners: LeadRecovery maintainers
+
+## Context
+
+LR-0701 requires an optional AI provider abstraction that can suggest a service
+category, urgency, summary, extracted fields, and a staff-review reply without
+controlling the deterministic workflow. Provider output is untrusted customer
+data processing: only minimum recent context may leave the platform, invalid
+output must not become a suggestion, retries must be bounded, and the platform
+must not expose an API key or message content in logs.
+
+The OpenAI Responses API supports strict JSON Schema output through
+`text.format`. The API can also disable response storage with `store: false`.
+The current configured default model is `gpt-5.6-sol`, which supports the
+Responses API and structured outputs. The model remains operator-overridable so
+representative evaluations can choose a more suitable cost/latency tier later.
+
+## Decision
+
+1. Application owns provider-neutral `ILeadAnalysisService`, request, result,
+   suggestion, failure, and validator contracts. Application and Domain do not
+   reference HTTP or OpenAI packages.
+2. Schema version `1.0` exactly represents the documented suggestion fields.
+   Local validation rejects malformed JSON, missing or additional properties,
+   unapproved categories, invalid urgency/confidence values, duplicate or
+   malformed reason codes, and over-limit text. A refusal or invalid response
+   returns a typed failure with no suggestion.
+3. Medium/low-confidence output and known safety-sensitive reason codes force
+   `RequiresHumanReview` even if the provider returns `false`. This is a
+   conservative platform policy, not trust in model confidence.
+4. Infrastructure calls `POST https://api.openai.com/v1/responses` through a
+   typed `HttpClient` using centrally pinned `Microsoft.Extensions.Http`
+   10.0.9. No provider SDK is added because LR-0701 needs one small stable HTTP
+   contract and keeping provider-specific translation in one adapter preserves
+   the application boundary.
+5. Every request uses strict `json_schema` output, `store: false`, a bounded
+   output-token limit, and a SHA-256-derived tenant safety identifier rather
+   than the raw tenant ID. The adapter sends only the schema version, approved
+   categories, optional service-area guidance, and up to eight recent turns.
+   Each turn and the total transcript are capped; phone-like values and email
+   addresses are masked. Names, notes, authentication data, provider metadata,
+   and the raw TenantId are not explicit request fields.
+6. Each provider attempt has a 1-30 second configured timeout. Only network
+   failures and HTTP 408, 409, 429, and 5xx responses are retried, with zero to
+   two exponential-delay retries. A provider response is capped at 64 KiB.
+   HTTP rejection, refusal, invalid envelopes, and schema-invalid output are not
+   retried.
+7. Logs contain provider, model reference, attempt count, and a bounded outcome
+   code only. They exclude request/response bodies, contact details, and keys.
+8. AI remains disabled by default. LR-0701 registers the adapter in the Worker
+   only when explicitly enabled. Analysis persistence, workflow invocation,
+   staff accept/edit/reject controls, and outage routing remain LR-0702 and
+   LR-0703; no customer-facing message is sent from this adapter.
+
+## Consequences
+
+- Strict provider-side generation and independent local validation create two
+  enforcement layers before a suggestion can be trusted.
+- Configuration errors fail closed when AI is explicitly enabled, while the
+  existing deterministic worker continues unchanged when it is disabled.
+- Email/phone masking is deterministic and testable, but complete natural-name
+  removal cannot be inferred safely from arbitrary prose. Callers must not add
+  names or unrelated history to the provider-neutral request.
+- Model quality, cost, and safety thresholds still require the fictional
+  evaluation set before production use. LR-0701 does not claim Milestone 7 is
+  complete.
+
+## References
+
+- [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [OpenAI Responses API create reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
+- [OpenAI GPT-5.6 Sol model](https://developers.openai.com/api/docs/models/gpt-5.6-sol)
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -5692,6 +5889,9 @@ Implementation status (2026-07-21): complete. Continue with Prompt 8.
 ## Prompt 8 - AI assistance
 
 Implement LR-0701 through LR-0703. Use strict structured output, minimum data, human review, confidence handling, and fallback. No autonomous customer-facing generation.
+
+Implementation status (2026-07-21): LR-0701 is complete. Continue with LR-0702
+only; do not redo the provider adapter or implement LR-0703 in the same issue.
 
 ## Prompt 9 - Hardening
 

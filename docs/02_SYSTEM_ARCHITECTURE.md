@@ -124,6 +124,13 @@ and status webhooks remain in the API and commit receipts plus business state
 before returning. The default sender is an in-process fake; live Twilio access
 requires two explicit configuration gates.
 
+LR-0701 adds a provider-neutral Application analysis interface and strict
+validator plus an optional Infrastructure OpenAI Responses API adapter. The
+Worker registers it only when explicitly enabled, but no job invokes analysis
+yet. Provider translation, bounded retry/timeout, minimum-data redaction, and
+response-envelope handling remain outside Domain and Application. Persistence,
+workflow invocation, and dashboard review remain LR-0702/LR-0703.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -257,6 +264,11 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0009: conversation and message lifecycle, identity, and limits;
 - ADR-0010: scheduled actions, durable cancellation, and external receipts;
 - ADR-0011: Identity, tenant memberships, and same-origin browser sessions.
+- ADR-0012: Twilio call-status ingestion and recovery routing;
+- ADR-0013: SMS worker and webhook lifecycle;
+- ADR-0014: operational dashboard and manual SMS;
+- ADR-0015: deterministic qualification, booking, and follow-up;
+- ADR-0016: structured lead-analysis adapter.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application

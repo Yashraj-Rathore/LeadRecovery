@@ -16,7 +16,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 6 are complete. LR-0101 through LR-0604 are implemented.
+Milestones 0 through 6 are complete. LR-0101 through LR-0604 and LR-0701 are
+implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -29,6 +30,14 @@ automation. All browser writes use CSRF and role authorization; Lead writes use
 opaque optimistic-concurrency tokens and return the latest safe representation
 on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
 cover these flows without enabling live SMS.
+
+LR-0701 adds a provider-neutral analysis contract, independent strict schema
+validation, and an optional OpenAI Responses API adapter. The adapter is
+disabled by default, sends a redacted and bounded recent transcript with
+`store: false`, and returns typed failures for timeouts, refusals, HTTP errors,
+or invalid output. It does not yet persist suggestions, invoke analysis from a
+workflow, expose AI controls in the dashboard, or send customer-facing text;
+those remain LR-0702 and LR-0703.
 
 The currently implemented browser and health contract is:
 
@@ -65,6 +74,7 @@ The currently implemented browser and health contract is:
 | C# | 14.0 | Backend language version |
 | PostgreSQL | 18.4 | Local database container |
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
+| Microsoft.Extensions.Http | 10.0.9 | Typed HTTP client for optional analysis |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
 | Twilio .NET SDK | 7.14.9 | Webhook signature validation and gated outbound adapter |
@@ -78,6 +88,7 @@ The currently implemented browser and health contract is:
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
+| Default OpenAI analysis model | gpt-5.6-sol | Operator-overridable structured analysis default |
 
 ## Local development
 
@@ -136,6 +147,13 @@ provider SID without network access. A live Twilio request is possible only
 when `SMS_PROVIDER=twilio` and `ALLOW_REAL_SMS=true` are both set and the
 Twilio account SID/auth token are present. Keep the fake defaults for automated
 tests and local workflow development.
+
+AI analysis also stays disabled by default. LR-0701 registers the adapter only
+when `AI_ENABLED=true`; provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
+(default `gpt-5.6-sol`), and the bounded timeout/retry settings from
+`templates/.env.example`. The current Worker has no analysis job yet, so
+enabling this registration alone does not persist a suggestion or send any
+customer-facing content.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the worker separately after setting

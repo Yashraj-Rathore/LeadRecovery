@@ -368,6 +368,11 @@ later integration handlers must authorize its system-level access explicitly.
 
 Do not store hidden chain-of-thought or unnecessary provider metadata.
 
+LR-0701 defines and validates the structured suggestion in memory only. The
+`AiAnalysis` entity, migration, input-hash deduplication, acceptance fields, and
+tenant dashboard projection remain LR-0702/LR-0703 and are not present in the
+current database schema.
+
 ### AuditEvent
 
 - `Id`

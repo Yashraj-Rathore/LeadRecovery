@@ -132,6 +132,13 @@ suppression, CSRF, action cancellation, and cross-tenant denial. Playwright
 extends the office flow through queueing the approved booking link and marking
 the Lead booked, after which its pending automated booking action disappears.
 
+LR-0701 adds application unit coverage for request bounds, exact schema
+validation, approved-category enforcement, additional-property rejection, and
+confidence/safety review policy. Fake-HTTP provider contract tests inspect the
+strict Responses API request, `store: false`, recent-context limits, phone/email
+masking, raw-tenant omission, transient retry cap, timeout, refusal, and invalid
+output. No test calls a live AI provider or needs an API key.
+
 ## 3. Test environments
 
 ### Local

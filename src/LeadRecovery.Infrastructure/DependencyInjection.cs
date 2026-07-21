@@ -1,9 +1,11 @@
+using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Customers;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Leads;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.PhoneNumbers;
+using LeadRecovery.Infrastructure.Analysis;
 using LeadRecovery.Infrastructure.Identity;
 using LeadRecovery.Infrastructure.Integrations.Twilio;
 using LeadRecovery.Infrastructure.Messaging;
@@ -97,6 +99,21 @@ public static class DependencyInjection
             services.AddSingleton<ISmsSender, FakeSmsSender>();
         }
 
+        return services;
+    }
+
+    public static IServiceCollection AddOpenAiLeadAnalysis(
+        this IServiceCollection services,
+        OpenAiLeadAnalysisOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        services.TryAddSingleton<ILeadAnalysisResultValidator, LeadAnalysisResultValidator>();
+        services.AddSingleton(options);
+        services.AddHttpClient<ILeadAnalysisService, OpenAiLeadAnalysisService>(client =>
+        {
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        });
         return services;
     }
 
