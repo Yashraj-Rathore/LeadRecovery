@@ -26,7 +26,7 @@ Use this foundation baseline:
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 |
 | Node.js | 24.17.0 |
 | pnpm | 11.10.0 |
-| Next.js | 16.2.10 |
+| Next.js | 16.2.11 |
 | React and React DOM | 19.2.7 |
 | TypeScript | 6.0.3 |
 

@@ -75,8 +75,8 @@ All notable repository and product-specification changes are recorded here.
   cross-tenant identifiers.
 - Minimal pinned pnpm/Next.js workspace with an accessible login screen,
   authenticated tenant lead inbox, empty/error states, and logout control.
-- Pinned the patched PostCSS 8.5.10 transitive override used by Next.js to
-  eliminate the reported CSS-stringification XSS advisory.
+- Pinned Next.js 16.2.11 plus patched PostCSS 8.5.18 and Sharp 0.35.0
+  transitive overrides to clear the current high-severity frontend advisories.
 - Opt-in fictional demo seeding whose credentials and phone values must be
   supplied through configuration.
 - PostgreSQL authentication/authorization integration coverage and Playwright
