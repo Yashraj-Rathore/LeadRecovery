@@ -174,6 +174,17 @@ All notable repository and product-specification changes are recorded here.
   `gpt-5.6-sol` default, data minimization, failure classification, and the
   deferral of persistence, workflow invocation, and staff review to LR-0702/
   LR-0703.
+- LR-0702 tenant-owned `AiAnalysis` persistence with immutable validated
+  suggestions, input-hash deduplication, allowed-category snapshots, explicit
+  pending/accepted/edited/rejected review state, and opaque optimistic
+  concurrency.
+- Staff-only, CSRF-protected AI review endpoints and Lead detail controls with
+  clear AI/low-confidence labels, full structured correction, optional reasons,
+  rejection, ReadOnly display, and explicit unsent-draft/customer-action
+  guardrails.
+- Redacted correction audits, fictional no-provider demo analysis, domain,
+  Application, PostgreSQL/API authorization, and Playwright review coverage,
+  plus ADR-0017 documenting the no-customer-side-effect review boundary.
 
 ### Changed
 

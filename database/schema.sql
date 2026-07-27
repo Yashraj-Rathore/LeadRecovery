@@ -269,6 +269,66 @@ create table qualification_answers (
         references messages(tenant_id, id)
 );
 
+create table ai_analyses (
+    id uuid primary key,
+    tenant_id uuid not null references tenants(id) on delete cascade,
+    lead_id uuid not null,
+    schema_version varchar(20) not null,
+    provider varchar(50) not null,
+    model_reference varchar(200) not null,
+    input_hash char(64) not null,
+    allowed_categories_json jsonb not null,
+    category_suggestion varchar(100) not null,
+    urgency_suggestion varchar(32) not null
+        check (urgency_suggestion in ('Unknown', 'Low', 'Normal', 'High', 'CriticalReview')),
+    summary varchar(1000) not null,
+    extracted_city varchar(200) null,
+    extracted_postal_code varchar(200) null,
+    extracted_preferred_callback_window varchar(200) null,
+    suggested_reply varchar(1000) null,
+    confidence double precision not null check (confidence >= 0 and confidence <= 1),
+    requires_human_review boolean not null,
+    reason_codes_json jsonb not null,
+    raw_structured_output_json jsonb not null,
+    review_status varchar(16) not null
+        check (review_status in ('Pending', 'Accepted', 'Edited', 'Rejected')),
+    reviewed_category varchar(100) null,
+    reviewed_urgency varchar(32) null
+        check (reviewed_urgency is null or reviewed_urgency in ('Unknown', 'Low', 'Normal', 'High', 'CriticalReview')),
+    reviewed_summary varchar(1000) null,
+    reviewed_city varchar(200) null,
+    reviewed_postal_code varchar(200) null,
+    reviewed_preferred_callback_window varchar(200) null,
+    reviewed_suggested_reply varchar(1000) null,
+    correction_reason varchar(500) null,
+    reviewed_by_user_id uuid null,
+    reviewed_at_utc timestamptz null,
+    version bigint not null default 0,
+    created_at_utc timestamptz not null,
+    unique(tenant_id, id),
+    unique(tenant_id, lead_id, schema_version, input_hash),
+    foreign key (tenant_id, lead_id)
+        references leads(tenant_id, id) on delete cascade,
+    foreign key (tenant_id, reviewed_by_user_id)
+        references tenant_memberships(tenant_id, user_id),
+    check (
+        (review_status = 'Pending' and reviewed_by_user_id is null and reviewed_at_utc is null)
+        or
+        (review_status <> 'Pending' and reviewed_by_user_id is not null and reviewed_at_utc is not null)
+    ),
+    check (
+        (review_status in ('Accepted', 'Edited') and reviewed_category is not null and reviewed_urgency is not null and reviewed_summary is not null)
+        or
+        (review_status in ('Pending', 'Rejected') and reviewed_category is null and reviewed_urgency is null and reviewed_summary is null)
+    )
+);
+
+create index ix_ai_analyses_tenant_lead_review_created
+    on ai_analyses(tenant_id, lead_id, review_status, created_at_utc);
+
+create index ix_ai_analyses_tenant_reviewer
+    on ai_analyses(tenant_id, reviewed_by_user_id);
+
 create table external_event_receipts (
     id uuid primary key,
     tenant_id uuid null references tenants(id),

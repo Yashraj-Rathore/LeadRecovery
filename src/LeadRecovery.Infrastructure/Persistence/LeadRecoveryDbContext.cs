@@ -1,4 +1,5 @@
 using LeadRecovery.Application.Tenancy;
+using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Audit;
 using LeadRecovery.Domain.Automations;
 using LeadRecovery.Domain.Common;
@@ -29,6 +30,8 @@ public sealed class LeadRecoveryDbContext(
 
     public DbSet<TenantPhoneNumber> TenantPhoneNumbers => Set<TenantPhoneNumber>();
 
+    public DbSet<AiAnalysis> AiAnalyses => Set<AiAnalysis>();
+
     public DbSet<Customer> Customers => Set<Customer>();
 
     public DbSet<Lead> Leads => Set<Lead>();
@@ -57,6 +60,7 @@ public sealed class LeadRecoveryDbContext(
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         EnforceTenantOwnership<Customer>("customer");
+        EnforceTenantOwnership<AiAnalysis>("AI analysis");
         EnforceTenantOwnership<TenantPhoneNumber>("tenant phone number");
         EnforceTenantOwnership<Lead>("lead");
         EnforceTenantOwnership<LeadNote>("lead note");
@@ -78,6 +82,7 @@ public sealed class LeadRecoveryDbContext(
         CancellationToken cancellationToken = default)
     {
         EnforceTenantOwnership<Customer>("customer");
+        EnforceTenantOwnership<AiAnalysis>("AI analysis");
         EnforceTenantOwnership<TenantPhoneNumber>("tenant phone number");
         EnforceTenantOwnership<Lead>("lead");
         EnforceTenantOwnership<LeadNote>("lead note");
@@ -102,6 +107,8 @@ public sealed class LeadRecoveryDbContext(
         builder.ApplyConfigurationsFromAssembly(typeof(LeadRecoveryDbContext).Assembly);
         builder.Entity<Customer>()
             .HasQueryFilter(customer => customer.TenantId == ActiveTenantId);
+        builder.Entity<AiAnalysis>()
+            .HasQueryFilter(analysis => analysis.TenantId == ActiveTenantId);
         builder.Entity<TenantPhoneNumber>()
             .HasQueryFilter(number => number.TenantId == ActiveTenantId);
         builder.Entity<Lead>()
@@ -173,6 +180,18 @@ public sealed class LeadRecoveryDbContext(
             }
 
             PropertyEntry<Lead, long> version = entry.Property(lead => lead.Version);
+            version.CurrentValue = checked(version.OriginalValue + 1);
+        }
+
+        foreach (EntityEntry<AiAnalysis> entry in ChangeTracker.Entries<AiAnalysis>())
+        {
+            if (entry.State != EntityState.Modified)
+            {
+                continue;
+            }
+
+            PropertyEntry<AiAnalysis, long> version =
+                entry.Property(analysis => analysis.Version);
             version.CurrentValue = checked(version.OriginalValue + 1);
         }
     }

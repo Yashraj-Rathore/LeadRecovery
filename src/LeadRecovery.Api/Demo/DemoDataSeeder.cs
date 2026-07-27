@@ -4,6 +4,7 @@ using System.Text.Json;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Tenancy;
+using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Audit;
 using LeadRecovery.Domain.Automations;
 using LeadRecovery.Domain.Conversations;
@@ -24,6 +25,9 @@ internal sealed class DemoDataSeeder(
     IHttpContextAccessor httpContextAccessor,
     TimeProvider timeProvider)
 {
+    private static readonly string[] DemoServiceCategories =
+        ["Plumbing", "HVAC", "Electrical"];
+
     public async Task SeedAsync(
         DemoSeedSettings settings,
         CancellationToken cancellationToken)
@@ -80,6 +84,7 @@ internal sealed class DemoDataSeeder(
                     RequiresHumanReview: false,
                     IsQualified: true),
             ],
+            includeAiSuggestion: true,
             now,
             cancellationToken);
         await EnsureTenantData(
@@ -96,6 +101,7 @@ internal sealed class DemoDataSeeder(
                     RequiresHumanReview: false,
                     IsQualified: false),
             ],
+            includeAiSuggestion: false,
             now,
             cancellationToken);
     }
@@ -157,6 +163,7 @@ internal sealed class DemoDataSeeder(
         string providerPhone,
         IReadOnlyCollection<(ApplicationUser User, TenantRole Role)> memberships,
         IReadOnlyCollection<DemoLead> leads,
+        bool includeAiSuggestion,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -330,6 +337,44 @@ internal sealed class DemoDataSeeder(
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
+
+            if (includeAiSuggestion)
+            {
+                DemoLead reviewFixture = leads.Single(lead => lead.RequiresHumanReview);
+                Lead reviewLead = await dbContext.Leads
+                    .SingleAsync(
+                        lead => lead.PrimaryPhoneE164 == reviewFixture.Phone,
+                        cancellationToken);
+                bool analysisExists = await dbContext.AiAnalyses.AnyAsync(
+                    analysis => analysis.LeadId == reviewLead.Id,
+                    cancellationToken);
+                if (!analysisExists)
+                {
+                    dbContext.AiAnalyses.Add(new AiAnalysis(
+                        Guid.CreateVersion7(),
+                        tenant.Id,
+                        reviewLead.Id,
+                        "1.0",
+                        "Demo",
+                        "fictional-review-fixture",
+                        new string('d', AiAnalysisFieldLimits.InputHashLength),
+                        DemoServiceCategories,
+                        new AiAnalysisValues(
+                            "Plumbing",
+                            LeadUrgency.CriticalReview,
+                            "Customer reports an active leak and requests a prompt callback.",
+                            "Mississauga",
+                            null,
+                            "As soon as possible",
+                            "Thanks for the details. A team member will review this and contact you shortly."),
+                        0.58,
+                        requiresHumanReview: true,
+                        ["ACTIVE_PROPERTY_DAMAGE"],
+                        now.AddMinutes(-20)));
+                }
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
         finally
         {
@@ -361,7 +406,7 @@ internal sealed class DemoDataSeeder(
                         "service",
                         "Which service do you need?",
                         QualificationAnswerKind.Choice,
-                        ["Plumbing", "HVAC", "Electrical"]),
+                        DemoServiceCategories),
                     new QualificationQuestionPolicy(
                         "problem",
                         "Briefly describe the problem.",

@@ -141,6 +141,12 @@ The UI must allow staff to:
 
 Corrections are used for product evaluation, not model training unless a separate consented process is created.
 
+LR-0702 implements this review as a one-way staff decision while retaining the
+immutable original output. Low confidence below `0.65` is prominently labeled
+and never applied automatically. Audits record the decision and corrected field
+names without copying summaries, extracted customer data, draft replies, or
+correction text. Review routes create no customer-facing action.
+
 ## 11. Evaluation set
 
 Create a fictional test set with at least 100 messages covering:

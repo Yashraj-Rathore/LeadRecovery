@@ -108,8 +108,8 @@ phone, and pending-action display. Milestone 6 adds structured qualification
 answers and the current unanswered prompt, the approved booking destination,
 booking-link queueing for active Qualified Leads, and cancellation buttons for
 Pending actions. Marking `Booked` removes pending automated follow-ups from the
-view after the server transaction. Category/urgency editing and AI summary
-controls remain their owning later issues.
+view after the server transaction. Direct Lead category/urgency editing remains
+a later issue.
 
 A pre-LR-0702 visual and usability refresh applies one tokenized interface
 system to login, inbox, and Lead detail without adding new product navigation or
@@ -121,6 +121,15 @@ and 390-pixel mobile layouts preserve essential controls without horizontal
 overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
 high-contrast outline, and reduced-motion and increased-contrast preferences
 are respected.
+
+LR-0702 adds a prominent responsive review card before the conversation/action
+grid whenever analyses exist. It always says that content is AI-generated,
+shows confidence as a percentage plus text, and gives sub-65% suggestions a
+human-review warning that is not color-only. Owner, Manager, and Staff may
+accept, edit all structured staff-facing values, optionally explain a
+correction, or reject. ReadOnly users can inspect the result without controls.
+The suggested reply is labeled as an unsent draft, and the review footer states
+that no review action sends or schedules customer communication.
 
 ### 3.4 Settings - Business
 

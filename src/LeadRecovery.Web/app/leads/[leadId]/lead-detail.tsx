@@ -12,6 +12,7 @@ import {
   getInitials,
 } from "../../../lib/presentation";
 import { WorkspaceHeader } from "../workspace-header";
+import { AiAnalysisReviewCard } from "./ai-analysis-review";
 
 const closeReasons = [
   "LostNoResponse",
@@ -299,6 +300,21 @@ export function LeadDetailView({
             </button>
           ) : null}
         </div>
+
+        {detail.aiAnalyses.length > 0 ? (
+          <section className="ai-review-region" aria-label="AI analysis reviews">
+            {detail.aiAnalyses.map((analysis) => (
+              <AiAnalysisReviewCard
+                key={analysis.id}
+                leadId={leadId}
+                analysis={analysis}
+                canManage={canManage}
+                pendingAction={pendingAction}
+                onMutate={mutate}
+              />
+            ))}
+          </section>
+        ) : null}
 
         <div className="detail-grid">
           <section className="timeline-panel" aria-labelledby="timeline-heading">

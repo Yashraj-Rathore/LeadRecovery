@@ -1,3 +1,4 @@
+using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Conversations;
 using LeadRecovery.Domain.Leads;
 
@@ -208,6 +209,67 @@ public sealed class LeadDashboardUseCase(
         return store.CancelScheduledActionAsync(
             leadId,
             actionId,
+            actorUserId,
+            RequireCorrelationId(correlationId),
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+    }
+
+    public Task<LeadOperationResult> ReviewAnalysisAsync(
+        Guid leadId,
+        Guid analysisId,
+        ReviewLeadAnalysisCommand command,
+        long expectedVersion,
+        Guid actorUserId,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        RequireLeadId(leadId);
+        if (analysisId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A non-empty AI analysis ID is required.",
+                nameof(analysisId));
+        }
+
+        RequireActor(actorUserId);
+        RequireVersion(expectedVersion);
+        ArgumentNullException.ThrowIfNull(command);
+        if (!Enum.IsDefined(command.Action))
+        {
+            throw new ArgumentOutOfRangeException(nameof(command));
+        }
+
+        if (command.Action == LeadAnalysisReviewAction.Edit &&
+            command.EditedValues is null)
+        {
+            throw new ArgumentException(
+                "Edited values are required when editing a suggestion.",
+                nameof(command));
+        }
+
+        if (command.Action != LeadAnalysisReviewAction.Edit &&
+            command.EditedValues is not null)
+        {
+            throw new ArgumentException(
+                "Edited values are allowed only for an edit review.",
+                nameof(command));
+        }
+
+        if (command.CorrectionReason?.Trim().Length >
+            AiAnalysisFieldLimits.CorrectionReasonMaximumLength)
+        {
+            throw new ArgumentException(
+                $"A correction reason cannot exceed " +
+                $"{AiAnalysisFieldLimits.CorrectionReasonMaximumLength} characters.",
+                nameof(command));
+        }
+
+        return store.ReviewAnalysisAsync(
+            leadId,
+            analysisId,
+            command,
+            expectedVersion,
             actorUserId,
             RequireCorrelationId(correlationId),
             timeProvider.GetUtcNow(),

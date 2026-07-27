@@ -5,15 +5,15 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  26656
+        "bytes":  33253
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  13050
+        "bytes":  13758
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  208489
+        "bytes":  217168
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "database/schema.sql",
-        "bytes":  11369
+        "bytes":  14142
     },
     {
         "path":  "diagrams/deployment.mmd",
@@ -37,35 +37,35 @@
     },
     {
         "path":  "docs/01_PRODUCT_REQUIREMENTS.md",
-        "bytes":  11981
+        "bytes":  12135
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  14548
+        "bytes":  15053
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  17408
+        "bytes":  18042
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  13911
+        "bytes":  14862
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
-        "bytes":  7447
+        "bytes":  8024
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
-        "bytes":  5883
+        "bytes":  6262
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  10554
+        "bytes":  11018
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  10620
+        "bytes":  11140
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
@@ -81,7 +81,7 @@
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  15943
+        "bytes":  16606
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -156,12 +156,16 @@
         "bytes":  4396
     },
     {
+        "path":  "docs/decisions/0017-human-reviewed-ai-analysis.md",
+        "bytes":  3081
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  2151
+        "bytes":  2238
     },
     {
         "path":  "README.md",
-        "bytes":  13257
+        "bytes":  13847
     },
     {
         "path":  "templates/.env.example",
