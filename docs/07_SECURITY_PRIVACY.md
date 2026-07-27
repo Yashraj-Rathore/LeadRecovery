@@ -157,6 +157,14 @@ safety gate are enabled; automated tests always use the in-process fake.
 - prevent CSV formula injection in exports;
 - limit file uploads because they are out of MVP scope.
 
+LR-0701 sends only approved categories, optional service-area guidance, and a
+bounded recent conversation window to the AI adapter. Email and phone-like
+values are masked, response storage is disabled in the provider request, and a
+hashed tenant safety identifier replaces raw TenantId. Provider logs contain
+only provider/model, attempt count, and bounded outcome; they exclude keys,
+request/response bodies, and contact details. Strict local validation treats
+every provider response as untrusted.
+
 ## 8. Secrets management
 
 Local development:

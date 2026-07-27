@@ -262,6 +262,19 @@ Level 2:
 
 Never place sensitive lead data directly in an unsigned query string.
 
+Milestone 6 implements level 1. `POST /api/v1/leads/{leadId}/booking-link`
+requires a DashboardOperator session, CSRF token, and current opaque Lead
+version. It accepts no caller-provided URL: the Worker renders only the active
+workflow's validated HTTPS `BookingUrl` through an approved active
+`BookingLink` template. The tenant/workflow/Lead/stage idempotency key and
+persisted Message identity prevent a repeat send. Staff use the existing
+transition endpoint to mark `Booked`, which atomically cancels pending
+automated actions.
+
+`POST /api/v1/leads/{leadId}/scheduled-actions/{actionId}/cancel` lets a
+DashboardOperator cancel a visible Pending action owned by the same tenant and
+Lead. Cross-tenant identifiers remain indistinguishable from missing records.
+
 ## 10. Email integration
 
 Use for staff notifications, not customer marketing in MVP.
@@ -295,6 +308,23 @@ Input should include only:
 - schema version.
 
 Output must conform to the schema in `docs/06_AI_GUARDRAILS.md`.
+
+LR-0701 implements this interface in Application and an optional OpenAI
+Responses API adapter in Infrastructure. Provider requests use strict
+`text.format` JSON Schema, `store: false`, a bounded output size, and no tools.
+The provider receives approved categories, optional redacted service-area
+guidance, and at most eight recent redacted conversation turns (1,200
+characters each and 6,000 total). Raw TenantId, names, notes, authentication
+data, and provider metadata are not explicit input fields; email addresses and
+phone-like values are masked. A SHA-256-derived tenant safety identifier is
+sent instead of the raw tenant ID.
+
+Every attempt has a configured 1-30 second timeout. Network failures and HTTP
+408, 409, 429, and 5xx responses receive at most two bounded exponential-delay
+retries. Refusal, non-transient HTTP failure, an invalid provider envelope, or
+locally schema-invalid output returns a typed failure with no suggestion.
+LR-0701 does not persist or invoke analysis and does not send the suggested
+reply; those application flows remain LR-0702 and LR-0703.
 
 ## 12. Webhook idempotency algorithm
 

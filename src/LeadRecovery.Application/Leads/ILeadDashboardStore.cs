@@ -51,4 +51,20 @@ public interface ILeadDashboardStore
         string correlationId,
         DateTimeOffset now,
         CancellationToken cancellationToken);
+
+    Task<LeadOperationResult> QueueBookingLinkAsync(
+        Guid leadId,
+        long expectedVersion,
+        Guid actorUserId,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+
+    Task<LeadOperationResult> CancelScheduledActionAsync(
+        Guid leadId,
+        Guid actionId,
+        Guid actorUserId,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
 }

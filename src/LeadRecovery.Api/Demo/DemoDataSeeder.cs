@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 
 using LeadRecovery.Application.Integrations;
+using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Audit;
 using LeadRecovery.Domain.Automations;
@@ -68,14 +69,16 @@ internal sealed class DemoDataSeeder(
                     LeadSource.MissedCall,
                     LeadUrgency.CriticalReview,
                     AssignedUserId: null,
-                    RequiresHumanReview: true),
+                    RequiresHumanReview: true,
+                    IsQualified: false),
                 new DemoLead(
                     settings.AlphaBookingPhone,
                     "Booking request",
                     LeadSource.InboundSms,
                     LeadUrgency.Normal,
                     AssignedUserId: owner.Id,
-                    RequiresHumanReview: false),
+                    RequiresHumanReview: false,
+                    IsQualified: true),
             ],
             now,
             cancellationToken);
@@ -90,7 +93,8 @@ internal sealed class DemoDataSeeder(
                     LeadSource.Manual,
                     LeadUrgency.Low,
                     AssignedUserId: betaOwner.Id,
-                    RequiresHumanReview: false),
+                    RequiresHumanReview: false,
+                    IsQualified: false),
             ],
             now,
             cancellationToken);
@@ -172,6 +176,12 @@ internal sealed class DemoDataSeeder(
                 tenant.SetAutomationEnabled(true, now);
             }
 
+            await EnsureWorkflow(
+                tenant,
+                memberships.First().User.Id,
+                now,
+                cancellationToken);
+
             foreach ((ApplicationUser user, TenantRole role) in memberships)
             {
                 bool exists = await dbContext.TenantMemberships
@@ -242,6 +252,14 @@ internal sealed class DemoDataSeeder(
                     if (item.RequiresHumanReview)
                     {
                         lead.RequireHumanReview(createdAt.AddMinutes(1));
+                    }
+
+                    else if (item.IsQualified)
+                    {
+                        DateTimeOffset qualifiedAt = createdAt.AddMinutes(1);
+                        lead.BeginContacting(qualifiedAt);
+                        lead.AwaitCustomer(qualifiedAt);
+                        lead.Qualify(true, null, qualifiedAt);
                     }
 
                     dbContext.Leads.Add(lead);
@@ -319,11 +337,120 @@ internal sealed class DemoDataSeeder(
         }
     }
 
+    private async Task EnsureWorkflow(
+        Tenant tenant,
+        Guid authorUserId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        bool hasActiveWorkflow = await dbContext.WorkflowDefinitions
+            .IgnoreQueryFilters()
+            .AnyAsync(
+                workflow => workflow.TenantId == tenant.Id && workflow.IsActive,
+                cancellationToken);
+        if (!hasActiveWorkflow)
+        {
+            WorkflowDefinition workflow = new(
+                Guid.CreateVersion7(),
+                tenant.Id,
+                "Default demo recovery workflow",
+                1,
+                $"https://booking.example.test/{tenant.Slug}",
+                [
+                    new QualificationQuestionPolicy(
+                        "service",
+                        "Which service do you need?",
+                        QualificationAnswerKind.Choice,
+                        ["Plumbing", "HVAC", "Electrical"]),
+                    new QualificationQuestionPolicy(
+                        "problem",
+                        "Briefly describe the problem.",
+                        QualificationAnswerKind.RequiredText,
+                        []),
+                ],
+                new BusinessHoursPolicy(
+                    [
+                        new(DayOfWeek.Monday, new TimeOnly(8, 0), new TimeOnly(18, 0)),
+                        new(DayOfWeek.Tuesday, new TimeOnly(8, 0), new TimeOnly(18, 0)),
+                        new(DayOfWeek.Wednesday, new TimeOnly(8, 0), new TimeOnly(18, 0)),
+                        new(DayOfWeek.Thursday, new TimeOnly(8, 0), new TimeOnly(18, 0)),
+                        new(DayOfWeek.Friday, new TimeOnly(8, 0), new TimeOnly(18, 0)),
+                    ],
+                    true),
+                [
+                    new FollowUpStepPolicy(1, 60, "WorkflowFollowUpOne"),
+                    new FollowUpStepPolicy(2, 1440, "WorkflowFollowUpTwo"),
+                ],
+                now);
+            workflow.Activate(now);
+            dbContext.WorkflowDefinitions.Add(workflow);
+        }
+
+        await EnsureTemplate(
+            tenant.Id,
+            authorUserId,
+            "Booking link",
+            SmsTemplatePurposes.BookingLink,
+            "Choose a service time here: {{BookingUrl}}",
+            now,
+            cancellationToken);
+        await EnsureTemplate(
+            tenant.Id,
+            authorUserId,
+            "Workflow follow-up one",
+            "WorkflowFollowUpOne",
+            "Are you still looking for help from {{BusinessName}}?",
+            now,
+            cancellationToken);
+        await EnsureTemplate(
+            tenant.Id,
+            authorUserId,
+            "Workflow follow-up two",
+            "WorkflowFollowUpTwo",
+            "Reply if you would still like our team to contact you.",
+            now,
+            cancellationToken);
+    }
+
+    private async Task EnsureTemplate(
+        Guid tenantId,
+        Guid authorUserId,
+        string name,
+        string purpose,
+        string body,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        bool exists = await dbContext.MessageTemplates.IgnoreQueryFilters().AnyAsync(
+            template => template.TenantId == tenantId &&
+                template.Purpose == purpose &&
+                template.IsActive,
+            cancellationToken);
+        if (exists)
+        {
+            return;
+        }
+
+        MessageTemplate template = new(
+            Guid.CreateVersion7(),
+            tenantId,
+            name,
+            purpose,
+            body,
+            1,
+            authorUserId,
+            now);
+        template.Approve(authorUserId, now);
+        template.Activate();
+        dbContext.MessageTemplates.Add(template);
+    }
+
     private sealed record DemoLead(
         string Phone,
         string DisplayName,
         LeadSource Source,
         LeadUrgency Urgency,
         Guid? AssignedUserId,
-        bool RequiresHumanReview);
+        bool RequiresHumanReview,
+        bool IsQualified);
 }

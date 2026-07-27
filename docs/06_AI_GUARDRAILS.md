@@ -50,6 +50,14 @@ AI must not independently:
 
 The API must validate this schema. Invalid output is discarded and logged as a provider failure, not passed through.
 
+LR-0701 validates the exact property set again after provider-side strict
+schema generation. It rejects missing, duplicate, or additional properties;
+unapproved categories; undefined urgency values; confidence outside 0-1;
+invalid or duplicate reason codes; blank or over-limit strings; refusals; and
+malformed provider envelopes. Medium/low confidence and known safety-sensitive
+reason codes force `requiresHumanReview=true` even if the provider returned
+false. A failure result never carries a suggestion.
+
 ## 5. Confidence policy
 
 Suggested baseline:
@@ -99,6 +107,11 @@ public sealed record LeadAnalysisRequest(
 
 Provider-specific adapters translate the request and response.
 
+The LR-0701 OpenAI adapter uses the Responses API with strict `json_schema`
+output and `store: false`. Its default model is `gpt-5.6-sol`, configurable by
+operators for later evaluation. Application and Domain contain no OpenAI or
+HTTP references.
+
 ## 9. Fallback behavior
 
 If AI fails:
@@ -110,6 +123,11 @@ If AI fails:
 - no customer-facing error mentions AI;
 - retry only transient failures with bounded attempts;
 - avoid duplicate analysis using input hash and schema version.
+
+LR-0701 bounds each attempt to 1-30 seconds, retries only network/408/409/429/
+5xx failures, permits at most two retries, and caps a provider response at 64
+KiB. Workflow continuation, durable input-hash deduplication, persistence, and
+NeedsHuman routing remain LR-0703.
 
 ## 10. Human review
 

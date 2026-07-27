@@ -34,7 +34,16 @@ public sealed record PendingActionItem(
     string ActionType,
     ScheduledActionStatus Status,
     DateTimeOffset ScheduledForUtc,
-    int AttemptCount);
+    int AttemptCount,
+    bool IsCancellable);
+
+public sealed record QualificationAnswerItem(
+    Guid Id,
+    string QuestionKey,
+    string QuestionPrompt,
+    string? Value,
+    string Outcome,
+    DateTimeOffset CreatedAtUtc);
 
 public sealed record AssignableUserItem(
     Guid UserId,
@@ -46,7 +55,10 @@ public sealed record LeadDetail(
     IReadOnlyList<LeadTimelineItem> Timeline,
     IReadOnlyList<PendingActionItem> PendingActions,
     IReadOnlyList<AssignableUserItem> AssignableUsers,
-    IReadOnlyList<LeadStatus> AllowedTransitions);
+    IReadOnlyList<LeadStatus> AllowedTransitions,
+    IReadOnlyList<QualificationAnswerItem> QualificationAnswers,
+    string? CurrentQualificationQuestion,
+    string? BookingUrl);
 
 public enum LeadOperationStatus
 {

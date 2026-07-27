@@ -173,6 +173,80 @@ namespace LeadRecovery.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("LeadRecovery.Domain.Automations.WorkflowDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BookingUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("booking_url");
+
+                    b.Property<string>("BusinessHoursPolicyJson")
+                        .IsRequired()
+                        .HasMaxLength(16384)
+                        .HasColumnType("jsonb")
+                        .HasColumnName("business_hours_policy_json");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("FollowUpPolicyJson")
+                        .IsRequired()
+                        .HasMaxLength(16384)
+                        .HasColumnType("jsonb")
+                        .HasColumnName("follow_up_policy_json");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("QualificationPolicyJson")
+                        .IsRequired()
+                        .HasMaxLength(16384)
+                        .HasColumnType("jsonb")
+                        .HasColumnName("qualification_policy_json");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_workflow_definitions");
+
+                    b.HasAlternateKey("TenantId", "Id")
+                        .HasName("ak_workflow_definitions_tenant_id_id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_workflow_definitions_tenant_active")
+                        .HasFilter("is_active");
+
+                    b.HasIndex("TenantId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ux_workflow_definitions_tenant_version");
+
+                    b.ToTable("workflow_definitions", (string)null);
+                });
+
             modelBuilder.Entity("LeadRecovery.Domain.Conversations.Conversation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -752,6 +826,65 @@ namespace LeadRecovery.Infrastructure.Persistence.Migrations
                     b.ToTable("lead_notes", (string)null);
                 });
 
+            modelBuilder.Entity("LeadRecovery.Domain.Leads.QualificationAnswer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("LeadId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lead_id");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("outcome");
+
+                    b.Property<string>("QuestionKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("question_key");
+
+                    b.Property<Guid>("SourceMessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_message_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id")
+                        .HasName("pk_qualification_answers");
+
+                    b.HasAlternateKey("TenantId", "Id")
+                        .HasName("ak_qualification_answers_tenant_id_id");
+
+                    b.HasIndex("TenantId", "SourceMessageId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_qualification_answers_tenant_source_message");
+
+                    b.HasIndex("TenantId", "LeadId", "QuestionKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_qualification_answers_tenant_lead_question");
+
+                    b.ToTable("qualification_answers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_qualification_answers_outcome", "outcome in ('Accepted', 'Unknown', 'Ambiguous')");
+                        });
+                });
+
             modelBuilder.Entity("LeadRecovery.Domain.Tenancy.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1114,6 +1247,16 @@ namespace LeadRecovery.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_scheduled_actions_leads_tenant_id_lead_id");
                 });
 
+            modelBuilder.Entity("LeadRecovery.Domain.Automations.WorkflowDefinition", b =>
+                {
+                    b.HasOne("LeadRecovery.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workflow_definitions_tenants_tenant_id");
+                });
+
             modelBuilder.Entity("LeadRecovery.Domain.Conversations.Conversation", b =>
                 {
                     b.HasOne("LeadRecovery.Domain.Tenancy.Tenant", null)
@@ -1259,6 +1402,32 @@ namespace LeadRecovery.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_lead_notes_leads_tenant_id_lead_id");
+                });
+
+            modelBuilder.Entity("LeadRecovery.Domain.Leads.QualificationAnswer", b =>
+                {
+                    b.HasOne("LeadRecovery.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_qualification_answers_tenants_tenant_id");
+
+                    b.HasOne("LeadRecovery.Domain.Leads.Lead", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "LeadId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_qualification_answers_leads_tenant_id_lead_id");
+
+                    b.HasOne("LeadRecovery.Domain.Conversations.Message", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SourceMessageId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_qualification_answers_messages_tenant_id_source_message_id");
                 });
 
             modelBuilder.Entity("LeadRecovery.Domain.Tenancy.TenantPhoneNumber", b =>

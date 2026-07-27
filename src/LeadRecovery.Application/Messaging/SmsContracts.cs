@@ -134,6 +134,24 @@ public interface IManualSmsWorkflowPersistence
         CancellationToken cancellationToken);
 }
 
+public interface IWorkflowSmsPersistence
+{
+    Task<PreparedOutboundSms?> PrepareWorkflowOutboundAsync(
+        Guid actionId,
+        Guid tenantId,
+        string correlationId,
+        DateTimeOffset now,
+        Uri statusCallbackUri,
+        CancellationToken cancellationToken);
+
+    Task<OutboundSmsOutcome> CompleteWorkflowOutboundAsync(
+        PreparedOutboundSms prepared,
+        SmsSendResult result,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+}
+
 public static class SmsScheduledActionTypes
 {
     public const string SendManualSms = "SendManualSms";
@@ -142,6 +160,7 @@ public static class SmsScheduledActionTypes
 public static class SmsTemplatePurposes
 {
     public const string InitialMissedCallRecovery = "InitialMissedCallRecovery";
+    public const string BookingLink = "BookingLink";
 }
 
 public interface ISmsMetrics

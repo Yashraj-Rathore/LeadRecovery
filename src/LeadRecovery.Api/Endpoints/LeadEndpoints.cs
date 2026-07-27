@@ -319,6 +319,72 @@ internal static class LeadEndpoints
             .RequireAuthorization(AuthorizationPolicies.DashboardOperator)
             .RequireRateLimiting("manual-message");
 
+        leads.MapPost(
+                "/{leadId:guid}/booking-link",
+                async Task<IResult> (
+                    Guid leadId,
+                    LeadBookingRequest request,
+                    HttpContext context,
+                    IAntiforgery antiforgery,
+                    LeadDashboardUseCase useCase,
+                    CancellationToken cancellationToken) =>
+                    await Mutate(
+                        context,
+                        antiforgery,
+                        leadId,
+                        request.ExpectedRowVersion,
+                        useCase,
+                        (actorId, version) => useCase.QueueBookingLinkAsync(
+                            leadId,
+                            version,
+                            actorId,
+                            context.TraceIdentifier,
+                            cancellationToken),
+                        cancellationToken))
+            .RequireAuthorization(AuthorizationPolicies.DashboardOperator);
+
+        leads.MapPost(
+                "/{leadId:guid}/scheduled-actions/{actionId:guid}/cancel",
+                async Task<IResult> (
+                    Guid leadId,
+                    Guid actionId,
+                    HttpContext context,
+                    IAntiforgery antiforgery,
+                    LeadDashboardUseCase useCase,
+                    CancellationToken cancellationToken) =>
+                {
+                    if (!await IsAntiforgeryRequestValid(antiforgery, context))
+                    {
+                        return AntiforgeryFailure();
+                    }
+
+                    if (!TryGetUserId(context.User, out Guid actorId))
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    try
+                    {
+                        LeadOperationResult result =
+                            await useCase.CancelScheduledActionAsync(
+                                leadId,
+                                actionId,
+                                actorId,
+                                context.TraceIdentifier,
+                                cancellationToken);
+                        return await MapOperation(
+                            result,
+                            leadId,
+                            useCase,
+                            cancellationToken);
+                    }
+                    catch (ArgumentException exception)
+                    {
+                        return Validation(exception);
+                    }
+                })
+            .RequireAuthorization(AuthorizationPolicies.DashboardOperator);
+
         return endpoints;
     }
 
@@ -434,9 +500,19 @@ internal static class LeadEndpoints
                 action.ActionType,
                 action.Status.ToString(),
                 action.ScheduledForUtc,
-                action.AttemptCount)).ToArray(),
+                action.AttemptCount,
+                action.IsCancellable)).ToArray(),
             detail.AssignableUsers.Select(Map).ToArray(),
-            detail.AllowedTransitions.Select(status => status.ToString()).ToArray());
+            detail.AllowedTransitions.Select(status => status.ToString()).ToArray(),
+            detail.QualificationAnswers.Select(answer => new QualificationAnswerResponse(
+                answer.Id,
+                answer.QuestionKey,
+                answer.QuestionPrompt,
+                answer.Value,
+                answer.Outcome,
+                answer.CreatedAtUtc)).ToArray(),
+            detail.CurrentQualificationQuestion,
+            detail.BookingUrl);
 
     private static LeadTimelineItemResponse Map(LeadTimelineItem item) =>
         new(

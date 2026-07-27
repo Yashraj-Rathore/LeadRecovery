@@ -260,10 +260,33 @@ MVP can use configuration rather than a general visual workflow engine.
 - `Name`
 - `Version`
 - `IsActive`
-- `InitialDelaySeconds`
+- `BookingUrl` - absolute HTTPS without embedded credentials
 - `FollowUpPolicyJson`
 - `BusinessHoursPolicyJson`
 - `QualificationPolicyJson`
+- audit timestamps
+
+Milestone 6 persists one active workflow per tenant through a filtered unique
+index and retains unique `(TenantId, Version)` history. Construction validates
+one through ten unique ordered questions, at least one business-hours window,
+one window per day, and at most three follow-ups with unique sequence numbers
+and template purposes. JSON is a persistence format for validated policy, not
+an untrusted dynamic execution language.
+
+### QualificationAnswer
+
+- `Id`
+- `TenantId`
+- `LeadId`
+- `SourceMessageId`
+- `QuestionKey`
+- `Value` nullable when unresolved
+- `Outcome` - Accepted, Unknown, Ambiguous
+- `CreatedAtUtc`
+
+Unique constraints on `(TenantId, LeadId, QuestionKey)` and
+`(TenantId, SourceMessageId)` prevent duplicate structured capture. Compound
+foreign keys bind the answer, Lead, and source Message to the same tenant.
 
 ### ScheduledAction
 
@@ -284,15 +307,15 @@ Unique: `(TenantId, IdempotencyKey)`.
 Actions start `Pending`. Allowed transitions are `Pending -> Running`,
 `Pending -> Cancelled`, `Running -> Completed`, `Running -> Failed`, and
 `Running -> Pending` for a retry with a new due time at or after the retry
-decision. Starting an attempt increments `AttemptCount`. Completed, Failed, and
-Cancelled are terminal. The due-work index is `(Status, ScheduledForUtc)`; a
+decision. A Pending action may also be deferred to a future permitted window
+without consuming an attempt. Starting an attempt increments `AttemptCount`.
+Completed, Failed, and Cancelled are terminal. The due-work index is `(Status, ScheduledForUtc)`; a
 separate `(TenantId, LeadId, Status)` index supports deterministic cancellation.
 
-LR-0204 persists durable workflow intent without executing it. The booking use
-case and its PostgreSQL adapter use one scoped DbContext save to persist the
-booked Lead and cancel only that lead's Pending actions. Running or terminal
-actions are not rewritten, and no Hangfire or provider call occurs in this
-issue.
+Milestone 6 uses action types `SendQualificationQuestion`, `SendBookingLink`,
+and `SendFollowUpSms`. Idempotency keys include Lead, workflow version, stage,
+and sequence as applicable. The booking transition cancels that Lead's pending
+automated actions; running and terminal actions are not rewritten.
 
 ### ExternalEventReceipt
 
@@ -344,6 +367,11 @@ later integration handlers must authorize its system-level access explicitly.
 - `CreatedAtUtc`
 
 Do not store hidden chain-of-thought or unnecessary provider metadata.
+
+LR-0701 defines and validates the structured suggestion in memory only. The
+`AiAnalysis` entity, migration, input-hash deduplication, acceptance fields, and
+tenant dashboard projection remain LR-0702/LR-0703 and are not present in the
+current database schema.
 
 ### AuditEvent
 

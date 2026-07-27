@@ -23,17 +23,35 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 5 are complete. LR-0101 through LR-0505 are implemented.
+Milestones 0 through 6 are complete. LR-0101 through LR-0604 and LR-0701 are
+implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
-opt-out suppression, and the operational Next.js dashboard. Staff can filter
+opt-out suppression, deterministic tenant-configured qualification and
+follow-up workflows, approved booking links, business-hours scheduling, and
+the operational Next.js dashboard. Staff can filter
 the tenant inbox, inspect the ordered call/SMS/system/note timeline, assign and
 transition Leads, send idempotent manual SMS, and pause or resume eligible
 automation. All browser writes use CSRF and role authorization; Lead writes use
 opaque optimistic-concurrency tokens and return the latest safe representation
 on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
 cover these flows without enabling live SMS.
+
+The implemented dashboard now uses one responsive, high-contrast workspace
+system across login, inbox, and Lead detail. Human-readable workflow labels,
+attention-first queue rows, clearer loading/empty/error feedback, consistent
+44-pixel controls, skip navigation, reduced-motion support, and mobile overflow
+coverage improve daily use without adding a component-library dependency or
+changing an API/workflow contract.
+
+LR-0701 adds a provider-neutral analysis contract, independent strict schema
+validation, and an optional OpenAI Responses API adapter. The adapter is
+disabled by default, sends a redacted and bounded recent transcript with
+`store: false`, and returns typed failures for timeouts, refusals, HTTP errors,
+or invalid output. It does not yet persist suggestions, invoke analysis from a
+workflow, expose AI controls in the dashboard, or send customer-facing text;
+those remain LR-0702 and LR-0703.
 
 The currently implemented browser and health contract is:
 
@@ -44,15 +62,19 @@ The currently implemented browser and health contract is:
   session;
 - `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
   `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
-  assignees, ordered timeline, pending actions, and allowed transitions;
+  assignees, ordered timeline, structured qualification answers, approved
+  booking destination, pending actions, and allowed transitions;
 - lead assignment, transition, note, manual-message, pause, and resume endpoints
   are CSRF-protected and restricted to Owner, Manager, and Staff memberships;
+- booking-link queue and pending-action cancellation endpoints use the same
+  tenant, role, CSRF, and concurrency controls;
 - `POST /api/v1/webhooks/twilio/call-status` accepts only correctly signed
   form callbacks and records recovery intent;
 - `POST /api/v1/webhooks/twilio/sms/inbound` and
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
-- the worker executes due recovery and manual-message actions through
+- the worker executes due recovery, qualification, booking, follow-up, and
+  manual-message actions through
   PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
@@ -66,6 +88,7 @@ The currently implemented browser and health contract is:
 | C# | 14.0 | Backend language version |
 | PostgreSQL | 18.4 | Local database container |
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
+| Microsoft.Extensions.Http | 10.0.9 | Typed HTTP client for optional analysis |
 | Npgsql EF Core provider | 10.0.2 | PostgreSQL EF Core provider |
 | libphonenumber-csharp | 9.0.34 | E.164 phone parsing and validation adapter |
 | Twilio .NET SDK | 7.14.9 | Webhook signature validation and gated outbound adapter |
@@ -79,6 +102,7 @@ The currently implemented browser and health contract is:
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
+| Default OpenAI analysis model | gpt-5.6-sol | Operator-overridable structured analysis default |
 
 ## Local development
 
@@ -137,6 +161,13 @@ provider SID without network access. A live Twilio request is possible only
 when `SMS_PROVIDER=twilio` and `ALLOW_REAL_SMS=true` are both set and the
 Twilio account SID/auth token are present. Keep the fake defaults for automated
 tests and local workflow development.
+
+AI analysis also stays disabled by default. LR-0701 registers the adapter only
+when `AI_ENABLED=true`; provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
+(default `gpt-5.6-sol`), and the bounded timeout/retry settings from
+`templates/.env.example`. The current Worker has no analysis job yet, so
+enabling this registration alone does not persist a suggestion or send any
+customer-facing content.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the worker separately after setting
@@ -547,9 +578,21 @@ The system asks a small, pre-approved sequence of questions, for example:
 
 Question order is deterministic. AI may summarize answers but may not control all branching without rules.
 
+Milestone 6 stores the ordered questions in one active versioned tenant
+workflow. Required-text and approved-choice answers are evaluated without AI
+and persisted as structured qualification answers. Unknown or multi-match
+responses move the Lead to `NeedsHuman`, set `CriticalReview`, cancel pending
+automation, and create immediate or business-hours-aligned review audit data
+according to tenant policy.
+
 ### UC-04 Book or request callback
 
 The system sends a tenant-configured booking URL or records a callback request. Booking confirmation may be manual in MVP unless a calendar integration is configured.
+
+The implemented MVP accepts only an absolute HTTPS booking URL without
+embedded credentials. Owner, Manager, or Staff can queue that approved link
+for a qualified Lead and manually mark the Lead booked; no calendar dependency
+is required.
 
 ### UC-05 Staff takeover
 
@@ -565,6 +608,11 @@ Default pilot cadence:
 - follow-up 1: after 2 hours during permitted hours;
 - follow-up 2: next business morning;
 - then stop unless tenant policy explicitly allows another step.
+
+The implemented tenant workflow allows zero through three uniquely ordered
+follow-ups. Every action is moved into the next permitted tenant-timezone
+window and re-checks tenant automation, Lead state, opt-out, customer activity,
+workflow stage, and approved template at execution.
 
 ### UC-07 Close a lead
 
@@ -656,6 +704,12 @@ Optional features:
 - extraction of city/postal area and requested service.
 
 All AI output must be structured, versioned, confidence-scored, and editable by staff.
+
+LR-0701 implements the optional provider-neutral request/result contract,
+version 1.0 strict local validator, and an OpenAI Responses API adapter with
+bounded redacted input, timeouts, retries, and typed failures. It does not yet
+invoke or persist analysis, expose suggestions to staff, or send a suggested
+reply. Editable review and workflow fallback remain LR-0702 and LR-0703.
 
 ### FR-007 Reporting
 
@@ -892,6 +946,13 @@ and status webhooks remain in the API and commit receipts plus business state
 before returning. The default sender is an in-process fake; live Twilio access
 requires two explicit configuration gates.
 
+LR-0701 adds a provider-neutral Application analysis interface and strict
+validator plus an optional Infrastructure OpenAI Responses API adapter. The
+Worker registers it only when explicitly enabled, but no job invokes analysis
+yet. Provider translation, bounded retry/timeout, minimum-data redaction, and
+response-envelope handling remain outside Domain and Application. Persistence,
+workflow invocation, and dashboard review remain LR-0702/LR-0703.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -1025,6 +1086,11 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0009: conversation and message lifecycle, identity, and limits;
 - ADR-0010: scheduled actions, durable cancellation, and external receipts;
 - ADR-0011: Identity, tenant memberships, and same-origin browser sessions.
+- ADR-0012: Twilio call-status ingestion and recovery routing;
+- ADR-0013: SMS worker and webhook lifecycle;
+- ADR-0014: operational dashboard and manual SMS;
+- ADR-0015: deterministic qualification, booking, and follow-up;
+- ADR-0016: structured lead-analysis adapter.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -1152,11 +1218,26 @@ use case can require and persist its audit event.
 - External sends are at-least-once attempts; idempotency keys prevent duplicate business effects.
 - Do not assume exactly-once delivery from Twilio, Kubernetes, or job runners.
 
-LR-0204 implements the durable `ScheduledAction` record and the
+Milestone 6 extends this model with a single active, versioned
+`WorkflowDefinition` per tenant. Its validated JSON policies define ordered
+qualification questions, one local-time window per configured day, an urgent
+human-review after-hours choice, and at most three follow-ups. Qualification,
+booking, and follow-up work all remain `ScheduledAction` records; the Worker
+revalidates the active workflow, tenant/Lead/customer eligibility, stage,
+customer activity baseline, and approved active template before sending.
+
+Business-hour conversion uses the tenant's `TimezoneId`. Invalid local times
+during a spring-forward gap advance to the first valid minute. Ambiguous local
+times choose the larger UTC offset, producing the earliest matching instant.
+Urgent human review is durable dashboard/audit work and may bypass ordinary
+send hours when the tenant policy allows it.
+
+LR-0204 introduced the durable `ScheduledAction` record and the
 `ExternalEventReceipt` system ledger without dispatching work or calling a
-provider. Booking uses the same scoped EF context to persist the Lead transition
-and cancel only its pending actions in one transaction. Hangfire notification,
-reconciliation, leasing, and external execution remain later issues.
+provider. Milestones 4 through 6 now dispatch and reconcile that intent through
+PostgreSQL-backed Hangfire. Booking uses the same scoped EF context to persist
+the Lead transition and cancel only its pending automated actions in one
+transaction.
 
 ## 13. Caching
 
@@ -1449,10 +1530,33 @@ MVP can use configuration rather than a general visual workflow engine.
 - `Name`
 - `Version`
 - `IsActive`
-- `InitialDelaySeconds`
+- `BookingUrl` - absolute HTTPS without embedded credentials
 - `FollowUpPolicyJson`
 - `BusinessHoursPolicyJson`
 - `QualificationPolicyJson`
+- audit timestamps
+
+Milestone 6 persists one active workflow per tenant through a filtered unique
+index and retains unique `(TenantId, Version)` history. Construction validates
+one through ten unique ordered questions, at least one business-hours window,
+one window per day, and at most three follow-ups with unique sequence numbers
+and template purposes. JSON is a persistence format for validated policy, not
+an untrusted dynamic execution language.
+
+### QualificationAnswer
+
+- `Id`
+- `TenantId`
+- `LeadId`
+- `SourceMessageId`
+- `QuestionKey`
+- `Value` nullable when unresolved
+- `Outcome` - Accepted, Unknown, Ambiguous
+- `CreatedAtUtc`
+
+Unique constraints on `(TenantId, LeadId, QuestionKey)` and
+`(TenantId, SourceMessageId)` prevent duplicate structured capture. Compound
+foreign keys bind the answer, Lead, and source Message to the same tenant.
 
 ### ScheduledAction
 
@@ -1473,15 +1577,15 @@ Unique: `(TenantId, IdempotencyKey)`.
 Actions start `Pending`. Allowed transitions are `Pending -> Running`,
 `Pending -> Cancelled`, `Running -> Completed`, `Running -> Failed`, and
 `Running -> Pending` for a retry with a new due time at or after the retry
-decision. Starting an attempt increments `AttemptCount`. Completed, Failed, and
-Cancelled are terminal. The due-work index is `(Status, ScheduledForUtc)`; a
+decision. A Pending action may also be deferred to a future permitted window
+without consuming an attempt. Starting an attempt increments `AttemptCount`.
+Completed, Failed, and Cancelled are terminal. The due-work index is `(Status, ScheduledForUtc)`; a
 separate `(TenantId, LeadId, Status)` index supports deterministic cancellation.
 
-LR-0204 persists durable workflow intent without executing it. The booking use
-case and its PostgreSQL adapter use one scoped DbContext save to persist the
-booked Lead and cancel only that lead's Pending actions. Running or terminal
-actions are not rewritten, and no Hangfire or provider call occurs in this
-issue.
+Milestone 6 uses action types `SendQualificationQuestion`, `SendBookingLink`,
+and `SendFollowUpSms`. Idempotency keys include Lead, workflow version, stage,
+and sequence as applicable. The booking transition cancels that Lead's pending
+automated actions; running and terminal actions are not rewritten.
 
 ### ExternalEventReceipt
 
@@ -1533,6 +1637,11 @@ later integration handlers must authorize its system-level access explicitly.
 - `CreatedAtUtc`
 
 Do not store hidden chain-of-thought or unnecessary provider metadata.
+
+LR-0701 defines and validates the structured suggestion in memory only. The
+`AiAnalysis` entity, migration, input-hash deduplication, acceptance fields, and
+tenant dashboard projection remain LR-0702/LR-0703 and are not present in the
+current database schema.
 
 ### AuditEvent
 
@@ -1944,6 +2053,19 @@ Level 2:
 
 Never place sensitive lead data directly in an unsigned query string.
 
+Milestone 6 implements level 1. `POST /api/v1/leads/{leadId}/booking-link`
+requires a DashboardOperator session, CSRF token, and current opaque Lead
+version. It accepts no caller-provided URL: the Worker renders only the active
+workflow's validated HTTPS `BookingUrl` through an approved active
+`BookingLink` template. The tenant/workflow/Lead/stage idempotency key and
+persisted Message identity prevent a repeat send. Staff use the existing
+transition endpoint to mark `Booked`, which atomically cancels pending
+automated actions.
+
+`POST /api/v1/leads/{leadId}/scheduled-actions/{actionId}/cancel` lets a
+DashboardOperator cancel a visible Pending action owned by the same tenant and
+Lead. Cross-tenant identifiers remain indistinguishable from missing records.
+
 ## 10. Email integration
 
 Use for staff notifications, not customer marketing in MVP.
@@ -1977,6 +2099,23 @@ Input should include only:
 - schema version.
 
 Output must conform to the schema in `docs/06_AI_GUARDRAILS.md`.
+
+LR-0701 implements this interface in Application and an optional OpenAI
+Responses API adapter in Infrastructure. Provider requests use strict
+`text.format` JSON Schema, `store: false`, a bounded output size, and no tools.
+The provider receives approved categories, optional redacted service-area
+guidance, and at most eight recent redacted conversation turns (1,200
+characters each and 6,000 total). Raw TenantId, names, notes, authentication
+data, and provider metadata are not explicit input fields; email addresses and
+phone-like values are masked. A SHA-256-derived tenant safety identifier is
+sent instead of the raw tenant ID.
+
+Every attempt has a configured 1-30 second timeout. Network failures and HTTP
+408, 409, 429, and 5xx responses receive at most two bounded exponential-delay
+retries. Refusal, non-transient HTTP failure, an invalid provider envelope, or
+locally schema-invalid output returns a typed failure with no suggestion.
+LR-0701 does not persist or invoke analysis and does not send the suggested
+reply; those application flows remain LR-0702 and LR-0703.
 
 ## 12. Webhook idempotency algorithm
 
@@ -2122,11 +2261,25 @@ Required controls:
 - open booking link;
 - view pending follow-ups and cancel them.
 
-Milestone 5 implements the controls owned by LR-0501 through LR-0505: manual
+Milestone 5 implemented the controls owned by LR-0501 through LR-0505: manual
 SMS, pause/resume, assignment, domain-allowed transitions, internal notes, copy
-phone, and pending-action display. Category/urgency editing, booking-link
-actions, AI summary controls, and arbitrary pending-action cancellation remain
-their owning later issues.
+phone, and pending-action display. Milestone 6 adds structured qualification
+answers and the current unanswered prompt, the approved booking destination,
+booking-link queueing for active Qualified Leads, and cancellation buttons for
+Pending actions. Marking `Booked` removes pending automated follow-ups from the
+view after the server transaction. Category/urgency editing and AI summary
+controls remain their owning later issues.
+
+A pre-LR-0702 visual and usability refresh applies one tokenized interface
+system to login, inbox, and Lead detail without adding new product navigation or
+changing workflow behavior. The refresh prioritizes human-review/unread rows,
+replaces raw enum values with staff-readable labels, provides explicit polling
+and mutation feedback, separates inbound/outbound timeline messages, and adds
+consistent global error, not-found, empty, and skeleton states. Desktop, tablet,
+and 390-pixel mobile layouts preserve essential controls without horizontal
+overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
+high-contrast outline, and reduced-motion and increased-contrast preferences
+are respected.
 
 ### 3.4 Settings - Business
 
@@ -2305,6 +2458,14 @@ AI must not independently:
 
 The API must validate this schema. Invalid output is discarded and logged as a provider failure, not passed through.
 
+LR-0701 validates the exact property set again after provider-side strict
+schema generation. It rejects missing, duplicate, or additional properties;
+unapproved categories; undefined urgency values; confidence outside 0-1;
+invalid or duplicate reason codes; blank or over-limit strings; refusals; and
+malformed provider envelopes. Medium/low confidence and known safety-sensitive
+reason codes force `requiresHumanReview=true` even if the provider returned
+false. A failure result never carries a suggestion.
+
 ## 5. Confidence policy
 
 Suggested baseline:
@@ -2354,6 +2515,11 @@ public sealed record LeadAnalysisRequest(
 
 Provider-specific adapters translate the request and response.
 
+The LR-0701 OpenAI adapter uses the Responses API with strict `json_schema`
+output and `store: false`. Its default model is `gpt-5.6-sol`, configurable by
+operators for later evaluation. Application and Domain contain no OpenAI or
+HTTP references.
+
 ## 9. Fallback behavior
 
 If AI fails:
@@ -2365,6 +2531,11 @@ If AI fails:
 - no customer-facing error mentions AI;
 - retry only transient failures with bounded attempts;
 - avoid duplicate analysis using input hash and schema version.
+
+LR-0701 bounds each attempt to 1-30 seconds, retries only network/408/409/429/
+5xx failures, permits at most two retries, and caps a provider response at 64
+KiB. Workflow continuation, durable input-hash deduplication, persistence, and
+NeedsHuman routing remain LR-0703.
 
 ## 10. Human review
 
@@ -2572,6 +2743,14 @@ safety gate are enabled; automated tests always use the in-process fake.
 - AI output is untrusted and schema-validated;
 - prevent CSV formula injection in exports;
 - limit file uploads because they are out of MVP scope.
+
+LR-0701 sends only approved categories, optional service-area guidance, and a
+bounded recent conversation window to the AI adapter. Email and phone-like
+values are masked, response storage is disabled in the provider request, and a
+hashed tenant safety identifier replaces raw TenantId. Provider logs contain
+only provider/model, attempt count, and bounded outcome; they exclude keys,
+request/response bodies, and contact details. Strict local validation treats
+every provider response as untrusted.
 
 ## 8. Secrets management
 
@@ -2823,6 +3002,23 @@ requires p95 below 500 ms. Playwright verifies labeled filters and keyboard
 focus, detail/timeline rendering, latest-state conflict recovery, pause state,
 notes, manual SMS queue visibility, and cross-tenant denial.
 
+Milestone 6 adds domain tests for workflow and structured-answer invariants;
+unit tests for deterministic exact, single-match, ambiguous, and unknown
+qualification outcomes; and tenant-timezone scheduler tests spanning both
+Toronto DST changes. PostgreSQL tests apply the migration and verify structured
+answer capture, urgent human routing, business-stage cancellation, approved
+booking rendering once, the three-follow-up maximum, execution-time closure
+suppression, CSRF, action cancellation, and cross-tenant denial. Playwright
+extends the office flow through queueing the approved booking link and marking
+the Lead booked, after which its pending automated booking action disappears.
+
+LR-0701 adds application unit coverage for request bounds, exact schema
+validation, approved-category enforcement, additional-property rejection, and
+confidence/safety review policy. Fake-HTTP provider contract tests inspect the
+strict Responses API request, `store: false`, recent-context limits, phone/email
+masking, raw-tenant omission, transient retry cap, timeout, refusal, and invalid
+output. No test calls a live AI provider or needs an API key.
+
 ## 3. Test environments
 
 ### Local
@@ -2838,7 +3034,7 @@ Docker is unavailable may point
 database; the fixture still applies migrations and runs the identical suite.
 Never point this override at a shared or persistent database.
 
-Safe Milestone 4 local validation keeps real delivery disabled:
+Safe local validation keeps real delivery disabled:
 
 ```powershell
 $env:SMS_PROVIDER = 'fake'
@@ -2912,6 +3108,12 @@ Expected result: no duplicate business action.
 - expired session -> reauthentication;
 - secret patterns absent from logs;
 - rate limits function without data loss.
+
+The dashboard Playwright suite also verifies skip-link keyboard focus, 44-pixel
+mobile filter and Lead-action targets, and absence of horizontal overflow at a
+390-pixel viewport. Its timeline assertions are scoped and count-based so a
+repeat run against a disposable seeded database still proves that a new note or
+manual message appeared.
 
 ## 8. Performance tests
 
@@ -3183,6 +3385,7 @@ Non-secret ConfigMap values:
 - default job concurrency;
 - telemetry endpoint names;
 - public application URL.
+- AI enable/provider/model selection and bounded timeout/retry/output settings.
 
 Secrets:
 
@@ -3373,6 +3576,18 @@ structured scope; they exclude phone numbers and message bodies. Milestone 5
 projects durable Message, LeadNote, and redacted Lead AuditEvent records into
 the polled tenant timeline. SignalR remains an optional later transport and is
 not required for operational correctness.
+
+Milestone 6 records redacted audit outcomes for booking queue/cancellation,
+workflow deferral, suppression, provider completion, qualification result, and
+the computed human-review timestamp. Payloads contain IDs, stages, enums, and
+timestamps only; message bodies, phone numbers, and booking credentials are not
+logged. Scheduled-action state and the Lead detail projection make every
+pending workflow action visible and cancellable to authorized tenant staff.
+
+LR-0701 emits structured provider success/failure logs with provider name,
+model reference, attempt count, and a fixed bounded outcome. It never logs the
+API key, prompt, conversation text, raw structured output, contact details, or
+provider error body. AI metrics and alerts remain LR-0801.
 
 ## 5. Alerts
 
@@ -3675,6 +3890,16 @@ Exit criteria:
 - no follow-up sent outside configured hours;
 - booking transition cancels remaining jobs.
 
+Implementation status (2026-07-21): complete for LR-0601 through LR-0604.
+One active versioned tenant policy drives deterministic qualification,
+timezone-aware permitted windows, the approved HTTPS booking link, and a
+maximum of three follow-ups. Unknown or ambiguous answers route to urgent human
+review without AI. The Worker re-checks eligibility at execution; dashboard
+operators can queue the booking link, cancel pending work, and mark a Lead
+booked to cancel remaining automation. Unit, PostgreSQL, and Playwright tests
+cover DST, idempotency, tenant isolation, closure/opt-out suppression, and the
+office booking flow.
+
 ### Milestone 7 - AI assistance and safety (Week 7)
 
 Deliverables:
@@ -3691,6 +3916,14 @@ Exit criteria:
 - invalid JSON never reaches UI as trusted data;
 - AI outage leaves core workflow working;
 - low-confidence output requires review.
+
+Implementation status (2026-07-21): LR-0701 is complete; LR-0702 and LR-0703
+remain. Application defines the provider-neutral request/result and strict
+schema validator. The optional Worker registration uses a bounded OpenAI
+Responses API adapter with redacted recent input, `store: false`, local output
+validation, typed failures, a per-attempt timeout, and at most two transient
+retries. No workflow invokes or persists analysis yet, and no AI output reaches
+the dashboard or a customer.
 
 ### Milestone 8 - Production hardening (Week 8)
 
@@ -4234,6 +4467,18 @@ conflict recovery, notes, manual messaging, automation state, and tenant denial.
 - all actions visible/cancellable;
 - no sends after closure/opt-out.
 
+Implementation note (2026-07-21): LR-0601 through LR-0604 are complete. A
+versioned tenant workflow validates ordered required-text/choice questions, an
+absolute HTTPS booking URL, local business windows, urgent-review behavior,
+and zero through three follow-ups. Inbound answers persist tenant-bound
+structured values; unresolved responses route to `NeedsHuman` and
+`CriticalReview`. Qualification, booking, and follow-up actions use durable
+stage/version idempotency, move outside-hours work to the next permitted
+window, and re-check workflow, tenant, Lead, opt-out, reply baseline, template,
+and send-count eligibility at execution. Authorized dashboard operators can
+queue/cancel visible actions, and booking or closure cancels remaining
+automated work. No AI or calendar provider was added.
+
 ## Epic E7 - AI assistance
 
 ### LR-0701 Structured analysis adapter
@@ -4245,6 +4490,16 @@ conflict recovery, notes, manual messaging, automation state, and tenant denial.
 - timeout and retry bounded;
 - minimum data sent;
 - invalid output creates failure, not trusted suggestion.
+
+Implementation note (2026-07-21): complete. Application owns the version 1.0
+provider-neutral contracts and an exact-property validator. Infrastructure
+uses a typed HTTP client for strict OpenAI Responses API JSON Schema output,
+disables provider storage, masks phone/email values, caps recent context and
+response size, and returns failure without a suggestion for refusal or invalid
+output. Timeout is 1-30 seconds per attempt and only transient network/HTTP
+failures receive zero through two retries. The adapter is disabled by default
+and is not yet invoked or persisted; review UI and workflow fallback remain
+LR-0702 and LR-0703.
 
 ### LR-0702 Human review UI
 
@@ -4728,6 +4983,8 @@ updated in the same change so they remain aligned.
 | [0012](0012-twilio-call-status-ingestion.md) | Twilio call-status ingestion and recovery routing | Accepted |
 | [0013](0013-sms-worker-and-webhook-lifecycle.md) | SMS worker and webhook lifecycle | Accepted |
 | [0014](0014-operational-dashboard-and-manual-sms.md) | Operational dashboard and manual SMS | Accepted |
+| [0015](0015-deterministic-qualification-booking-and-follow-up.md) | Deterministic qualification, booking, and follow-up | Accepted |
+| [0016](0016-structured-lead-analysis-adapter.md) | Structured lead-analysis adapter | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -5462,6 +5719,153 @@ persistence models.
 
 ---
 
+<!-- SOURCE: docs/decisions/0015-deterministic-qualification-booking-and-follow-up.md -->
+
+# ADR-0015: Deterministic qualification, booking, and follow-up
+
+- Status: Accepted
+- Date: 2026-07-21
+- Owners: LeadRecovery engineering
+
+## Context
+
+Milestone 6 must collect tenant-specific answers, schedule customer contact in
+local permitted hours, offer a booking path, and stop follow-ups reliably. The
+requirements deliberately avoid making AI or a calendar provider responsible
+for workflow correctness. They also leave DST conversion, ambiguous answers,
+booking-link identity, and the maximum cadence needing explicit decisions.
+
+## Decision
+
+1. Each tenant has at most one active, versioned `WorkflowDefinition`.
+   Validated JSON policies contain one through ten ordered RequiredText or
+   Choice questions, at least one local business-hours window, an urgent-review
+   after-hours flag, an approved absolute HTTPS booking URL without embedded
+   credentials, and zero through three uniquely ordered follow-ups.
+2. `QualificationEvaluator` is deterministic. Required text accepts a trimmed
+   bounded value. Choice accepts an exact or single contained approved value;
+   zero matches is Unknown and multiple matches is Ambiguous. Every result is
+   stored as a tenant-bound `QualificationAnswer`. Unknown and Ambiguous move
+   the Lead to `NeedsHuman`, set `CriticalReview`, cancel pending automation,
+   and audit the policy-derived review timestamp. No AI call occurs.
+3. Business hours use the tenant `TimezoneId`. Work already inside a configured
+   half-open `[open, close)` window keeps its instant; otherwise it moves to the
+   next opening. Spring-forward invalid local times advance to the first valid
+   minute. Fall-back ambiguous times select the larger offset, the earliest UTC
+   occurrence. Urgent human review may bypass send hours only when configured.
+4. Qualification, booking, and follow-up work is durable `ScheduledAction`
+   intent. Idempotency includes tenant scope implicitly plus Lead, workflow
+   version, stage, question, or sequence. A Pending action may be deferred
+   without incrementing its attempt count. The Worker re-checks the active
+   workflow, tenant automation, Lead status/automation, opt-out, route,
+   customer-activity baseline, approved template, stage, and cadence limit
+   immediately before a send.
+5. A booking action renders only the active approved `BookingLink` template and
+   the validated workflow URL. The dashboard never accepts a URL in the queue
+   request. Staff may mark the Lead Booked through the existing transition;
+   that transaction cancels all pending automated actions. A calendar adapter
+   remains a later optional integration.
+6. Owner, Manager, and Staff may queue a booking link or cancel a visible
+   Pending action. Both operations retain tenant query filters, entity
+   ownership checks, CSRF protection, audit rows, and not-found behavior for
+   cross-tenant identifiers. Booking queueing also uses the Lead concurrency
+   token.
+
+## Consequences
+
+- The core qualification and booking flow continues when AI or calendar
+  providers are unavailable.
+- Policy JSON is versioned configuration, not executable user-authored code.
+- Only one window per weekday is supported in this milestone; split shifts
+  require a future policy version.
+- Human notification is represented immediately in durable dashboard state and
+  redacted audit data. Email delivery remains a separate future adapter.
+- Provider execution remains at-least-once, while action and Message identities
+  prevent ordinary duplicate business effects.
+
+---
+
+<!-- SOURCE: docs/decisions/0016-structured-lead-analysis-adapter.md -->
+
+# ADR-0016: Structured lead-analysis adapter
+
+- Status: Accepted
+- Date: 2026-07-21
+- Decision owners: LeadRecovery maintainers
+
+## Context
+
+LR-0701 requires an optional AI provider abstraction that can suggest a service
+category, urgency, summary, extracted fields, and a staff-review reply without
+controlling the deterministic workflow. Provider output is untrusted customer
+data processing: only minimum recent context may leave the platform, invalid
+output must not become a suggestion, retries must be bounded, and the platform
+must not expose an API key or message content in logs.
+
+The OpenAI Responses API supports strict JSON Schema output through
+`text.format`. The API can also disable response storage with `store: false`.
+The current configured default model is `gpt-5.6-sol`, which supports the
+Responses API and structured outputs. The model remains operator-overridable so
+representative evaluations can choose a more suitable cost/latency tier later.
+
+## Decision
+
+1. Application owns provider-neutral `ILeadAnalysisService`, request, result,
+   suggestion, failure, and validator contracts. Application and Domain do not
+   reference HTTP or OpenAI packages.
+2. Schema version `1.0` exactly represents the documented suggestion fields.
+   Local validation rejects malformed JSON, missing or additional properties,
+   unapproved categories, invalid urgency/confidence values, duplicate or
+   malformed reason codes, and over-limit text. A refusal or invalid response
+   returns a typed failure with no suggestion.
+3. Medium/low-confidence output and known safety-sensitive reason codes force
+   `RequiresHumanReview` even if the provider returns `false`. This is a
+   conservative platform policy, not trust in model confidence.
+4. Infrastructure calls `POST https://api.openai.com/v1/responses` through a
+   typed `HttpClient` using centrally pinned `Microsoft.Extensions.Http`
+   10.0.9. No provider SDK is added because LR-0701 needs one small stable HTTP
+   contract and keeping provider-specific translation in one adapter preserves
+   the application boundary.
+5. Every request uses strict `json_schema` output, `store: false`, a bounded
+   output-token limit, and a SHA-256-derived tenant safety identifier rather
+   than the raw tenant ID. The adapter sends only the schema version, approved
+   categories, optional service-area guidance, and up to eight recent turns.
+   Each turn and the total transcript are capped; phone-like values and email
+   addresses are masked. Names, notes, authentication data, provider metadata,
+   and the raw TenantId are not explicit request fields.
+6. Each provider attempt has a 1-30 second configured timeout. Only network
+   failures and HTTP 408, 409, 429, and 5xx responses are retried, with zero to
+   two exponential-delay retries. A provider response is capped at 64 KiB.
+   HTTP rejection, refusal, invalid envelopes, and schema-invalid output are not
+   retried.
+7. Logs contain provider, model reference, attempt count, and a bounded outcome
+   code only. They exclude request/response bodies, contact details, and keys.
+8. AI remains disabled by default. LR-0701 registers the adapter in the Worker
+   only when explicitly enabled. Analysis persistence, workflow invocation,
+   staff accept/edit/reject controls, and outage routing remain LR-0702 and
+   LR-0703; no customer-facing message is sent from this adapter.
+
+## Consequences
+
+- Strict provider-side generation and independent local validation create two
+  enforcement layers before a suggestion can be trusted.
+- Configuration errors fail closed when AI is explicitly enabled, while the
+  existing deterministic worker continues unchanged when it is disabled.
+- Email/phone masking is deterministic and testable, but complete natural-name
+  removal cannot be inferred safely from arbitrary prose. Callers must not add
+  names or unrelated history to the provider-neutral request.
+- Model quality, cost, and safety thresholds still require the fictional
+  evaluation set before production use. LR-0701 does not claim Milestone 7 is
+  complete.
+
+## References
+
+- [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [OpenAI Responses API create reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
+- [OpenAI GPT-5.6 Sol model](https://developers.openai.com/api/docs/models/gpt-5.6-sol)
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -5504,9 +5908,14 @@ Implementation status (2026-07-15): complete. Continue with Prompt 7.
 
 Implement LR-0601 through LR-0604. Keep rules deterministic. Add business-hours and DST tests. Booking may be a tenant-configured link; do not add unnecessary calendar integrations.
 
+Implementation status (2026-07-21): complete. Continue with Prompt 8.
+
 ## Prompt 8 - AI assistance
 
 Implement LR-0701 through LR-0703. Use strict structured output, minimum data, human review, confidence handling, and fallback. No autonomous customer-facing generation.
+
+Implementation status (2026-07-21): LR-0701 is complete. Continue with LR-0702
+only; do not redo the provider adapter or implement LR-0703 in the same issue.
 
 ## Prompt 9 - Hardening
 

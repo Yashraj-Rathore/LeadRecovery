@@ -59,61 +59,109 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="login-shell">
+    <main id="main-content" className="login-shell">
       <section className="login-intro" aria-labelledby="login-heading">
-        <p className="eyebrow">LeadRecovery</p>
-        <h1 id="login-heading">Turn missed calls into a clear next action.</h1>
-        <p>
-          A focused tenant inbox for home-service teams—built to show what needs
-          attention without adding CRM noise.
-        </p>
-        <div className="signal-card" aria-hidden="true">
-          <span className="signal-dot" />
-          <span>Recovery workflow ready</span>
-          <strong>Under 1 min</strong>
+        <div className="brand-lockup brand-lockup-inverse">
+          <span className="brand-mark" aria-hidden="true">
+            <span />
+          </span>
+          <span>
+            <strong>LeadRecovery</strong>
+            <small>Operations workspace</small>
+          </span>
+        </div>
+
+        <div className="login-copy">
+          <p className="eyebrow">Every missed call, accounted for</p>
+          <h1 id="login-heading">Move every lead forward.</h1>
+          <p>
+            A focused workspace for home-service teams to recover missed calls,
+            respond sooner, and keep every next action clear.
+          </p>
+        </div>
+
+        <ul className="login-benefits" aria-label="Workspace benefits">
+          <li>
+            <span aria-hidden="true">01</span>
+            <div>
+              <strong>See what needs attention</strong>
+              <small>Urgent and unread leads rise above the noise.</small>
+            </div>
+          </li>
+          <li>
+            <span aria-hidden="true">02</span>
+            <div>
+              <strong>Keep the full context</strong>
+              <small>Calls, messages, notes, and scheduled work in one view.</small>
+            </div>
+          </li>
+          <li>
+            <span aria-hidden="true">03</span>
+            <div>
+              <strong>Stay in control</strong>
+              <small>Automation is visible, reversible, and staff-led.</small>
+            </div>
+          </li>
+        </ul>
+
+        <div className="signal-card" aria-label="Recovery workflow status">
+          <span className="signal-dot" aria-hidden="true" />
+          <span>
+            <small>Recovery workflow</small>
+            <strong>Ready for the next call</strong>
+          </span>
+          <span className="signal-status">Ready</span>
         </div>
       </section>
 
       <section className="login-panel" aria-label="Account login">
-        <div>
-          <p className="eyebrow">Secure workspace</p>
-          <h2>Welcome back</h2>
-          <p className="muted">Sign in with your staff account.</p>
+        <div className="login-panel-inner">
+          <header>
+            <p className="eyebrow">Secure workspace</p>
+            <h2>Welcome back</h2>
+            <p className="muted">Sign in with your staff account to open the lead inbox.</p>
+          </header>
+
+          <form onSubmit={handleSubmit} className="login-form" noValidate={false}>
+            <label htmlFor="email">Email address</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              inputMode="email"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "login-error" : undefined}
+              required
+            />
+
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "login-error" : undefined}
+              required
+            />
+
+            {error ? (
+              <p id="login-error" className="form-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <button className="primary-button login-submit" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+
+          <p className="security-note">
+            <span aria-hidden="true">✓</span>
+            Protected by a secure, same-origin staff session.
+          </p>
         </div>
-
-        <form onSubmit={handleSubmit} className="login-form">
-          <label htmlFor="email">Email address</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="username"
-            required
-          />
-
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
-
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-
-        <p className="security-note">
-          Your session is protected with an HttpOnly same-origin cookie.
-        </p>
       </section>
     </main>
   );

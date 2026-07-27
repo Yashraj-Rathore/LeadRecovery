@@ -74,10 +74,10 @@ test("staff operates a lead with accessible filters, conflict recovery, and safe
   await expect(page.getByRole("heading", { name: "Urgent plumbing caller" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Booking request" })).toHaveCount(0);
 
-  await page.getByRole("link", { name: /Open lead Urgent plumbing caller/ }).click();
+  await page.getByRole("link", { name: /Open lead for Urgent plumbing caller/ }).click();
   await expect(page.getByRole("heading", { name: "Urgent plumbing caller" })).toBeVisible();
   await expect(page.getByText("Missed call captured")).toBeVisible();
-  await expect(page.getByText("SendInitialRecoverySms")).toBeVisible();
+  await expect(page.getByText("Send initial recovery SMS")).toBeVisible();
   await expect(page.getByText("Automation: Active")).toBeVisible();
 
   const detailResponse = await page.request.get(`/api/v1/leads/${page.url().split("/").at(-1)}`);
@@ -106,30 +106,80 @@ test("staff operates a lead with accessible filters, conflict recovery, and safe
     "This lead changed while you were viewing it",
   );
   await page.getByRole("button", { name: "Pause automation" }).click();
-  await expect(page.getByText("Automation: PausedByUser")).toBeVisible();
-  await expect(page.getByText("SendInitialRecoverySms")).toHaveCount(0);
+  await expect(page.getByText("Automation: Paused by staff")).toBeVisible();
+  await expect(page.getByText("Send initial recovery SMS")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Resume automation" }).click();
   await expect(page.getByText("Automation: Active")).toBeVisible();
-  await expect(page.getByText("SendInitialRecoverySms")).toBeVisible();
+  await expect(page.getByText("Send initial recovery SMS")).toBeVisible();
   await page.getByRole("button", { name: "Pause automation" }).click();
-  await expect(page.getByText("Automation: PausedByUser")).toBeVisible();
-  await expect(page.getByText("SendInitialRecoverySms")).toHaveCount(0);
+  await expect(page.getByText("Automation: Paused by staff")).toBeVisible();
+  await expect(page.getByText("Send initial recovery SMS")).toHaveCount(0);
+  await page.getByRole("button", { name: "Resume automation" }).click();
+  await expect(page.getByText("Automation: Active")).toBeVisible();
 
-  await page.getByLabel("Note").fill("Call the customer after 3 PM.");
+  const timeline = page.getByLabel("Conversation timeline");
+  const noteText = "Call the customer after 3 PM.";
+  const existingNoteCount = await timeline.getByText(noteText, { exact: true }).count();
+  await page.getByLabel("Note").fill(noteText);
   await page.getByRole("button", { name: "Add note" }).click();
-  await expect(page.getByText("Call the customer after 3 PM.")).toBeVisible();
+  await expect(timeline.getByText(noteText, { exact: true })).toHaveCount(existingNoteCount + 1);
 
-  await page.getByLabel("Send manual SMS").fill(
-    "Thanks. A team member will call you shortly.",
-  );
+  const manualMessage = "Thanks. A team member will call you shortly.";
+  const existingMessageCount = await timeline.getByText(manualMessage, { exact: true }).count();
+  await page.getByLabel("Send manual SMS").fill(manualMessage);
   await page.getByRole("button", { name: "Send SMS" }).click();
-  await expect(page.getByText("Thanks. A team member will call you shortly.")).toBeVisible();
-  await expect(page.getByText("Manual", { exact: true })).toBeVisible();
-  await expect(page.getByText("Queued", { exact: true })).toBeVisible();
+  await expect(timeline.getByText(manualMessage, { exact: true })).toHaveCount(existingMessageCount + 1);
+  await expect(timeline.getByText("Staff sent", { exact: true }).last()).toBeVisible();
+  await expect(timeline.getByText("Queued", { exact: true }).last()).toBeVisible();
 
   await page.getByLabel("Next status").selectOption("Qualified");
   await page.getByLabel("Reason or context").fill("Staff confirmed required details by phone.");
   await page.getByRole("button", { name: "Update status" }).click();
   await expect(page.getByText("Qualified", { exact: true })).toBeVisible();
+
+  await expect(page.getByRole("link", { name: "Open approved booking page" })).toBeVisible();
+  await page.getByRole("button", { name: "Queue booking link" }).click();
+  await expect(page.getByText("Booking offered", { exact: true })).toBeVisible();
+  await expect(page.getByText("Send booking link")).toBeVisible();
+
+  await page.getByLabel("Next status").selectOption("Booked");
+  await page.getByLabel("Reason or context").fill("Customer confirmed the appointment.");
+  await page.getByRole("button", { name: "Update status" }).click();
+  await expect(page.getByText("Booked", { exact: true })).toBeVisible();
+  await expect(page.getByText("Send booking link")).toHaveCount(0);
+});
+
+test("workspace navigation and primary actions remain usable on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/login");
+
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
+
+  await page.getByLabel("Email address").fill(required("E2E_OWNER_EMAIL"));
+  await page.getByLabel("Password").fill(required("E2E_OWNER_PASSWORD"));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/leads$/);
+
+  const viewportFits = await page.evaluate(() =>
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+  );
+  expect(viewportFits).toBeTruthy();
+
+  const statusFilter = page.getByLabel("Status");
+  const statusBounds = await statusFilter.boundingBox();
+  expect(statusBounds?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+  const firstLead = page.getByRole("link", { name: /Open lead for/ }).first();
+  await expect(firstLead).toBeVisible();
+  const leadBounds = await firstLead.boundingBox();
+  expect(leadBounds?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await firstLead.click();
+
+  await expect(page.getByRole("heading", { name: "Conversation timeline" })).toBeVisible();
+  const detailViewportFits = await page.evaluate(() =>
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+  );
+  expect(detailViewportFits).toBeTruthy();
 });

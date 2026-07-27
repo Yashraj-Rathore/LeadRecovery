@@ -141,8 +141,39 @@ All notable repository and product-specification changes are recorded here.
   data, dashboard API contracts, production Next.js lead-detail UI, and
   Playwright coverage for filters, keyboard focus, conflicts, notes, messaging,
   automation controls, and tenant isolation.
+- Cohesive dashboard visual and usability refresh with a tenant workspace
+  header, attention-first queue, human-readable workflow labels, clearer
+  timeline and action hierarchy, skeleton/global failure states, high-contrast
+  focus treatment, reduced-motion support, and verified 390-pixel mobile use.
 - ADR-0014 documenting dashboard authorization, concurrency, timeline
   projection, manual-message worker flow, polling, and resume eligibility.
+- LR-0601 versioned tenant workflow definitions, deterministic qualification
+  questions, structured answer persistence, and unknown/ambiguous routing to
+  urgent human review without an AI dependency.
+- LR-0602 tenant-timezone business-hours scheduling with explicit after-hours
+  deferral, a separate urgent-review policy, and spring/fall DST coverage.
+- LR-0603 approved absolute HTTPS booking destinations, one action per workflow
+  version and lead stage, dashboard queue/cancel controls, and booked-state
+  cancellation of remaining automated actions.
+- LR-0604 policy-derived follow-ups capped at three, execution-time tenant,
+  lead, opt-out, reply, stage, and template checks, worker dispatch, and
+  dashboard visibility/cancellation.
+- Qualification-answer and workflow-definition PostgreSQL persistence,
+  migration, API/OpenAPI projections, fictional demo workflow, and unit,
+  PostgreSQL integration, and Playwright booking-flow coverage.
+- ADR-0015 documenting deterministic workflow policy, business-hours and DST
+  semantics, booking-link identity, follow-up limits, and human-review routing.
+- LR-0701 provider-neutral lead-analysis contracts, version 1.0 strict local
+  schema validation, conservative confidence/safety review policy, and typed
+  provider failures that never carry an invalid suggestion.
+- Optional OpenAI Responses API adapter with strict JSON Schema output,
+  `store: false`, bounded/redacted recent context, phone/email masking,
+  per-attempt timeout, at most two transient retries, a 64 KiB response cap,
+  PII-safe logs, and fake-HTTP contract coverage without a live provider.
+- ADR-0016 documenting the structured-analysis boundary, current
+  `gpt-5.6-sol` default, data minimization, failure classification, and the
+  deferral of persistence, workflow invocation, and staff review to LR-0702/
+  LR-0703.
 
 ### Changed
 

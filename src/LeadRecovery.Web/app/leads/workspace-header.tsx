@@ -1,0 +1,40 @@
+import Link from "next/link";
+
+import { AuthSession } from "../../lib/api";
+import { getInitials } from "../../lib/presentation";
+import { LogoutButton } from "./logout-button";
+
+export function WorkspaceHeader({ session }: { session: AuthSession }) {
+  return (
+    <header className="workspace-header">
+      <div className="workspace-header-inner">
+        <Link className="brand-lockup" href="/leads" aria-label="LeadRecovery inbox">
+          <span className="brand-mark" aria-hidden="true">
+            <span />
+          </span>
+          <span>
+            <strong>LeadRecovery</strong>
+            <small>{session.tenantName}</small>
+          </span>
+        </Link>
+
+        <nav className="primary-nav" aria-label="Primary navigation">
+          <Link href="/leads" aria-current="page">
+            Inbox
+          </Link>
+        </nav>
+
+        <div className="session-block">
+          <span className="user-avatar" aria-hidden="true">
+            {getInitials(session.displayName)}
+          </span>
+          <span className="session-identity">
+            <strong>{session.displayName}</strong>
+            <small>{session.role}</small>
+          </span>
+          <LogoutButton />
+        </div>
+      </div>
+    </header>
+  );
+}

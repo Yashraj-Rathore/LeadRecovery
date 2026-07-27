@@ -124,6 +124,13 @@ and status webhooks remain in the API and commit receipts plus business state
 before returning. The default sender is an in-process fake; live Twilio access
 requires two explicit configuration gates.
 
+LR-0701 adds a provider-neutral Application analysis interface and strict
+validator plus an optional Infrastructure OpenAI Responses API adapter. The
+Worker registers it only when explicitly enabled, but no job invokes analysis
+yet. Provider translation, bounded retry/timeout, minimum-data redaction, and
+response-envelope handling remain outside Domain and Application. Persistence,
+workflow invocation, and dashboard review remain LR-0702/LR-0703.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -257,6 +264,11 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0009: conversation and message lifecycle, identity, and limits;
 - ADR-0010: scheduled actions, durable cancellation, and external receipts;
 - ADR-0011: Identity, tenant memberships, and same-origin browser sessions.
+- ADR-0012: Twilio call-status ingestion and recovery routing;
+- ADR-0013: SMS worker and webhook lifecycle;
+- ADR-0014: operational dashboard and manual SMS;
+- ADR-0015: deterministic qualification, booking, and follow-up;
+- ADR-0016: structured lead-analysis adapter.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -384,11 +396,26 @@ use case can require and persist its audit event.
 - External sends are at-least-once attempts; idempotency keys prevent duplicate business effects.
 - Do not assume exactly-once delivery from Twilio, Kubernetes, or job runners.
 
-LR-0204 implements the durable `ScheduledAction` record and the
+Milestone 6 extends this model with a single active, versioned
+`WorkflowDefinition` per tenant. Its validated JSON policies define ordered
+qualification questions, one local-time window per configured day, an urgent
+human-review after-hours choice, and at most three follow-ups. Qualification,
+booking, and follow-up work all remain `ScheduledAction` records; the Worker
+revalidates the active workflow, tenant/Lead/customer eligibility, stage,
+customer activity baseline, and approved active template before sending.
+
+Business-hour conversion uses the tenant's `TimezoneId`. Invalid local times
+during a spring-forward gap advance to the first valid minute. Ambiguous local
+times choose the larger UTC offset, producing the earliest matching instant.
+Urgent human review is durable dashboard/audit work and may bypass ordinary
+send hours when the tenant policy allows it.
+
+LR-0204 introduced the durable `ScheduledAction` record and the
 `ExternalEventReceipt` system ledger without dispatching work or calling a
-provider. Booking uses the same scoped EF context to persist the Lead transition
-and cancel only its pending actions in one transaction. Hangfire notification,
-reconciliation, leasing, and external execution remain later issues.
+provider. Milestones 4 through 6 now dispatch and reconcile that intent through
+PostgreSQL-backed Hangfire. Booking uses the same scoped EF context to persist
+the Lead transition and cancel only its pending automated actions in one
+transaction.
 
 ## 13. Caching
 

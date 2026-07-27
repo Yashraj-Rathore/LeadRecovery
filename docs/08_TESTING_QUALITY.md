@@ -122,6 +122,23 @@ requires p95 below 500 ms. Playwright verifies labeled filters and keyboard
 focus, detail/timeline rendering, latest-state conflict recovery, pause state,
 notes, manual SMS queue visibility, and cross-tenant denial.
 
+Milestone 6 adds domain tests for workflow and structured-answer invariants;
+unit tests for deterministic exact, single-match, ambiguous, and unknown
+qualification outcomes; and tenant-timezone scheduler tests spanning both
+Toronto DST changes. PostgreSQL tests apply the migration and verify structured
+answer capture, urgent human routing, business-stage cancellation, approved
+booking rendering once, the three-follow-up maximum, execution-time closure
+suppression, CSRF, action cancellation, and cross-tenant denial. Playwright
+extends the office flow through queueing the approved booking link and marking
+the Lead booked, after which its pending automated booking action disappears.
+
+LR-0701 adds application unit coverage for request bounds, exact schema
+validation, approved-category enforcement, additional-property rejection, and
+confidence/safety review policy. Fake-HTTP provider contract tests inspect the
+strict Responses API request, `store: false`, recent-context limits, phone/email
+masking, raw-tenant omission, transient retry cap, timeout, refusal, and invalid
+output. No test calls a live AI provider or needs an API key.
+
 ## 3. Test environments
 
 ### Local
@@ -137,7 +154,7 @@ Docker is unavailable may point
 database; the fixture still applies migrations and runs the identical suite.
 Never point this override at a shared or persistent database.
 
-Safe Milestone 4 local validation keeps real delivery disabled:
+Safe local validation keeps real delivery disabled:
 
 ```powershell
 $env:SMS_PROVIDER = 'fake'
@@ -211,6 +228,12 @@ Expected result: no duplicate business action.
 - expired session -> reauthentication;
 - secret patterns absent from logs;
 - rate limits function without data loss.
+
+The dashboard Playwright suite also verifies skip-link keyboard focus, 44-pixel
+mobile filter and Lead-action targets, and absence of horizontal overflow at a
+390-pixel viewport. Its timeline assertions are scoped and count-based so a
+repeat run against a disposable seeded database still proves that a new note or
+manual message appeared.
 
 ## 8. Performance tests
 

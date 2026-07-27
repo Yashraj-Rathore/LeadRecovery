@@ -74,6 +74,18 @@ projects durable Message, LeadNote, and redacted Lead AuditEvent records into
 the polled tenant timeline. SignalR remains an optional later transport and is
 not required for operational correctness.
 
+Milestone 6 records redacted audit outcomes for booking queue/cancellation,
+workflow deferral, suppression, provider completion, qualification result, and
+the computed human-review timestamp. Payloads contain IDs, stages, enums, and
+timestamps only; message bodies, phone numbers, and booking credentials are not
+logged. Scheduled-action state and the Lead detail projection make every
+pending workflow action visible and cancellable to authorized tenant staff.
+
+LR-0701 emits structured provider success/failure logs with provider name,
+model reference, attempt count, and a fixed bounded outcome. It never logs the
+API key, prompt, conversation text, raw structured output, contact details, or
+provider error body. AI metrics and alerts remain LR-0801.
+
 ## 5. Alerts
 
 Initial alerts:

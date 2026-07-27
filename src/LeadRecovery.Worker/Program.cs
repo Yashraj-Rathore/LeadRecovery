@@ -2,6 +2,7 @@ using Hangfire;
 
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Infrastructure;
+using LeadRecovery.Infrastructure.Analysis;
 using LeadRecovery.Infrastructure.BackgroundJobs;
 using LeadRecovery.Infrastructure.Messaging;
 using LeadRecovery.Worker;
@@ -30,6 +31,34 @@ builder.Services.AddSmsProvider(new SmsProviderOptions(
     builder.Configuration.GetValue("ALLOW_REAL_SMS", false),
     builder.Configuration["TWILIO_ACCOUNT_SID"],
     builder.Configuration["TWILIO_AUTH_TOKEN"]));
+bool aiEnabled = builder.Configuration.GetValue<bool?>("AI_ENABLED") ??
+    builder.Configuration.GetValue("Ai:Enabled", false);
+if (aiEnabled)
+{
+    string provider = builder.Configuration["AI_PROVIDER"] ??
+        builder.Configuration["Ai:Provider"] ??
+        "openai";
+    if (!provider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException("AI_PROVIDER must be 'openai' when AI is enabled.");
+    }
+
+    builder.Services.AddOpenAiLeadAnalysis(new OpenAiLeadAnalysisOptions(
+        builder.Configuration["OPENAI_API_KEY"] ?? string.Empty,
+        builder.Configuration["AI_MODEL"] ??
+            builder.Configuration["Ai:Model"] ??
+            OpenAiLeadAnalysisOptions.DefaultModel,
+        TimeSpan.FromSeconds(
+            builder.Configuration.GetValue<int?>("AI_TIMEOUT_SECONDS") ??
+            builder.Configuration.GetValue("Ai:TimeoutSeconds", 15)),
+        builder.Configuration.GetValue<int?>("AI_MAX_RETRIES") ??
+            builder.Configuration.GetValue("Ai:MaximumRetryCount", 2),
+        TimeSpan.FromMilliseconds(
+            builder.Configuration.GetValue<int?>("AI_RETRY_BASE_DELAY_MILLISECONDS") ??
+            builder.Configuration.GetValue("Ai:RetryBaseDelayMilliseconds", 250)),
+        builder.Configuration.GetValue<int?>("AI_MAX_OUTPUT_TOKENS") ??
+            builder.Configuration.GetValue("Ai:MaximumOutputTokens", 1_000)));
+}
 builder.Services.AddSingleton(new SmsWorkerOptions(
     new Uri(baseUri, "/api/v1/webhooks/twilio/sms/status"),
     TimeSpan.FromSeconds(1),

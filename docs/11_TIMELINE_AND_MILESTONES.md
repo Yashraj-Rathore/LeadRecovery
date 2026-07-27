@@ -179,6 +179,16 @@ Exit criteria:
 - no follow-up sent outside configured hours;
 - booking transition cancels remaining jobs.
 
+Implementation status (2026-07-21): complete for LR-0601 through LR-0604.
+One active versioned tenant policy drives deterministic qualification,
+timezone-aware permitted windows, the approved HTTPS booking link, and a
+maximum of three follow-ups. Unknown or ambiguous answers route to urgent human
+review without AI. The Worker re-checks eligibility at execution; dashboard
+operators can queue the booking link, cancel pending work, and mark a Lead
+booked to cancel remaining automation. Unit, PostgreSQL, and Playwright tests
+cover DST, idempotency, tenant isolation, closure/opt-out suppression, and the
+office booking flow.
+
 ### Milestone 7 - AI assistance and safety (Week 7)
 
 Deliverables:
@@ -195,6 +205,14 @@ Exit criteria:
 - invalid JSON never reaches UI as trusted data;
 - AI outage leaves core workflow working;
 - low-confidence output requires review.
+
+Implementation status (2026-07-21): LR-0701 is complete; LR-0702 and LR-0703
+remain. Application defines the provider-neutral request/result and strict
+schema validator. The optional Worker registration uses a bounded OpenAI
+Responses API adapter with redacted recent input, `store: false`, local output
+validation, typed failures, a per-attempt timeout, and at most two transient
+retries. No workflow invokes or persists analysis yet, and no AI output reaches
+the dashboard or a customer.
 
 ### Milestone 8 - Production hardening (Week 8)
 

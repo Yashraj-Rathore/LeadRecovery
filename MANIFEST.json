@@ -5,19 +5,19 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  23683
+        "bytes":  26656
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  10899
+        "bytes":  13050
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  184724
+        "bytes":  208489
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  4155
+        "bytes":  4385
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "database/schema.sql",
-        "bytes":  9998
+        "bytes":  11369
     },
     {
         "path":  "diagrams/deployment.mmd",
@@ -37,51 +37,51 @@
     },
     {
         "path":  "docs/01_PRODUCT_REQUIREMENTS.md",
-        "bytes":  10671
+        "bytes":  11981
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  12936
+        "bytes":  14548
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  16172
+        "bytes":  17408
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  12066
+        "bytes":  13911
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
-        "bytes":  6474
+        "bytes":  7447
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
-        "bytes":  4853
+        "bytes":  5883
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  10053
+        "bytes":  10554
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  9147
+        "bytes":  10620
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
-        "bytes":  6493
+        "bytes":  6573
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
-        "bytes":  4952
+        "bytes":  5708
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  9357
+        "bytes":  10476
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  14508
+        "bytes":  15943
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -148,20 +148,28 @@
         "bytes":  3334
     },
     {
+        "path":  "docs/decisions/0015-deterministic-qualification-booking-and-follow-up.md",
+        "bytes":  3506
+    },
+    {
+        "path":  "docs/decisions/0016-structured-lead-analysis-adapter.md",
+        "bytes":  4396
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  1917
+        "bytes":  2151
     },
     {
         "path":  "README.md",
-        "bytes":  11405
+        "bytes":  13257
     },
     {
         "path":  "templates/.env.example",
-        "bytes":  1584
+        "bytes":  1675
     },
     {
         "path":  "templates/appsettings.Development.example.json",
-        "bytes":  978
+        "bytes":  1106
     },
     {
         "path":  "templates/definition-of-done.md",

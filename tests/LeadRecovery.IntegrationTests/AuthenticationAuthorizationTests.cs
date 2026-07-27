@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 
 using LeadRecovery.Application.Authorization;
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Tenancy;
@@ -309,6 +310,107 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
     }
 
     [Fact]
+    public async Task BookingActionsAreCsrfProtectedTenantScopedCancellableAndStopWhenBooked()
+    {
+        TenantData tenant = await SeedTenant();
+        UserData owner = await SeedUser(tenant, TenantRole.Owner, createLead: true);
+        Guid leadId = Assert.IsType<Guid>(owner.LeadId);
+        await ConfigureBookingWorkflow(tenant, leadId);
+        using HttpClient client = CreateClient();
+        _ = await Login(client, owner);
+        LeadDetailResponse detail = Assert.IsType<LeadDetailResponse>(
+            await client.GetFromJsonAsync<LeadDetailResponse>(
+                $"/api/v1/leads/{leadId}",
+                TestContext.Current.CancellationToken));
+        Assert.Equal("https://booking.example.test/acme", detail.BookingUrl);
+
+        using HttpResponseMessage missingCsrf = await client.PostAsJsonAsync(
+            $"/api/v1/leads/{leadId}/booking-link",
+            new LeadBookingRequest(detail.Lead.RowVersion),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, missingCsrf.StatusCode);
+
+        using HttpResponseMessage queuedResponse = await PostWithCsrf(
+            client,
+            $"/api/v1/leads/{leadId}/booking-link",
+            new LeadBookingRequest(detail.Lead.RowVersion));
+        queuedResponse.EnsureSuccessStatusCode();
+        LeadDetailResponse queued = Assert.IsType<LeadDetailResponse>(
+            await queuedResponse.Content.ReadFromJsonAsync<LeadDetailResponse>(
+                TestContext.Current.CancellationToken));
+        PendingActionResponse bookingAction = Assert.Single(
+            queued.PendingActions,
+            action => action.ActionType == WorkflowScheduledActionTypes.SendBookingLink);
+        Assert.True(bookingAction.IsCancellable);
+        Assert.Equal(LeadStatus.BookingOffered.ToString(), queued.Lead.Status);
+
+        using HttpResponseMessage repeatedQueue = await PostWithCsrf(
+            client,
+            $"/api/v1/leads/{leadId}/booking-link",
+            new LeadBookingRequest(queued.Lead.RowVersion));
+        Assert.Equal(HttpStatusCode.BadRequest, repeatedQueue.StatusCode);
+
+        TenantData otherTenant = await SeedTenant();
+        UserData otherOwner = await SeedUser(otherTenant, TenantRole.Owner, createLead: false);
+        using HttpClient otherClient = CreateClient();
+        _ = await Login(otherClient, otherOwner);
+        using HttpResponseMessage crossTenant = await PostWithCsrf(
+            otherClient,
+            $"/api/v1/leads/{leadId}/scheduled-actions/{bookingAction.Id}/cancel",
+            new { });
+        Assert.Equal(HttpStatusCode.NotFound, crossTenant.StatusCode);
+
+        using HttpResponseMessage cancelledResponse = await PostWithCsrf(
+            client,
+            $"/api/v1/leads/{leadId}/scheduled-actions/{bookingAction.Id}/cancel",
+            new { });
+        cancelledResponse.EnsureSuccessStatusCode();
+        LeadDetailResponse cancelled = Assert.IsType<LeadDetailResponse>(
+            await cancelledResponse.Content.ReadFromJsonAsync<LeadDetailResponse>(
+                TestContext.Current.CancellationToken));
+        Assert.DoesNotContain(cancelled.PendingActions, action => action.Id == bookingAction.Id);
+
+        Guid followUpId = await AddPendingFollowUp(tenant, leadId);
+        LeadDetailResponse beforeBooking = Assert.IsType<LeadDetailResponse>(
+            await client.GetFromJsonAsync<LeadDetailResponse>(
+                $"/api/v1/leads/{leadId}",
+                TestContext.Current.CancellationToken));
+        using HttpResponseMessage bookedResponse = await PostWithCsrf(
+            client,
+            $"/api/v1/leads/{leadId}/transitions",
+            new TransitionLeadRequest(
+                LeadStatus.Booked.ToString(),
+                "Appointment confirmed by staff.",
+                null,
+                true,
+                beforeBooking.Lead.RowVersion));
+        bookedResponse.EnsureSuccessStatusCode();
+        LeadDetailResponse booked = Assert.IsType<LeadDetailResponse>(
+            await bookedResponse.Content.ReadFromJsonAsync<LeadDetailResponse>(
+                TestContext.Current.CancellationToken));
+        Assert.Equal(LeadStatus.Booked.ToString(), booked.Lead.Status);
+        Assert.DoesNotContain(booked.PendingActions, action => action.Id == followUpId);
+
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        Assert.Equal(
+            ScheduledActionStatus.Cancelled,
+            await dbContext.ScheduledActions.IgnoreQueryFilters()
+                .Where(action => action.Id == followUpId)
+                .Select(action => action.Status)
+                .SingleAsync(TestContext.Current.CancellationToken));
+        string[] auditActions = await dbContext.AuditEvents.IgnoreQueryFilters()
+            .Where(auditEvent => auditEvent.TenantId == tenant.TenantId &&
+                auditEvent.EntityId == leadId.ToString("N"))
+            .Select(auditEvent => auditEvent.Action)
+            .ToArrayAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("BookingLinkQueued", auditActions);
+        Assert.Contains("ScheduledActionCancelled", auditActions);
+        Assert.Contains("LeadStatusChanged", auditActions);
+    }
+
+    [Fact]
     public async Task ManualMessageIsIdempotentPolicyCheckedAndCompletedByWorkerFlow()
     {
         TenantData tenant = await SeedTenant();
@@ -522,6 +624,76 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
         }
 
         await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
+    private async Task ConfigureBookingWorkflow(TenantData tenantData, Guid leadId)
+    {
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        using TenantClaimScope tenantClaim = new(scope.ServiceProvider, tenantData.TenantId);
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        Tenant tenant = await dbContext.Tenants.SingleAsync(
+            candidate => candidate.Id == tenantData.TenantId,
+            TestContext.Current.CancellationToken);
+        tenant.SetAutomationEnabled(true, CreatedAtUtc.AddMinutes(1));
+        Lead lead = await dbContext.Leads.SingleAsync(
+            candidate => candidate.Id == leadId,
+            TestContext.Current.CancellationToken);
+        lead.BeginContacting(CreatedAtUtc.AddMinutes(1));
+        lead.AwaitCustomer(CreatedAtUtc.AddMinutes(1));
+        lead.Qualify(true, null, CreatedAtUtc.AddMinutes(1));
+        WorkflowDefinition workflow = new(
+            Guid.CreateVersion7(),
+            tenantData.TenantId,
+            "Booking workflow",
+            1,
+            "https://booking.example.test/acme",
+            [
+                new QualificationQuestionPolicy(
+                    "service",
+                    "Which service do you need?",
+                    QualificationAnswerKind.RequiredText,
+                    []),
+            ],
+            new BusinessHoursPolicy(
+                Enum.GetValues<DayOfWeek>()
+                    .Select(day => new BusinessDayHours(
+                        day,
+                        new TimeOnly(0, 0),
+                        new TimeOnly(23, 59)))
+                    .ToArray(),
+                true),
+            [new FollowUpStepPolicy(1, 30, "BookingFollowUp")],
+            CreatedAtUtc);
+        workflow.Activate(CreatedAtUtc.AddMinutes(1));
+        dbContext.WorkflowDefinitions.Add(workflow);
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
+    private async Task<Guid> AddPendingFollowUp(TenantData tenantData, Guid leadId)
+    {
+        Guid actionId = Guid.CreateVersion7();
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        using TenantClaimScope tenantClaim = new(scope.ServiceProvider, tenantData.TenantId);
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        dbContext.ScheduledActions.Add(new ScheduledAction(
+            actionId,
+            tenantData.TenantId,
+            leadId,
+            WorkflowScheduledActionTypes.SendFollowUpSms,
+            DateTimeOffset.UtcNow.AddMinutes(30),
+            $"booking-followup:{actionId:N}",
+            WorkflowScheduledActionPayloadSerializer.Serialize(new(
+                1,
+                "booking:BookingOffered",
+                null,
+                1,
+                "BookingFollowUp",
+                null)),
+            DateTimeOffset.UtcNow));
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return actionId;
     }
 
     private async Task<TenantData> SeedTenant(

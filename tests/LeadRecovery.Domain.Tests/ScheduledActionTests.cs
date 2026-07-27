@@ -87,6 +87,40 @@ public sealed class ScheduledActionTests
     }
 
     [Fact]
+    public void PendingActionCanBeDeferredWithoutConsumingAnAttempt()
+    {
+        ScheduledAction action = CreateAction();
+        DateTimeOffset deferredAtUtc = CreatedAtUtc.AddMinutes(1);
+        DateTimeOffset nextDueUtc = CreatedAtUtc.AddHours(1);
+
+        action.Defer(nextDueUtc, " outside business hours ", deferredAtUtc);
+
+        Assert.Equal(ScheduledActionStatus.Pending, action.Status);
+        Assert.Equal(nextDueUtc, action.ScheduledForUtc);
+        Assert.Equal("outside business hours", action.LastError);
+        Assert.Equal(0, action.AttemptCount);
+        Assert.Equal(deferredAtUtc, action.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void DeferRequiresPendingStateAndFutureUtcDueTime()
+    {
+        ScheduledAction action = CreateAction();
+        DateTimeOffset deferredAtUtc = CreatedAtUtc.AddMinutes(1);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            action.Defer(deferredAtUtc, "later", deferredAtUtc));
+        Assert.Throws<ArgumentException>(() => action.Defer(
+            CreatedAtUtc.AddHours(1).ToOffset(TimeSpan.FromHours(-5)),
+            "later",
+            deferredAtUtc));
+
+        action.Cancel(CreatedAtUtc.AddMinutes(2));
+        Assert.Throws<InvalidOperationException>(() =>
+            action.Defer(CreatedAtUtc.AddHours(1), "later", CreatedAtUtc.AddMinutes(3)));
+    }
+
+    [Fact]
     public void RetryRequiresFutureDueTimeAndPreservesStateOnFailure()
     {
         ScheduledAction action = CreateAction();

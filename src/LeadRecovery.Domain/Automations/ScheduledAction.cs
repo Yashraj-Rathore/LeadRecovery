@@ -74,6 +74,37 @@ public sealed class ScheduledAction : ITenantOwnedEntity
         UpdatedAtUtc = utcTimestamp;
     }
 
+    public void Defer(
+        DateTimeOffset scheduledForUtc,
+        string reason,
+        DateTimeOffset deferredAtUtc)
+    {
+        if (Status != ScheduledActionStatus.Pending)
+        {
+            throw new InvalidOperationException("Only a pending action can be deferred.");
+        }
+
+        DateTimeOffset utcTimestamp = RequireCurrentOrLaterUtc(
+            deferredAtUtc,
+            nameof(deferredAtUtc));
+        DateTimeOffset nextScheduledForUtc = RequireUtc(
+            scheduledForUtc,
+            nameof(scheduledForUtc));
+        if (nextScheduledForUtc <= utcTimestamp)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(scheduledForUtc),
+                "A deferred action must move to a future time.");
+        }
+
+        ScheduledForUtc = nextScheduledForUtc;
+        LastError = NormalizeRequired(
+            reason,
+            ScheduledActionFieldLimits.LastErrorMaximumLength,
+            nameof(reason));
+        UpdatedAtUtc = utcTimestamp;
+    }
+
     public void Retry(
         DateTimeOffset scheduledForUtc,
         string lastError,
