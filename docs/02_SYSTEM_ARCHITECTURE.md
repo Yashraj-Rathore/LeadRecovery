@@ -128,8 +128,16 @@ LR-0701 adds a provider-neutral Application analysis interface and strict
 validator plus an optional Infrastructure OpenAI Responses API adapter. The
 Worker registers it only when explicitly enabled, but no job invokes analysis
 yet. Provider translation, bounded retry/timeout, minimum-data redaction, and
-response-envelope handling remain outside Domain and Application. Persistence,
-workflow invocation, and dashboard review remain LR-0702/LR-0703.
+response-envelope handling remain outside Domain and Application. At LR-0701,
+persistence, workflow invocation, and dashboard review were deferred to
+LR-0702/LR-0703.
+
+LR-0702 adds tenant-filtered `AiAnalysis` persistence and a staff-only review
+use case to the existing Lead dashboard module. Original suggestions remain
+immutable; accepted or corrected values and reviewer metadata are stored
+separately behind an opaque concurrency version. Accept/edit/reject writes are
+CSRF-protected and audited, but enqueue no customer work. The Worker still has
+no analysis job; invocation and fallback remain LR-0703.
 
 ### 4.4 PostgreSQL
 
@@ -268,7 +276,8 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0013: SMS worker and webhook lifecycle;
 - ADR-0014: operational dashboard and manual SMS;
 - ADR-0015: deterministic qualification, booking, and follow-up;
-- ADR-0016: structured lead-analysis adapter.
+- ADR-0016: structured lead-analysis adapter;
+- ADR-0017: human-reviewed AI analysis.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application

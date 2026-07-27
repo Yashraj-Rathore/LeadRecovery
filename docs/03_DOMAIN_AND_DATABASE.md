@@ -355,23 +355,34 @@ later integration handlers must authorize its system-level access explicitly.
 - `Provider`
 - `ModelReference`
 - `InputHash`
+- `AllowedCategoriesJson`
 - `CategorySuggestion`
 - `UrgencySuggestion`
 - `Summary`
+- optional extracted city, postal code, and callback window
+- optional `SuggestedReply`
 - `Confidence`
 - `RequiresHumanReview`
 - `ReasonCodesJson`
 - `RawStructuredOutputJson`
-- `AcceptedByUserId` nullable
-- `AcceptedAtUtc` nullable
+- `ReviewStatus` - Pending, Accepted, Edited, Rejected
+- separate reviewed category, urgency, summary, extracted fields, and suggested
+  reply, nullable until accepted or edited
+- `CorrectionReason` nullable
+- `ReviewedByUserId` nullable
+- `ReviewedAtUtc` nullable
+- `Version` application-managed `bigint` concurrency token
 - `CreatedAtUtc`
 
 Do not store hidden chain-of-thought or unnecessary provider metadata.
 
-LR-0701 defines and validates the structured suggestion in memory only. The
-`AiAnalysis` entity, migration, input-hash deduplication, acceptance fields, and
-tenant dashboard projection remain LR-0702/LR-0703 and are not present in the
-current database schema.
+LR-0702 persists this tenant-owned record. Original suggestion fields and the
+validated structured JSON are immutable; a one-way
+`Pending -> Accepted|Edited|Rejected` review stores staff values separately.
+`(TenantId, LeadId, SchemaVersion, InputHash)` prevents duplicate analysis of
+the same input and schema, while compound Lead and reviewer-membership foreign
+keys enforce tenant ownership. The dashboard exposes `Version` as an opaque
+review token. LR-0703 still owns workflow invocation and failure routing.
 
 ### AuditEvent
 

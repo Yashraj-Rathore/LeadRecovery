@@ -79,6 +79,22 @@ test("staff operates a lead with accessible filters, conflict recovery, and safe
   await expect(page.getByText("Missed call captured")).toBeVisible();
   await expect(page.getByText("Send initial recovery SMS")).toBeVisible();
   await expect(page.getByText("Automation: Active")).toBeVisible();
+  await expect(page.getByText("AI-generated suggestion")).toBeVisible();
+  await expect(page.getByText("Low confidence")).toBeVisible();
+  await expect(page.getByText("Human review required.")).toBeVisible();
+  await expect(page.getByText("Suggested staff reply · Not sent")).toBeVisible();
+  await expect(page.getByText(/never sends a message or triggers a customer action/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit suggestion" }).click();
+  await page.getByLabel("Urgency", { exact: true }).last().selectOption("High");
+  const correctedSummary =
+    "Staff confirmed the active leak and that a callback is the correct next step.";
+  await page.getByLabel("Corrected summary").fill(correctedSummary);
+  await page.getByLabel("Correction reason").fill("Customer details were verified by staff.");
+  await page.getByRole("button", { name: "Save correction" }).click();
+  await expect(page.getByText("Edited by staff")).toBeVisible();
+  await expect(page.getByText(correctedSummary)).toBeVisible();
+  await expect(page.getByText("AI suggestion edited")).toBeVisible();
 
   const detailResponse = await page.request.get(`/api/v1/leads/${page.url().split("/").at(-1)}`);
   expect(detailResponse.ok()).toBeTruthy();

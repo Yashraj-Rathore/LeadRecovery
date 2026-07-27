@@ -270,9 +270,12 @@ All AI output must be structured, versioned, confidence-scored, and editable by 
 
 LR-0701 implements the optional provider-neutral request/result contract,
 version 1.0 strict local validator, and an OpenAI Responses API adapter with
-bounded redacted input, timeouts, retries, and typed failures. It does not yet
-invoke or persist analysis, expose suggestions to staff, or send a suggested
-reply. Editable review and workflow fallback remain LR-0702 and LR-0703.
+bounded redacted input, timeouts, retries, and typed failures. LR-0701 itself
+does not invoke or persist analysis or send a suggested reply. LR-0702 now
+persists the immutable suggestion and provides authorized
+staff accept/edit/reject review with low-confidence labels and redacted audit.
+Reviewing a suggested reply never sends it. Workflow invocation and fallback
+remain LR-0703.
 
 ### FR-007 Reporting
 

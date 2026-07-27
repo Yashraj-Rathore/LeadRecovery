@@ -23,8 +23,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 6 are complete. LR-0101 through LR-0604 and LR-0701 are
-implemented.
+Milestones 0 through 6 are complete. LR-0101 through LR-0604, LR-0701, and
+LR-0702 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -49,9 +49,11 @@ LR-0701 adds a provider-neutral analysis contract, independent strict schema
 validation, and an optional OpenAI Responses API adapter. The adapter is
 disabled by default, sends a redacted and bounded recent transcript with
 `store: false`, and returns typed failures for timeouts, refusals, HTTP errors,
-or invalid output. It does not yet persist suggestions, invoke analysis from a
-workflow, expose AI controls in the dashboard, or send customer-facing text;
-those remain LR-0702 and LR-0703.
+or invalid output. LR-0702 now persists immutable validated suggestions and
+adds tenant-scoped accept, correct, and reject controls with low-confidence
+labels, optimistic review concurrency, and redacted audit history. Suggested
+replies remain visibly unsent drafts and no review action creates a Message or
+ScheduledAction. Automatic invocation and outage fallback remain LR-0703.
 
 The currently implemented browser and health contract is:
 
@@ -64,6 +66,9 @@ The currently implemented browser and health contract is:
   `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
   assignees, ordered timeline, structured qualification answers, approved
   booking destination, pending actions, and allowed transitions;
+- Lead detail also projects immutable AI suggestions and separate staff review
+  values; accept/edit/reject routes use CSRF, operator roles, tenant scope, and
+  an opaque analysis version without sending customer content;
 - lead assignment, transition, note, manual-message, pause, and resume endpoints
   are CSRF-protected and restricted to Owner, Manager, and Staff memberships;
 - booking-link queue and pending-action cancellation endpoints use the same
@@ -98,7 +103,7 @@ The currently implemented browser and health contract is:
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.17.0 | Frontend and Playwright runtime |
 | pnpm | 11.10.0 | Locked frontend workspace package manager |
-| Next.js | 16.2.10 | Same-origin browser shell |
+| Next.js | 16.2.11 | Same-origin browser shell |
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
@@ -168,6 +173,10 @@ when `AI_ENABLED=true`; provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
 `templates/.env.example`. The current Worker has no analysis job yet, so
 enabling this registration alone does not persist a suggestion or send any
 customer-facing content.
+
+The fictional demo seed includes one pending low-confidence analysis so the
+LR-0702 review workflow can be demonstrated without enabling AI or providing an
+API key.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the worker separately after setting
@@ -707,9 +716,12 @@ All AI output must be structured, versioned, confidence-scored, and editable by 
 
 LR-0701 implements the optional provider-neutral request/result contract,
 version 1.0 strict local validator, and an OpenAI Responses API adapter with
-bounded redacted input, timeouts, retries, and typed failures. It does not yet
-invoke or persist analysis, expose suggestions to staff, or send a suggested
-reply. Editable review and workflow fallback remain LR-0702 and LR-0703.
+bounded redacted input, timeouts, retries, and typed failures. LR-0701 itself
+does not invoke or persist analysis or send a suggested reply. LR-0702 now
+persists the immutable suggestion and provides authorized
+staff accept/edit/reject review with low-confidence labels and redacted audit.
+Reviewing a suggested reply never sends it. Workflow invocation and fallback
+remain LR-0703.
 
 ### FR-007 Reporting
 
@@ -950,8 +962,16 @@ LR-0701 adds a provider-neutral Application analysis interface and strict
 validator plus an optional Infrastructure OpenAI Responses API adapter. The
 Worker registers it only when explicitly enabled, but no job invokes analysis
 yet. Provider translation, bounded retry/timeout, minimum-data redaction, and
-response-envelope handling remain outside Domain and Application. Persistence,
-workflow invocation, and dashboard review remain LR-0702/LR-0703.
+response-envelope handling remain outside Domain and Application. At LR-0701,
+persistence, workflow invocation, and dashboard review were deferred to
+LR-0702/LR-0703.
+
+LR-0702 adds tenant-filtered `AiAnalysis` persistence and a staff-only review
+use case to the existing Lead dashboard module. Original suggestions remain
+immutable; accepted or corrected values and reviewer metadata are stored
+separately behind an opaque concurrency version. Accept/edit/reject writes are
+CSRF-protected and audited, but enqueue no customer work. The Worker still has
+no analysis job; invocation and fallback remain LR-0703.
 
 ### 4.4 PostgreSQL
 
@@ -1090,7 +1110,8 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0013: SMS worker and webhook lifecycle;
 - ADR-0014: operational dashboard and manual SMS;
 - ADR-0015: deterministic qualification, booking, and follow-up;
-- ADR-0016: structured lead-analysis adapter.
+- ADR-0016: structured lead-analysis adapter;
+- ADR-0017: human-reviewed AI analysis.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -1625,23 +1646,34 @@ later integration handlers must authorize its system-level access explicitly.
 - `Provider`
 - `ModelReference`
 - `InputHash`
+- `AllowedCategoriesJson`
 - `CategorySuggestion`
 - `UrgencySuggestion`
 - `Summary`
+- optional extracted city, postal code, and callback window
+- optional `SuggestedReply`
 - `Confidence`
 - `RequiresHumanReview`
 - `ReasonCodesJson`
 - `RawStructuredOutputJson`
-- `AcceptedByUserId` nullable
-- `AcceptedAtUtc` nullable
+- `ReviewStatus` - Pending, Accepted, Edited, Rejected
+- separate reviewed category, urgency, summary, extracted fields, and suggested
+  reply, nullable until accepted or edited
+- `CorrectionReason` nullable
+- `ReviewedByUserId` nullable
+- `ReviewedAtUtc` nullable
+- `Version` application-managed `bigint` concurrency token
 - `CreatedAtUtc`
 
 Do not store hidden chain-of-thought or unnecessary provider metadata.
 
-LR-0701 defines and validates the structured suggestion in memory only. The
-`AiAnalysis` entity, migration, input-hash deduplication, acceptance fields, and
-tenant dashboard projection remain LR-0702/LR-0703 and are not present in the
-current database schema.
+LR-0702 persists this tenant-owned record. Original suggestion fields and the
+validated structured JSON are immutable; a one-way
+`Pending -> Accepted|Edited|Rejected` review stores staff values separately.
+`(TenantId, LeadId, SchemaVersion, InputHash)` prevents duplicate analysis of
+the same input and schema, while compound Lead and reviewer-membership foreign
+keys enforce tenant ownership. The dashboard exposes `Version` as an opaque
+review token. LR-0703 still owns workflow invocation and failure routing.
 
 ### AuditEvent
 
@@ -1860,8 +1892,10 @@ The Milestone 5 endpoint returns the inbox summary plus a consistently ordered
 plain-text timeline of call, SMS, system, and internal-note events; pending or
 running actions; active tenant assignees; and domain-allowed transitions. It
 returns `404` for an unknown ID and for an ID owned by another tenant. Polling
-and conflict-refresh behavior are defined in the frontend specification. AI
-suggestions remain a later milestone.
+and conflict-refresh behavior are defined in the frontend specification.
+LR-0702 also returns tenant-scoped AI suggestions, original confidence/review
+flags, separate staff-reviewed values, reviewer metadata, and an opaque review
+version.
 
 The dashboard write endpoints below are implemented and included in
 `api/openapi.yaml`. They require an authenticated Owner, Manager, or Staff
@@ -1901,6 +1935,20 @@ target must be an active membership of the authenticated tenant; null unassigns.
 ### Add internal note
 
 `POST /api/v1/leads/{leadId}/notes`
+
+### Review an AI suggestion
+
+- `POST /api/v1/leads/{leadId}/ai-analyses/{analysisId}/accept`
+- `POST /api/v1/leads/{leadId}/ai-analyses/{analysisId}/edit`
+- `POST /api/v1/leads/{leadId}/ai-analyses/{analysisId}/reject`
+
+LR-0702 routes require Owner, Manager, or Staff authorization, CSRF, Lead and
+analysis ownership in the active tenant, and the current opaque analysis row
+version. An edit accepts only the analysis category snapshot or `Unknown`, a
+defined urgency, bounded summary/extracted/draft fields, and an optional
+correction reason. Reviews are terminal and return the refreshed Lead detail.
+They persist staff guidance and a redacted audit event only; they never create
+a customer Message or ScheduledAction.
 
 Assignment, transitions, pause, and resume return `409` with the current safe
 Lead representation when the opaque expected row version is stale. Pause
@@ -2114,8 +2162,10 @@ Every attempt has a configured 1-30 second timeout. Network failures and HTTP
 408, 409, 429, and 5xx responses receive at most two bounded exponential-delay
 retries. Refusal, non-transient HTTP failure, an invalid provider envelope, or
 locally schema-invalid output returns a typed failure with no suggestion.
-LR-0701 does not persist or invoke analysis and does not send the suggested
-reply; those application flows remain LR-0702 and LR-0703.
+LR-0702 now persists validated suggestions and provides staff review, but no
+production workflow invokes the adapter yet. Suggested replies are never sent
+by review routes. Workflow invocation and provider-failure fallback remain
+LR-0703.
 
 ## 12. Webhook idempotency algorithm
 
@@ -2267,8 +2317,8 @@ phone, and pending-action display. Milestone 6 adds structured qualification
 answers and the current unanswered prompt, the approved booking destination,
 booking-link queueing for active Qualified Leads, and cancellation buttons for
 Pending actions. Marking `Booked` removes pending automated follow-ups from the
-view after the server transaction. Category/urgency editing and AI summary
-controls remain their owning later issues.
+view after the server transaction. Direct Lead category/urgency editing remains
+a later issue.
 
 A pre-LR-0702 visual and usability refresh applies one tokenized interface
 system to login, inbox, and Lead detail without adding new product navigation or
@@ -2280,6 +2330,15 @@ and 390-pixel mobile layouts preserve essential controls without horizontal
 overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
 high-contrast outline, and reduced-motion and increased-contrast preferences
 are respected.
+
+LR-0702 adds a prominent responsive review card before the conversation/action
+grid whenever analyses exist. It always says that content is AI-generated,
+shows confidence as a percentage plus text, and gives sub-65% suggestions a
+human-review warning that is not color-only. Owner, Manager, and Staff may
+accept, edit all structured staff-facing values, optionally explain a
+correction, or reject. ReadOnly users can inspect the result without controls.
+The suggested reply is labeled as an unsent draft, and the review footer states
+that no review action sends or schedules customer communication.
 
 ### 3.4 Settings - Business
 
@@ -2549,6 +2608,12 @@ The UI must allow staff to:
 
 Corrections are used for product evaluation, not model training unless a separate consented process is created.
 
+LR-0702 implements this review as a one-way staff decision while retaining the
+immutable original output. Low confidence below `0.65` is prominently labeled
+and never applied automatically. Audits record the decision and corrected field
+names without copying summaries, extracted customer data, draft replies, or
+correction text. Review routes create no customer-facing action.
+
 ## 11. Evaluation set
 
 Create a fictional test set with at least 100 messages covering:
@@ -2751,6 +2816,13 @@ hashed tenant safety identifier replaces raw TenantId. Provider logs contain
 only provider/model, attempt count, and bounded outcome; they exclude keys,
 request/response bodies, and contact details. Strict local validation treats
 every provider response as untrusted.
+
+LR-0702 stores analyses behind the same tenant query/write guards and compound
+Lead ownership as other tenant records. Owner, Manager, and Staff reviews
+require CSRF and current membership; ReadOnly receives `403`, and cross-tenant
+Lead or analysis IDs return `404`. Reviewer identity is bound to a same-tenant
+membership. Review audits contain status and corrected field names only, not
+customer summary/extracted content, suggested replies, or correction text.
 
 ## 8. Secrets management
 
@@ -3018,6 +3090,14 @@ confidence/safety review policy. Fake-HTTP provider contract tests inspect the
 strict Responses API request, `store: false`, recent-context limits, phone/email
 masking, raw-tenant omission, transient retry cap, timeout, refusal, and invalid
 output. No test calls a live AI provider or needs an API key.
+
+LR-0702 adds domain coverage for immutable suggestions and terminal
+accept/edit/reject transitions; Application validation coverage; and real
+PostgreSQL/API tests for migration constraints, CSRF, operator authorization,
+cross-tenant denial, optimistic review concurrency, redacted correction audit,
+and the absence of Message/ScheduledAction side effects. Playwright verifies
+the AI label, low-confidence warning, unsent-draft guardrail, staff correction,
+and visible audited timeline result using fictional seed data.
 
 ## 3. Test environments
 
@@ -4511,6 +4591,16 @@ LR-0702 and LR-0703.
 - low confidence clearly marked;
 - customer-facing action not automatic.
 
+Implementation note (2026-07-27): complete. Tenant-owned analyses preserve the
+original validated structured output and input-hash/category snapshot while a
+separate terminal review stores accepted or corrected values, rejection,
+optional evaluation reason, reviewer, time, and opaque concurrency version.
+The Lead detail UI explicitly labels AI content, marks low confidence, exposes
+accept/edit/reject only to dashboard operators, and labels suggested replies as
+unsent drafts. Review actions are CSRF-protected, tenant-scoped, and redacted in
+audit; they create no Message or ScheduledAction. Automatic invocation and
+provider-outage fallback remain LR-0703.
+
 ### LR-0703 AI fallback
 
 **Acceptance:**
@@ -4985,6 +5075,7 @@ updated in the same change so they remain aligned.
 | [0014](0014-operational-dashboard-and-manual-sms.md) | Operational dashboard and manual SMS | Accepted |
 | [0015](0015-deterministic-qualification-booking-and-follow-up.md) | Deterministic qualification, booking, and follow-up | Accepted |
 | [0016](0016-structured-lead-analysis-adapter.md) | Structured lead-analysis adapter | Accepted |
+| [0017](0017-human-reviewed-ai-analysis.md) | Human-reviewed AI analysis | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -5069,7 +5160,7 @@ Use this foundation baseline:
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 |
 | Node.js | 24.17.0 |
 | pnpm | 11.10.0 |
-| Next.js | 16.2.10 |
+| Next.js | 16.2.11 |
 | React and React DOM | 19.2.7 |
 | TypeScript | 6.0.3 |
 
@@ -5863,6 +5954,68 @@ representative evaluations can choose a more suitable cost/latency tier later.
 - [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [OpenAI Responses API create reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
 - [OpenAI GPT-5.6 Sol model](https://developers.openai.com/api/docs/models/gpt-5.6-sol)
+
+---
+
+<!-- SOURCE: docs/decisions/0017-human-reviewed-ai-analysis.md -->
+
+# ADR-0017: Human-reviewed AI analysis
+
+- Status: Accepted
+- Date: 2026-07-27
+- Decision owners: LeadRecovery maintainers
+
+## Context
+
+LR-0702 requires staff to see, accept, edit, or reject AI suggestions while
+preserving the rule that AI cannot control the workflow or send customer-facing
+content. The preliminary `AiAnalysis` field list documented acceptance
+metadata, but the backlog also requires edits, rejection, correction audit, and
+clear low-confidence handling.
+
+A review must retain the original validated output for evaluation, prevent
+cross-tenant access, survive concurrent staff activity, and avoid copying
+conversation summaries or draft replies into the audit ledger.
+
+## Decision
+
+1. A tenant-owned `AiAnalysis` stores the immutable validated suggestion,
+   provider/model reference, schema version, allowed-category snapshot,
+   SHA-256 input hash, confidence, review flag, reason codes, and structured
+   output. `(TenantId, LeadId, SchemaVersion, InputHash)` is unique.
+2. Review state is explicit and one-way:
+   `Pending -> Accepted|Edited|Rejected`. A separate application-managed
+   `bigint Version` provides an opaque review concurrency token.
+3. Acceptance copies the immutable suggestion into reviewed values. Editing
+   stores staff values separately and validates category against the analysis
+   snapshot plus the reserved `Unknown` choice. Rejection stores no reviewed
+   values. The original suggestion is never overwritten.
+4. Owner, Manager, and Staff memberships may review. ReadOnly users may inspect
+   the suggestion but receive `403` for writes. Session-derived tenant filters,
+   compound tenant foreign keys, CSRF, and tenant membership revalidation apply
+   to every review route.
+5. Audit events store the reviewer, decision, analysis/Lead identity, changed
+   field names, and whether a correction reason exists. They do not copy the
+   summary, extracted customer data, suggested reply, or correction text.
+6. The dashboard always labels AI-generated content, shows the original
+   confidence, requires prominent review treatment below `0.65`, and labels a
+   suggested reply as an unsent draft. Accept/edit/reject persist staff
+   guidance only; they create no Message or ScheduledAction.
+7. LR-0702 does not invoke the provider. The fictional demo seed supplies a
+   pending low-confidence suggestion so the review UI is reproducible without
+   an API key. Automatic workflow invocation, durable failure handling,
+   `NeedsHuman` fallback, and retry-storm prevention remain LR-0703.
+
+## Consequences
+
+- Staff corrections and the original model output can be compared without
+  ambiguity.
+- A completed review is immutable; a future re-review feature would require a
+  new audited decision or analysis rather than rewriting history.
+- Category snapshots prevent a later workflow edit from invalidating the
+  historical review choices, at the cost of small per-analysis JSON storage.
+- Suggested replies remain operational drafts. Sending one still requires the
+  separate explicit manual-SMS workflow and its existing policy checks.
 
 ---
 

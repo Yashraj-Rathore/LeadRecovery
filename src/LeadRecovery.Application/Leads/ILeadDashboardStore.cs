@@ -67,4 +67,14 @@ public interface ILeadDashboardStore
         string correlationId,
         DateTimeOffset now,
         CancellationToken cancellationToken);
+
+    Task<LeadOperationResult> ReviewAnalysisAsync(
+        Guid leadId,
+        Guid analysisId,
+        ReviewLeadAnalysisCommand command,
+        long expectedVersion,
+        Guid actorUserId,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
 }

@@ -403,6 +403,16 @@ LR-0702 and LR-0703.
 - low confidence clearly marked;
 - customer-facing action not automatic.
 
+Implementation note (2026-07-27): complete. Tenant-owned analyses preserve the
+original validated structured output and input-hash/category snapshot while a
+separate terminal review stores accepted or corrected values, rejection,
+optional evaluation reason, reviewer, time, and opaque concurrency version.
+The Lead detail UI explicitly labels AI content, marks low confidence, exposes
+accept/edit/reject only to dashboard operators, and labels suggested replies as
+unsent drafts. Review actions are CSRF-protected, tenant-scoped, and redacted in
+audit; they create no Message or ScheduledAction. Automatic invocation and
+provider-outage fallback remain LR-0703.
+
 ### LR-0703 AI fallback
 
 **Acceptance:**

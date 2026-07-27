@@ -75,8 +75,8 @@ All notable repository and product-specification changes are recorded here.
   cross-tenant identifiers.
 - Minimal pinned pnpm/Next.js workspace with an accessible login screen,
   authenticated tenant lead inbox, empty/error states, and logout control.
-- Pinned the patched PostCSS 8.5.10 transitive override used by Next.js to
-  eliminate the reported CSS-stringification XSS advisory.
+- Pinned Next.js 16.2.11 plus patched PostCSS 8.5.18 and Sharp 0.35.0
+  transitive overrides to clear the current high-severity frontend advisories.
 - Opt-in fictional demo seeding whose credentials and phone values must be
   supplied through configuration.
 - PostgreSQL authentication/authorization integration coverage and Playwright
@@ -174,6 +174,17 @@ All notable repository and product-specification changes are recorded here.
   `gpt-5.6-sol` default, data minimization, failure classification, and the
   deferral of persistence, workflow invocation, and staff review to LR-0702/
   LR-0703.
+- LR-0702 tenant-owned `AiAnalysis` persistence with immutable validated
+  suggestions, input-hash deduplication, allowed-category snapshots, explicit
+  pending/accepted/edited/rejected review state, and opaque optimistic
+  concurrency.
+- Staff-only, CSRF-protected AI review endpoints and Lead detail controls with
+  clear AI/low-confidence labels, full structured correction, optional reasons,
+  rejection, ReadOnly display, and explicit unsent-draft/customer-action
+  guardrails.
+- Redacted correction audits, fictional no-provider demo analysis, domain,
+  Application, PostgreSQL/API authorization, and Playwright review coverage,
+  plus ADR-0017 documenting the no-customer-side-effect review boundary.
 
 ### Changed
 

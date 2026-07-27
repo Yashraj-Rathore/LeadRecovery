@@ -1,3 +1,4 @@
+using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Automations;
 using LeadRecovery.Domain.Leads;
 
@@ -50,6 +51,23 @@ public sealed record AssignableUserItem(
     string DisplayName,
     string Role);
 
+public sealed record AiAnalysisReviewItem(
+    Guid Id,
+    string SchemaVersion,
+    IReadOnlyList<string> AllowedCategories,
+    AiAnalysisValues Suggestion,
+    double Confidence,
+    bool RequiresHumanReview,
+    IReadOnlyList<string> ReasonCodes,
+    AiAnalysisReviewStatus ReviewStatus,
+    AiAnalysisValues? ReviewedValues,
+    string? CorrectionReason,
+    Guid? ReviewedByUserId,
+    string? ReviewedByUserName,
+    DateTimeOffset? ReviewedAtUtc,
+    long Version,
+    DateTimeOffset CreatedAtUtc);
+
 public sealed record LeadDetail(
     LeadInboxItem Lead,
     IReadOnlyList<LeadTimelineItem> Timeline,
@@ -58,7 +76,20 @@ public sealed record LeadDetail(
     IReadOnlyList<LeadStatus> AllowedTransitions,
     IReadOnlyList<QualificationAnswerItem> QualificationAnswers,
     string? CurrentQualificationQuestion,
-    string? BookingUrl);
+    string? BookingUrl,
+    IReadOnlyList<AiAnalysisReviewItem> AiAnalyses);
+
+public enum LeadAnalysisReviewAction
+{
+    Accept,
+    Edit,
+    Reject,
+}
+
+public sealed record ReviewLeadAnalysisCommand(
+    LeadAnalysisReviewAction Action,
+    AiAnalysisValues? EditedValues,
+    string? CorrectionReason);
 
 public enum LeadOperationStatus
 {

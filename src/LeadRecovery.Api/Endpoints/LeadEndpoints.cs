@@ -4,6 +4,7 @@ using System.Security.Claims;
 using LeadRecovery.Application.Authorization;
 using LeadRecovery.Application.Leads;
 using LeadRecovery.Contracts.Leads;
+using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Leads;
 
 using Microsoft.AspNetCore.Antiforgery;
@@ -385,7 +386,143 @@ internal static class LeadEndpoints
                 })
             .RequireAuthorization(AuthorizationPolicies.DashboardOperator);
 
+        leads.MapPost(
+                "/{leadId:guid}/ai-analyses/{analysisId:guid}/accept",
+                async Task<IResult> (
+                    Guid leadId,
+                    Guid analysisId,
+                    AcceptAiAnalysisRequest request,
+                    HttpContext context,
+                    IAntiforgery antiforgery,
+                    LeadDashboardUseCase useCase,
+                    CancellationToken cancellationToken) =>
+                    await MutateAnalysis(
+                        context,
+                        antiforgery,
+                        leadId,
+                        analysisId,
+                        request.ExpectedRowVersion,
+                        new ReviewLeadAnalysisCommand(
+                            LeadAnalysisReviewAction.Accept,
+                            null,
+                            request.CorrectionReason),
+                        useCase,
+                        cancellationToken))
+            .RequireAuthorization(AuthorizationPolicies.DashboardOperator);
+
+        leads.MapPost(
+                "/{leadId:guid}/ai-analyses/{analysisId:guid}/edit",
+                async Task<IResult> (
+                    Guid leadId,
+                    Guid analysisId,
+                    EditAiAnalysisRequest request,
+                    HttpContext context,
+                    IAntiforgery antiforgery,
+                    LeadDashboardUseCase useCase,
+                    CancellationToken cancellationToken) =>
+                {
+                    if (!Enum.TryParse(
+                            request.Urgency,
+                            ignoreCase: true,
+                            out LeadUrgency urgency) ||
+                        !Enum.IsDefined(urgency))
+                    {
+                        return Validation("urgency", "The urgency value is invalid.");
+                    }
+
+                    AiAnalysisValues values = new(
+                        request.ServiceCategory,
+                        urgency,
+                        request.Summary,
+                        request.City,
+                        request.PostalCode,
+                        request.PreferredCallbackWindow,
+                        request.SuggestedReply);
+                    return await MutateAnalysis(
+                        context,
+                        antiforgery,
+                        leadId,
+                        analysisId,
+                        request.ExpectedRowVersion,
+                        new ReviewLeadAnalysisCommand(
+                            LeadAnalysisReviewAction.Edit,
+                            values,
+                            request.CorrectionReason),
+                        useCase,
+                        cancellationToken);
+                })
+            .RequireAuthorization(AuthorizationPolicies.DashboardOperator);
+
+        leads.MapPost(
+                "/{leadId:guid}/ai-analyses/{analysisId:guid}/reject",
+                async Task<IResult> (
+                    Guid leadId,
+                    Guid analysisId,
+                    RejectAiAnalysisRequest request,
+                    HttpContext context,
+                    IAntiforgery antiforgery,
+                    LeadDashboardUseCase useCase,
+                    CancellationToken cancellationToken) =>
+                    await MutateAnalysis(
+                        context,
+                        antiforgery,
+                        leadId,
+                        analysisId,
+                        request.ExpectedRowVersion,
+                        new ReviewLeadAnalysisCommand(
+                            LeadAnalysisReviewAction.Reject,
+                            null,
+                            request.CorrectionReason),
+                        useCase,
+                        cancellationToken))
+            .RequireAuthorization(AuthorizationPolicies.DashboardOperator);
+
         return endpoints;
+    }
+
+    private static async Task<IResult> MutateAnalysis(
+        HttpContext context,
+        IAntiforgery antiforgery,
+        Guid leadId,
+        Guid analysisId,
+        string expectedRowVersion,
+        ReviewLeadAnalysisCommand command,
+        LeadDashboardUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        if (!await IsAntiforgeryRequestValid(antiforgery, context))
+        {
+            return AntiforgeryFailure();
+        }
+
+        if (!TryGetUserId(context.User, out Guid actorId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!TryDecodeVersion(expectedRowVersion, out long expectedVersion))
+        {
+            return Validation(
+                "expectedRowVersion",
+                "The expected row version is invalid.");
+        }
+
+        try
+        {
+            LeadOperationResult result = await useCase.ReviewAnalysisAsync(
+                leadId,
+                analysisId,
+                command,
+                expectedVersion,
+                actorId,
+                context.TraceIdentifier,
+                cancellationToken);
+            return await MapOperation(result, leadId, useCase, cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            return Validation(exception);
+        }
     }
 
     private static async Task<IResult> Mutate(
@@ -512,7 +649,35 @@ internal static class LeadEndpoints
                 answer.Outcome,
                 answer.CreatedAtUtc)).ToArray(),
             detail.CurrentQualificationQuestion,
-            detail.BookingUrl);
+            detail.BookingUrl,
+            detail.AiAnalyses.Select(analysis => new AiAnalysisReviewResponse(
+                analysis.Id,
+                analysis.SchemaVersion,
+                analysis.AllowedCategories,
+                Map(analysis.Suggestion),
+                analysis.Confidence,
+                analysis.RequiresHumanReview,
+                analysis.ReasonCodes,
+                analysis.ReviewStatus.ToString(),
+                analysis.ReviewedValues is null
+                    ? null
+                    : Map(analysis.ReviewedValues),
+                analysis.CorrectionReason,
+                analysis.ReviewedByUserId,
+                analysis.ReviewedByUserName,
+                analysis.ReviewedAtUtc,
+                EncodeVersion(analysis.Version),
+                analysis.CreatedAtUtc)).ToArray());
+
+    private static AiAnalysisValuesResponse Map(AiAnalysisValues values) =>
+        new(
+            values.ServiceCategory,
+            values.Urgency.ToString(),
+            values.Summary,
+            values.City,
+            values.PostalCode,
+            values.PreferredCallbackWindow,
+            values.SuggestedReply);
 
     private static LeadTimelineItemResponse Map(LeadTimelineItem item) =>
         new(

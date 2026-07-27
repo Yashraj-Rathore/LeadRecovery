@@ -139,6 +139,14 @@ strict Responses API request, `store: false`, recent-context limits, phone/email
 masking, raw-tenant omission, transient retry cap, timeout, refusal, and invalid
 output. No test calls a live AI provider or needs an API key.
 
+LR-0702 adds domain coverage for immutable suggestions and terminal
+accept/edit/reject transitions; Application validation coverage; and real
+PostgreSQL/API tests for migration constraints, CSRF, operator authorization,
+cross-tenant denial, optimistic review concurrency, redacted correction audit,
+and the absence of Message/ScheduledAction side effects. Playwright verifies
+the AI label, low-confidence warning, unsent-draft guardrail, staff correction,
+and visible audited timeline result using fictional seed data.
+
 ## 3. Test environments
 
 ### Local

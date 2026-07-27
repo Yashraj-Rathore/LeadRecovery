@@ -16,8 +16,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 6 are complete. LR-0101 through LR-0604 and LR-0701 are
-implemented.
+Milestones 0 through 6 are complete. LR-0101 through LR-0604, LR-0701, and
+LR-0702 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -42,9 +42,11 @@ LR-0701 adds a provider-neutral analysis contract, independent strict schema
 validation, and an optional OpenAI Responses API adapter. The adapter is
 disabled by default, sends a redacted and bounded recent transcript with
 `store: false`, and returns typed failures for timeouts, refusals, HTTP errors,
-or invalid output. It does not yet persist suggestions, invoke analysis from a
-workflow, expose AI controls in the dashboard, or send customer-facing text;
-those remain LR-0702 and LR-0703.
+or invalid output. LR-0702 now persists immutable validated suggestions and
+adds tenant-scoped accept, correct, and reject controls with low-confidence
+labels, optimistic review concurrency, and redacted audit history. Suggested
+replies remain visibly unsent drafts and no review action creates a Message or
+ScheduledAction. Automatic invocation and outage fallback remain LR-0703.
 
 The currently implemented browser and health contract is:
 
@@ -57,6 +59,9 @@ The currently implemented browser and health contract is:
   `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
   assignees, ordered timeline, structured qualification answers, approved
   booking destination, pending actions, and allowed transitions;
+- Lead detail also projects immutable AI suggestions and separate staff review
+  values; accept/edit/reject routes use CSRF, operator roles, tenant scope, and
+  an opaque analysis version without sending customer content;
 - lead assignment, transition, note, manual-message, pause, and resume endpoints
   are CSRF-protected and restricted to Owner, Manager, and Staff memberships;
 - booking-link queue and pending-action cancellation endpoints use the same
@@ -91,7 +96,7 @@ The currently implemented browser and health contract is:
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.17.0 | Frontend and Playwright runtime |
 | pnpm | 11.10.0 | Locked frontend workspace package manager |
-| Next.js | 16.2.10 | Same-origin browser shell |
+| Next.js | 16.2.11 | Same-origin browser shell |
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
@@ -161,6 +166,10 @@ when `AI_ENABLED=true`; provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
 `templates/.env.example`. The current Worker has no analysis job yet, so
 enabling this registration alone does not persist a suggestion or send any
 customer-facing content.
+
+The fictional demo seed includes one pending low-confidence analysis so the
+LR-0702 review workflow can be demonstrated without enabling AI or providing an
+API key.
 
 With the API running, check `http://localhost:8080/health/live` and
 `http://localhost:8080/health/ready`. Start the worker separately after setting

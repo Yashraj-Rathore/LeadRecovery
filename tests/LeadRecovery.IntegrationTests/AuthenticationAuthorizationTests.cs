@@ -10,6 +10,7 @@ using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Contracts.Authentication;
 using LeadRecovery.Contracts.Leads;
+using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Automations;
 using LeadRecovery.Domain.Customers;
 using LeadRecovery.Domain.Identity;
@@ -307,6 +308,152 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
         Assert.Contains("LeadAssigned", auditActions);
         Assert.Contains("LeadStatusChanged", auditActions);
         Assert.Contains("LeadAutomationPaused", auditActions);
+    }
+
+    [Fact]
+    public async Task AiReviewIsStaffOnlyTenantScopedAuditedAndNeverSendsCustomerContent()
+    {
+        TenantData tenant = await SeedTenant();
+        UserData owner = await SeedUser(tenant, TenantRole.Owner, createLead: true);
+        UserData readOnly = await SeedUser(tenant, TenantRole.ReadOnly, createLead: false);
+        Guid leadId = Assert.IsType<Guid>(owner.LeadId);
+        AiAnalysisData acceptFixture = await SeedAiAnalysis(tenant, leadId, 'a');
+        AiAnalysisData editFixture = await SeedAiAnalysis(tenant, leadId, 'b');
+        AiAnalysisData rejectFixture = await SeedAiAnalysis(tenant, leadId, 'c');
+        using HttpClient ownerClient = CreateClient();
+        _ = await Login(ownerClient, owner);
+
+        LeadDetailResponse initial = Assert.IsType<LeadDetailResponse>(
+            await ownerClient.GetFromJsonAsync<LeadDetailResponse>(
+                $"/api/v1/leads/{leadId}",
+                TestContext.Current.CancellationToken));
+        AiAnalysisReviewResponse acceptSuggestion = Assert.Single(
+            initial.AiAnalyses,
+            analysis => analysis.Id == acceptFixture.AnalysisId);
+        AiAnalysisReviewResponse editSuggestion = Assert.Single(
+            initial.AiAnalyses,
+            analysis => analysis.Id == editFixture.AnalysisId);
+        AiAnalysisReviewResponse rejectSuggestion = Assert.Single(
+            initial.AiAnalyses,
+            analysis => analysis.Id == rejectFixture.AnalysisId);
+        Assert.Equal("Pending", acceptSuggestion.ReviewStatus);
+        Assert.True(acceptSuggestion.RequiresHumanReview);
+        Assert.True(acceptSuggestion.Confidence < 0.65);
+
+        using HttpResponseMessage missingCsrf = await ownerClient.PostAsJsonAsync(
+            $"/api/v1/leads/{leadId}/ai-analyses/{acceptFixture.AnalysisId}/accept",
+            new AcceptAiAnalysisRequest(acceptSuggestion.RowVersion, null),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, missingCsrf.StatusCode);
+
+        using HttpClient readOnlyClient = CreateClient();
+        _ = await Login(readOnlyClient, readOnly);
+        using HttpResponseMessage forbidden = await PostWithCsrf(
+            readOnlyClient,
+            $"/api/v1/leads/{leadId}/ai-analyses/{acceptFixture.AnalysisId}/accept",
+            new AcceptAiAnalysisRequest(acceptSuggestion.RowVersion, null));
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        TenantData otherTenant = await SeedTenant();
+        UserData otherOwner = await SeedUser(
+            otherTenant,
+            TenantRole.Owner,
+            createLead: false);
+        using HttpClient otherClient = CreateClient();
+        _ = await Login(otherClient, otherOwner);
+        using HttpResponseMessage crossTenant = await PostWithCsrf(
+            otherClient,
+            $"/api/v1/leads/{leadId}/ai-analyses/{acceptFixture.AnalysisId}/accept",
+            new AcceptAiAnalysisRequest(acceptSuggestion.RowVersion, null));
+        Assert.Equal(HttpStatusCode.NotFound, crossTenant.StatusCode);
+
+        using HttpResponseMessage acceptedResponse = await PostWithCsrf(
+            ownerClient,
+            $"/api/v1/leads/{leadId}/ai-analyses/{acceptFixture.AnalysisId}/accept",
+            new AcceptAiAnalysisRequest(acceptSuggestion.RowVersion, null));
+        acceptedResponse.EnsureSuccessStatusCode();
+        LeadDetailResponse accepted = Assert.IsType<LeadDetailResponse>(
+            await acceptedResponse.Content.ReadFromJsonAsync<LeadDetailResponse>(
+                TestContext.Current.CancellationToken));
+        AiAnalysisReviewResponse acceptedAnalysis = Assert.Single(
+            accepted.AiAnalyses,
+            analysis => analysis.Id == acceptFixture.AnalysisId);
+        Assert.Equal("Accepted", acceptedAnalysis.ReviewStatus);
+        Assert.Equal(acceptedAnalysis.Suggestion, acceptedAnalysis.ReviewedValues);
+
+        EditAiAnalysisRequest editRequest = new(
+            "DrainCleaning",
+            LeadUrgency.Normal.ToString(),
+            "Staff confirmed that the customer needs a drain cleaning visit.",
+            "Toronto",
+            "M5V",
+            "Tomorrow morning",
+            "Thanks. Our team will review your service request.",
+            "Customer clarified the requested service.",
+            editSuggestion.RowVersion);
+        using HttpResponseMessage editedResponse = await PostWithCsrf(
+            ownerClient,
+            $"/api/v1/leads/{leadId}/ai-analyses/{editFixture.AnalysisId}/edit",
+            editRequest);
+        editedResponse.EnsureSuccessStatusCode();
+        LeadDetailResponse edited = Assert.IsType<LeadDetailResponse>(
+            await editedResponse.Content.ReadFromJsonAsync<LeadDetailResponse>(
+                TestContext.Current.CancellationToken));
+        AiAnalysisReviewResponse editedAnalysis = Assert.Single(
+            edited.AiAnalyses,
+            analysis => analysis.Id == editFixture.AnalysisId);
+        Assert.Equal("Edited", editedAnalysis.ReviewStatus);
+        Assert.Equal("DrainCleaning", editedAnalysis.ReviewedValues?.ServiceCategory);
+        Assert.Equal(editRequest.Summary, editedAnalysis.ReviewedValues?.Summary);
+        Assert.Contains(edited.Timeline, item => item.Label == "AI suggestion edited");
+
+        using HttpResponseMessage rejectedResponse = await PostWithCsrf(
+            ownerClient,
+            $"/api/v1/leads/{leadId}/ai-analyses/{rejectFixture.AnalysisId}/reject",
+            new RejectAiAnalysisRequest(
+                rejectSuggestion.RowVersion,
+                "The conversation is too ambiguous."));
+        rejectedResponse.EnsureSuccessStatusCode();
+        LeadDetailResponse rejected = Assert.IsType<LeadDetailResponse>(
+            await rejectedResponse.Content.ReadFromJsonAsync<LeadDetailResponse>(
+                TestContext.Current.CancellationToken));
+        AiAnalysisReviewResponse rejectedAnalysis = Assert.Single(
+            rejected.AiAnalyses,
+            analysis => analysis.Id == rejectFixture.AnalysisId);
+        Assert.Equal("Rejected", rejectedAnalysis.ReviewStatus);
+        Assert.Null(rejectedAnalysis.ReviewedValues);
+
+        using HttpResponseMessage staleReview = await PostWithCsrf(
+            ownerClient,
+            $"/api/v1/leads/{leadId}/ai-analyses/{acceptFixture.AnalysisId}/accept",
+            new AcceptAiAnalysisRequest(acceptSuggestion.RowVersion, null));
+        Assert.Equal(HttpStatusCode.Conflict, staleReview.StatusCode);
+
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        Assert.Empty(await dbContext.Messages.IgnoreQueryFilters()
+            .Where(message => message.LeadId == leadId)
+            .ToArrayAsync(TestContext.Current.CancellationToken));
+        Assert.Empty(await dbContext.ScheduledActions.IgnoreQueryFilters()
+            .Where(action => action.LeadId == leadId)
+            .ToArrayAsync(TestContext.Current.CancellationToken));
+        var audits = await dbContext.AuditEvents
+            .Where(auditEvent =>
+                auditEvent.TenantId == tenant.TenantId &&
+                auditEvent.EntityType == nameof(AiAnalysis))
+            .ToArrayAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(audits, audit => audit.Action == "AiAnalysisAccepted");
+        Assert.Contains(audits, audit => audit.Action == "AiAnalysisEdited");
+        Assert.Contains(audits, audit => audit.Action == "AiAnalysisRejected");
+        string auditJson = string.Join(
+            string.Empty,
+            audits.Select(audit => audit.AfterJson));
+        Assert.DoesNotContain(editRequest.Summary, auditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Assert.IsType<string>(editRequest.SuggestedReply),
+            auditJson,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -719,6 +866,41 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
         return new TenantData(tenantId);
     }
 
+    private async Task<AiAnalysisData> SeedAiAnalysis(
+        TenantData tenant,
+        Guid leadId,
+        char hashCharacter)
+    {
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        using TenantClaimScope tenantClaim = new(scope.ServiceProvider, tenant.TenantId);
+        AiAnalysis analysis = new(
+            Guid.CreateVersion7(),
+            tenant.TenantId,
+            leadId,
+            "1.0",
+            "Test",
+            "fictional-integration-fixture",
+            new string(hashCharacter, AiAnalysisFieldLimits.InputHashLength),
+            ["LeakRepair", "DrainCleaning"],
+            new AiAnalysisValues(
+                "LeakRepair",
+                LeadUrgency.High,
+                "Customer reports an active leak and requests a callback.",
+                "Mississauga",
+                null,
+                "As soon as possible",
+                "Thanks. A team member will review this and contact you shortly."),
+            0.58,
+            requiresHumanReview: true,
+            ["ACTIVE_PROPERTY_DAMAGE"],
+            CreatedAtUtc.AddMinutes(1));
+        dbContext.AiAnalyses.Add(analysis);
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return new AiAnalysisData(analysis.Id);
+    }
+
     private async Task<UserData> SeedUser(
         TenantData tenant,
         TenantRole role,
@@ -855,6 +1037,8 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
     }
 
     private sealed record TenantData(Guid TenantId);
+
+    private sealed record AiAnalysisData(Guid AnalysisId);
 
     private sealed record UserData(
         Guid UserId,

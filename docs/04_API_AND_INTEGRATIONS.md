@@ -69,8 +69,10 @@ The Milestone 5 endpoint returns the inbox summary plus a consistently ordered
 plain-text timeline of call, SMS, system, and internal-note events; pending or
 running actions; active tenant assignees; and domain-allowed transitions. It
 returns `404` for an unknown ID and for an ID owned by another tenant. Polling
-and conflict-refresh behavior are defined in the frontend specification. AI
-suggestions remain a later milestone.
+and conflict-refresh behavior are defined in the frontend specification.
+LR-0702 also returns tenant-scoped AI suggestions, original confidence/review
+flags, separate staff-reviewed values, reviewer metadata, and an opaque review
+version.
 
 The dashboard write endpoints below are implemented and included in
 `api/openapi.yaml`. They require an authenticated Owner, Manager, or Staff
@@ -110,6 +112,20 @@ target must be an active membership of the authenticated tenant; null unassigns.
 ### Add internal note
 
 `POST /api/v1/leads/{leadId}/notes`
+
+### Review an AI suggestion
+
+- `POST /api/v1/leads/{leadId}/ai-analyses/{analysisId}/accept`
+- `POST /api/v1/leads/{leadId}/ai-analyses/{analysisId}/edit`
+- `POST /api/v1/leads/{leadId}/ai-analyses/{analysisId}/reject`
+
+LR-0702 routes require Owner, Manager, or Staff authorization, CSRF, Lead and
+analysis ownership in the active tenant, and the current opaque analysis row
+version. An edit accepts only the analysis category snapshot or `Unknown`, a
+defined urgency, bounded summary/extracted/draft fields, and an optional
+correction reason. Reviews are terminal and return the refreshed Lead detail.
+They persist staff guidance and a redacted audit event only; they never create
+a customer Message or ScheduledAction.
 
 Assignment, transitions, pause, and resume return `409` with the current safe
 Lead representation when the opaque expected row version is stale. Pause
@@ -323,8 +339,10 @@ Every attempt has a configured 1-30 second timeout. Network failures and HTTP
 408, 409, 429, and 5xx responses receive at most two bounded exponential-delay
 retries. Refusal, non-transient HTTP failure, an invalid provider envelope, or
 locally schema-invalid output returns a typed failure with no suggestion.
-LR-0701 does not persist or invoke analysis and does not send the suggested
-reply; those application flows remain LR-0702 and LR-0703.
+LR-0702 now persists validated suggestions and provides staff review, but no
+production workflow invokes the adapter yet. Suggested replies are never sent
+by review routes. Workflow invocation and provider-failure fallback remain
+LR-0703.
 
 ## 12. Webhook idempotency algorithm
 

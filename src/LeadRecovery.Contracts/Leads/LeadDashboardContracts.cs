@@ -33,6 +33,32 @@ public sealed record AssignableUserResponse(
     string DisplayName,
     string Role);
 
+public sealed record AiAnalysisValuesResponse(
+    string ServiceCategory,
+    string Urgency,
+    string Summary,
+    string? City,
+    string? PostalCode,
+    string? PreferredCallbackWindow,
+    string? SuggestedReply);
+
+public sealed record AiAnalysisReviewResponse(
+    Guid Id,
+    string SchemaVersion,
+    IReadOnlyList<string> AllowedCategories,
+    AiAnalysisValuesResponse Suggestion,
+    double Confidence,
+    bool RequiresHumanReview,
+    IReadOnlyList<string> ReasonCodes,
+    string ReviewStatus,
+    AiAnalysisValuesResponse? ReviewedValues,
+    string? CorrectionReason,
+    Guid? ReviewedByUserId,
+    string? ReviewedByUserName,
+    DateTimeOffset? ReviewedAtUtc,
+    string RowVersion,
+    DateTimeOffset CreatedAtUtc);
+
 public sealed record LeadDetailResponse(
     LeadSummaryResponse Lead,
     IReadOnlyList<LeadTimelineItemResponse> Timeline,
@@ -41,7 +67,8 @@ public sealed record LeadDetailResponse(
     IReadOnlyList<string> AllowedTransitions,
     IReadOnlyList<QualificationAnswerResponse> QualificationAnswers,
     string? CurrentQualificationQuestion,
-    string? BookingUrl);
+    string? BookingUrl,
+    IReadOnlyList<AiAnalysisReviewResponse> AiAnalyses);
 
 public sealed record AssignLeadRequest(
     Guid? AssignedUserId,
@@ -63,3 +90,22 @@ public sealed record ManualMessageRequest(
     string IdempotencyKey);
 
 public sealed record AddLeadNoteRequest(string Body);
+
+public sealed record AcceptAiAnalysisRequest(
+    string ExpectedRowVersion,
+    string? CorrectionReason);
+
+public sealed record EditAiAnalysisRequest(
+    string ServiceCategory,
+    string Urgency,
+    string Summary,
+    string? City,
+    string? PostalCode,
+    string? PreferredCallbackWindow,
+    string? SuggestedReply,
+    string? CorrectionReason,
+    string ExpectedRowVersion);
+
+public sealed record RejectAiAnalysisRequest(
+    string ExpectedRowVersion,
+    string? CorrectionReason);

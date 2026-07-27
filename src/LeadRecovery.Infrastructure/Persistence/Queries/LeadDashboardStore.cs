@@ -6,6 +6,7 @@ using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Leads;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Tenancy;
+using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Audit;
 using LeadRecovery.Domain.Automations;
 using LeadRecovery.Domain.Conversations;
@@ -98,13 +99,37 @@ internal sealed class LeadDashboardStore(
             })
             .ToListAsync(cancellationToken);
 
+        AiAnalysis[] analyses = await dbContext.AiAnalyses
+            .AsNoTracking()
+            .Where(analysis => analysis.LeadId == leadId)
+            .OrderByDescending(analysis => analysis.CreatedAtUtc)
+            .ThenByDescending(analysis => analysis.Id)
+            .ToArrayAsync(cancellationToken);
+        string[] analysisEntityIds = analyses
+            .Select(analysis => analysis.Id.ToString("N"))
+            .ToArray();
+        Guid[] reviewerIds = analyses
+            .Where(analysis => analysis.ReviewedByUserId != null)
+            .Select(analysis => analysis.ReviewedByUserId!.Value)
+            .Distinct()
+            .ToArray();
+        Dictionary<Guid, string> reviewerNames = await dbContext.Users
+            .AsNoTracking()
+            .Where(user => reviewerIds.Contains(user.Id))
+            .ToDictionaryAsync(
+                user => user.Id,
+                user => user.DisplayName,
+                cancellationToken);
+
         string entityId = leadId.ToString("N");
         var audits = await dbContext.AuditEvents
             .AsNoTracking()
             .Where(auditEvent =>
                 auditEvent.TenantId == tenantContext.TenantId &&
-                auditEvent.EntityType == nameof(Lead) &&
-                auditEvent.EntityId == entityId)
+                ((auditEvent.EntityType == nameof(Lead) &&
+                    auditEvent.EntityId == entityId) ||
+                    (auditEvent.EntityType == nameof(AiAnalysis) &&
+                    analysisEntityIds.Contains(auditEvent.EntityId))))
             .Select(auditEvent => new
             {
                 auditEvent.Id,
@@ -223,6 +248,27 @@ internal sealed class LeadDashboardStore(
         LeadStatus[] allowedTransitions = Enum.GetValues<LeadStatus>()
             .Where(target => LeadStatusTransitionPolicy.CanTransition(lead.Status, target))
             .ToArray();
+        AiAnalysisReviewItem[] analysisItems = analyses
+            .Select(analysis => new AiAnalysisReviewItem(
+                analysis.Id,
+                analysis.SchemaVersion,
+                analysis.GetAllowedCategories(),
+                analysis.GetSuggestion(),
+                analysis.Confidence,
+                analysis.RequiresHumanReview,
+                analysis.GetReasonCodes(),
+                analysis.ReviewStatus,
+                analysis.GetReviewedValues(),
+                analysis.CorrectionReason,
+                analysis.ReviewedByUserId,
+                analysis.ReviewedByUserId is Guid reviewerId &&
+                    reviewerNames.TryGetValue(reviewerId, out string? reviewerName)
+                        ? reviewerName
+                        : null,
+                analysis.ReviewedAtUtc,
+                analysis.Version,
+                analysis.CreatedAtUtc))
+            .ToArray();
         return new LeadDetail(
             lead,
             timeline,
@@ -231,7 +277,8 @@ internal sealed class LeadDashboardStore(
             allowedTransitions,
             qualificationAnswers,
             currentQualificationQuestion,
-            bookingUrl);
+            bookingUrl,
+            analysisItems);
     }
 
     public async Task<IReadOnlyList<AssignableUserItem>> ListAssignableUsersAsync(
@@ -791,6 +838,113 @@ internal sealed class LeadDashboardStore(
         return await Save(transaction, cancellationToken);
     }
 
+    public async Task<LeadOperationResult> ReviewAnalysisAsync(
+        Guid leadId,
+        Guid analysisId,
+        ReviewLeadAnalysisCommand command,
+        long expectedVersion,
+        Guid actorUserId,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        await using IDbContextTransaction transaction = await Begin(cancellationToken);
+        Lead? lead = await dbContext.Leads.SingleOrDefaultAsync(
+            candidate => candidate.Id == leadId,
+            cancellationToken);
+        if (lead is null)
+        {
+            return await Rollback(transaction, LeadOperationResult.NotFound(), cancellationToken);
+        }
+
+        AiAnalysis? analysis = await dbContext.AiAnalyses.SingleOrDefaultAsync(
+            candidate => candidate.Id == analysisId && candidate.LeadId == leadId,
+            cancellationToken);
+        if (analysis is null)
+        {
+            return await Rollback(transaction, LeadOperationResult.NotFound(), cancellationToken);
+        }
+
+        if (analysis.Version != expectedVersion)
+        {
+            return await Rollback(transaction, LeadOperationResult.Conflict(), cancellationToken);
+        }
+
+        if (!await IsActiveMember(actorUserId, cancellationToken))
+        {
+            return await Rollback(
+                transaction,
+                LeadOperationResult.PolicyBlocked(
+                    "The user is not an active tenant member."),
+                cancellationToken);
+        }
+
+        string[] changedFields = [];
+        try
+        {
+            switch (command.Action)
+            {
+                case LeadAnalysisReviewAction.Accept:
+                    analysis.Accept(actorUserId, command.CorrectionReason, now);
+                    break;
+                case LeadAnalysisReviewAction.Edit:
+                    AiAnalysisValues editedValues = command.EditedValues ??
+                        throw new ArgumentException("Edited values are required.");
+                    changedFields = GetChangedAnalysisFields(
+                        analysis.GetSuggestion(),
+                        editedValues);
+                    analysis.Edit(
+                        actorUserId,
+                        editedValues,
+                        command.CorrectionReason,
+                        now);
+                    break;
+                case LeadAnalysisReviewAction.Reject:
+                    analysis.Reject(actorUserId, command.CorrectionReason, now);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(command));
+            }
+        }
+        catch (ArgumentException exception)
+        {
+            return await Rollback(
+                transaction,
+                LeadOperationResult.Invalid(exception.Message),
+                cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return await Rollback(
+                transaction,
+                LeadOperationResult.Invalid(exception.Message),
+                cancellationToken);
+        }
+
+        dbContext.AuditEvents.Add(new AuditEvent(
+            Guid.CreateVersion7(),
+            lead.TenantId,
+            "User",
+            actorUserId.ToString(),
+            $"AiAnalysis{analysis.ReviewStatus}",
+            nameof(AiAnalysis),
+            analysis.Id.ToString("N"),
+            correlationId,
+            now,
+            beforeJson: JsonSerializer.Serialize(new
+            {
+                reviewStatus = AiAnalysisReviewStatus.Pending.ToString(),
+            }),
+            afterJson: JsonSerializer.Serialize(new
+            {
+                leadId = lead.Id,
+                reviewStatus = analysis.ReviewStatus.ToString(),
+                changedFields,
+                correctionReasonProvided = analysis.CorrectionReason is not null,
+            })));
+        return await Save(transaction, cancellationToken);
+    }
+
     private async Task<IDbContextTransaction> Begin(CancellationToken cancellationToken) =>
         await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
@@ -985,6 +1139,41 @@ internal sealed class LeadDashboardStore(
         }
     }
 
+    private static string[] GetChangedAnalysisFields(
+        AiAnalysisValues original,
+        AiAnalysisValues edited)
+    {
+        List<string> changed = [];
+        AddIfChanged(changed, "serviceCategory", original.ServiceCategory, edited.ServiceCategory);
+        AddIfChanged(changed, "urgency", original.Urgency, edited.Urgency);
+        AddIfChanged(changed, "summary", original.Summary, edited.Summary);
+        AddIfChanged(changed, "city", original.City, edited.City);
+        AddIfChanged(changed, "postalCode", original.PostalCode, edited.PostalCode);
+        AddIfChanged(
+            changed,
+            "preferredCallbackWindow",
+            original.PreferredCallbackWindow,
+            edited.PreferredCallbackWindow);
+        AddIfChanged(
+            changed,
+            "suggestedReply",
+            original.SuggestedReply,
+            edited.SuggestedReply);
+        return changed.ToArray();
+    }
+
+    private static void AddIfChanged<T>(
+        List<string> changed,
+        string field,
+        T original,
+        T edited)
+    {
+        if (!EqualityComparer<T>.Default.Equals(original, edited))
+        {
+            changed.Add(field);
+        }
+    }
+
     private static string GetAuditLabel(string action) => action switch
     {
         "MissedCallRecoveryScheduled" => "Missed call captured",
@@ -996,6 +1185,9 @@ internal sealed class LeadDashboardStore(
         "BookingLinkQueued" => "Booking link queued",
         "ScheduledActionCancelled" => "Scheduled action cancelled",
         "LeadNoteAdded" => "Internal note added",
+        "AiAnalysisAccepted" => "AI suggestion accepted",
+        "AiAnalysisEdited" => "AI suggestion edited",
+        "AiAnalysisRejected" => "AI suggestion rejected",
         _ => "Lead activity updated",
     };
 }

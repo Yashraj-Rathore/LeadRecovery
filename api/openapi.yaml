@@ -539,6 +539,93 @@ paths:
           description: ReadOnly or otherwise unauthorized membership.
         '404':
           description: Lead or action is not in the active tenant.
+  /leads/{leadId}/ai-analyses/{analysisId}/accept:
+    post:
+      tags: [Lead operations]
+      summary: Accept an immutable AI suggestion as staff-reviewed guidance
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/AnalysisId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptAiAnalysisRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery, review-state, or request validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead or analysis is not in the active tenant.
+        '409':
+          $ref: '#/components/responses/LeadConflict'
+  /leads/{leadId}/ai-analyses/{analysisId}/edit:
+    post:
+      tags: [Lead operations]
+      summary: Store staff-corrected values without overwriting the AI output
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/AnalysisId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditAiAnalysisRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery, category, urgency, field, or review-state validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead or analysis is not in the active tenant.
+        '409':
+          $ref: '#/components/responses/LeadConflict'
+  /leads/{leadId}/ai-analyses/{analysisId}/reject:
+    post:
+      tags: [Lead operations]
+      summary: Reject an AI suggestion with an optional evaluation reason
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/AnalysisId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectAiAnalysisRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LeadOperationSucceeded'
+        '400':
+          description: Antiforgery, review-state, or request validation failed.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: ReadOnly or otherwise unauthorized membership.
+        '404':
+          description: Lead or analysis is not in the active tenant.
+        '409':
+          $ref: '#/components/responses/LeadConflict'
 components:
   securitySchemes:
     cookieSession:
@@ -565,6 +652,13 @@ components:
     ActionId:
       in: path
       name: actionId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AnalysisId:
+      in: path
+      name: analysisId
       required: true
       schema:
         type: string
@@ -765,9 +859,84 @@ components:
         createdAtUtc:
           type: string
           format: date-time
+    AiAnalysisValues:
+      type: object
+      required: [serviceCategory, urgency, summary, city, postalCode, preferredCallbackWindow, suggestedReply]
+      properties:
+        serviceCategory:
+          type: string
+          maxLength: 100
+        urgency:
+          $ref: '#/components/schemas/LeadUrgency'
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        city:
+          type: [string, 'null']
+          maxLength: 200
+        postalCode:
+          type: [string, 'null']
+          maxLength: 200
+        preferredCallbackWindow:
+          type: [string, 'null']
+          maxLength: 200
+        suggestedReply:
+          type: [string, 'null']
+          maxLength: 1000
+    AiAnalysisReview:
+      type: object
+      required: [id, schemaVersion, allowedCategories, suggestion, confidence, requiresHumanReview, reasonCodes, reviewStatus, reviewedValues, correctionReason, reviewedByUserId, reviewedByUserName, reviewedAtUtc, rowVersion, createdAtUtc]
+      properties:
+        id:
+          type: string
+          format: uuid
+        schemaVersion:
+          type: string
+        allowedCategories:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        suggestion:
+          $ref: '#/components/schemas/AiAnalysisValues'
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        requiresHumanReview:
+          type: boolean
+        reasonCodes:
+          type: array
+          items:
+            type: string
+        reviewStatus:
+          type: string
+          enum: [Pending, Accepted, Edited, Rejected]
+        reviewedValues:
+          oneOf:
+            - $ref: '#/components/schemas/AiAnalysisValues'
+            - type: 'null'
+        correctionReason:
+          type: [string, 'null']
+          maxLength: 500
+        reviewedByUserId:
+          type: [string, 'null']
+          format: uuid
+        reviewedByUserName:
+          type: [string, 'null']
+        reviewedAtUtc:
+          type: [string, 'null']
+          format: date-time
+        rowVersion:
+          type: string
+          description: Opaque AI review concurrency token.
+        createdAtUtc:
+          type: string
+          format: date-time
     LeadDetail:
       type: object
-      required: [lead, timeline, pendingActions, assignableUsers, allowedTransitions, qualificationAnswers, currentQualificationQuestion, bookingUrl]
+      required: [lead, timeline, pendingActions, assignableUsers, allowedTransitions, qualificationAnswers, currentQualificationQuestion, bookingUrl, aiAnalyses]
       properties:
         lead:
           $ref: '#/components/schemas/LeadSummary'
@@ -796,6 +965,10 @@ components:
         bookingUrl:
           type: [string, 'null']
           format: uri
+        aiAnalyses:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiAnalysisReview'
     AssignLeadRequest:
       type: object
       required: [assignedUserId, expectedRowVersion]
@@ -857,6 +1030,38 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+    AcceptAiAnalysisRequest:
+      type: object
+      required: [expectedRowVersion, correctionReason]
+      properties:
+        expectedRowVersion:
+          type: string
+          minLength: 1
+        correctionReason:
+          type: [string, 'null']
+          maxLength: 500
+    EditAiAnalysisRequest:
+      allOf:
+        - $ref: '#/components/schemas/AiAnalysisValues'
+        - type: object
+          required: [correctionReason, expectedRowVersion]
+          properties:
+            correctionReason:
+              type: [string, 'null']
+              maxLength: 500
+            expectedRowVersion:
+              type: string
+              minLength: 1
+    RejectAiAnalysisRequest:
+      type: object
+      required: [expectedRowVersion, correctionReason]
+      properties:
+        expectedRowVersion:
+          type: string
+          minLength: 1
+        correctionReason:
+          type: [string, 'null']
+          maxLength: 500
     ProblemDetails:
       type: object
       properties:

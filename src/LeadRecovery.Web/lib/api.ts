@@ -65,6 +65,34 @@ export type AssignableUser = {
   role: string;
 };
 
+export type AiAnalysisValues = {
+  serviceCategory: string;
+  urgency: string;
+  summary: string;
+  city: string | null;
+  postalCode: string | null;
+  preferredCallbackWindow: string | null;
+  suggestedReply: string | null;
+};
+
+export type AiAnalysisReview = {
+  id: string;
+  schemaVersion: string;
+  allowedCategories: string[];
+  suggestion: AiAnalysisValues;
+  confidence: number;
+  requiresHumanReview: boolean;
+  reasonCodes: string[];
+  reviewStatus: 'Pending' | 'Accepted' | 'Edited' | 'Rejected';
+  reviewedValues: AiAnalysisValues | null;
+  correctionReason: string | null;
+  reviewedByUserId: string | null;
+  reviewedByUserName: string | null;
+  reviewedAtUtc: string | null;
+  rowVersion: string;
+  createdAtUtc: string;
+};
+
 export type LeadDetail = {
   lead: LeadSummary;
   timeline: LeadTimelineItem[];
@@ -74,6 +102,7 @@ export type LeadDetail = {
   qualificationAnswers: QualificationAnswer[];
   currentQualificationQuestion: string | null;
   bookingUrl: string | null;
+  aiAnalyses: AiAnalysisReview[];
 };
 
 export type ApiProblem = {

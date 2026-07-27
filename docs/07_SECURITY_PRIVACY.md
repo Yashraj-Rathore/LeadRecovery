@@ -165,6 +165,13 @@ only provider/model, attempt count, and bounded outcome; they exclude keys,
 request/response bodies, and contact details. Strict local validation treats
 every provider response as untrusted.
 
+LR-0702 stores analyses behind the same tenant query/write guards and compound
+Lead ownership as other tenant records. Owner, Manager, and Staff reviews
+require CSRF and current membership; ReadOnly receives `403`, and cross-tenant
+Lead or analysis IDs return `404`. Reviewer identity is bound to a same-tenant
+membership. Review audits contain status and corrected field names only, not
+customer summary/extracted content, suggested replies, or correction text.
+
 ## 8. Secrets management
 
 Local development:
