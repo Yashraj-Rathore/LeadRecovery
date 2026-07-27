@@ -389,9 +389,9 @@ uses a typed HTTP client for strict OpenAI Responses API JSON Schema output,
 disables provider storage, masks phone/email values, caps recent context and
 response size, and returns failure without a suggestion for refusal or invalid
 output. Timeout is 1-30 seconds per attempt and only transient network/HTTP
-failures receive zero through two retries. The adapter is disabled by default
-and is not yet invoked or persisted; review UI and workflow fallback remain
-LR-0702 and LR-0703.
+failures receive zero through two retries. The adapter remains disabled by
+default; LR-0702 and LR-0703 integrate its validated result with persistence,
+staff review, workflow invocation, and fallback without changing this boundary.
 
 ### LR-0702 Human review UI
 
@@ -410,8 +410,9 @@ optional evaluation reason, reviewer, time, and opaque concurrency version.
 The Lead detail UI explicitly labels AI content, marks low confidence, exposes
 accept/edit/reject only to dashboard operators, and labels suggested replies as
 unsent drafts. Review actions are CSRF-protected, tenant-scoped, and redacted in
-audit; they create no Message or ScheduledAction. Automatic invocation and
-provider-outage fallback remain LR-0703.
+audit; they create no Message or ScheduledAction. LR-0703 invokes and persists
+analysis independently of review, so a review decision still has no autonomous
+customer-facing side effect.
 
 ### LR-0703 AI fallback
 
@@ -421,6 +422,21 @@ provider-outage fallback remain LR-0703.
 - deterministic workflow continues;
 - lead can be flagged NeedsHuman;
 - no repeated costly retry storm.
+
+Implementation note (2026-07-27): complete. Each eligible inbound SMS commits
+deterministic processing and a tenant-owned `AnalyzeLead` action in the same
+transaction when AI is explicitly enabled and the active workflow supplies the
+configured approved-category Choice question. New inbound context cancels
+older Pending analyses. The Worker re-checks tenant, opt-out, Lead, workflow,
+and source-message eligibility, hashes at most eight relevant turns, invokes
+the provider once at job level, and persists at most one validated analysis per
+Lead/schema/input hash. Hangfire retries are disabled; the adapter retains only
+its zero-through-two bounded transient retries, and an expired lease cannot
+call the provider again. Provider/validation failure terminally fails the
+action, emits a redacted audit, routes an eligible Lead to `NeedsHuman`, and
+creates no customer Message. PostgreSQL tests prove outage continuity,
+duplicate suppression, pending-work coalescing, success persistence, and the
+absence of autonomous customer action.
 
 ## Epic E8 - Operations and security
 

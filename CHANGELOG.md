@@ -185,6 +185,16 @@ All notable repository and product-specification changes are recorded here.
 - Redacted correction audits, fictional no-provider demo analysis, domain,
   Application, PostgreSQL/API authorization, and Playwright review coverage,
   plus ADR-0017 documenting the no-customer-side-effect review boundary.
+- LR-0703 durable `AnalyzeLead` scheduling after deterministic inbound
+  processing, active-workflow category snapshots, canonical input hashing,
+  pending-work coalescing, and one job-level provider invocation.
+- Provider-outage fallback that terminally fails the analysis action, records a
+  bounded redacted audit, routes eligible Leads to `NeedsHuman`, preserves
+  committed qualification, and never creates a customer Message.
+- Application and signed-webhook PostgreSQL coverage for successful
+  persistence, outage continuity, duplicate execution suppression, and pending
+  analysis coalescing, plus ADR-0018 documenting the invocation and fallback
+  boundary.
 
 ### Changed
 

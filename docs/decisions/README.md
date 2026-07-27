@@ -24,6 +24,7 @@ updated in the same change so they remain aligned.
 | [0015](0015-deterministic-qualification-booking-and-follow-up.md) | Deterministic qualification, booking, and follow-up | Accepted |
 | [0016](0016-structured-lead-analysis-adapter.md) | Structured lead-analysis adapter | Accepted |
 | [0017](0017-human-reviewed-ai-analysis.md) | Human-reviewed AI analysis | Accepted |
+| [0018](0018-ai-workflow-invocation-and-fallback.md) | AI workflow invocation and fallback | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.

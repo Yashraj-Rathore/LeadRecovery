@@ -126,8 +126,14 @@ If AI fails:
 
 LR-0701 bounds each attempt to 1-30 seconds, retries only network/408/409/429/
 5xx failures, permits at most two retries, and caps a provider response at 64
-KiB. Workflow continuation, durable input-hash deduplication, persistence, and
-NeedsHuman routing remain LR-0703.
+KiB. LR-0703 schedules analysis only after deterministic inbound processing has
+been persisted. It coalesces older Pending work, disables Hangfire retries for
+the analysis job, and suppresses a second provider call after lease recovery.
+The canonical request hash and schema version deduplicate successful output.
+A typed provider/validation failure terminally fails the action, records only a
+bounded redacted code, and routes an eligible Lead to `NeedsHuman`; it does not
+create a customer Message. The deterministic qualification result remains
+committed and usable whether analysis succeeds, fails, or is disabled.
 
 ## 10. Human review
 

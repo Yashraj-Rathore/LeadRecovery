@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 
+using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
@@ -23,7 +24,8 @@ internal sealed class SmsWorkflowPersistence(
     ITenantExecutionScope tenantExecutionScope,
     IWorkflowActionScheduler workflowActionScheduler,
     IQualificationEvaluator qualificationEvaluator,
-    IBusinessHoursScheduler businessHoursScheduler)
+    IBusinessHoursScheduler businessHoursScheduler,
+    LeadAnalysisWorkflowOptions analysisOptions)
     : ISmsWorkflowPersistence
 {
     private static readonly HashSet<string> OptOutKeywords = new(
@@ -427,6 +429,7 @@ internal sealed class SmsWorkflowPersistence(
             string? qualificationQuestionKey = null;
             QualificationAnswerOutcome? qualificationOutcome = null;
             DateTimeOffset? humanReviewAtUtc = null;
+            Guid? analysisActionId = null;
             if (optedOut)
             {
                 customer.OptOut(now);
@@ -536,6 +539,14 @@ internal sealed class SmsWorkflowPersistence(
                             }
                         }
                     }
+
+                    analysisActionId = await ScheduleLeadAnalysisAsync(
+                        tenant,
+                        lead,
+                        workflow,
+                        message,
+                        now,
+                        cancellationToken);
                 }
             }
 
@@ -557,6 +568,7 @@ internal sealed class SmsWorkflowPersistence(
                     qualificationQuestionKey,
                     qualificationOutcome = qualificationOutcome?.ToString(),
                     humanReviewAtUtc,
+                    analysisActionId,
                 });
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -566,6 +578,71 @@ internal sealed class SmsWorkflowPersistence(
         {
             tenantScope?.Dispose();
         }
+    }
+
+    private async Task<Guid?> ScheduleLeadAnalysisAsync(
+        Tenant tenant,
+        Lead lead,
+        WorkflowDefinition workflow,
+        Message sourceMessage,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (!analysisOptions.Enabled ||
+            !tenant.AutomationEnabled ||
+            lead.AutomationState != AutomationState.Active ||
+            lead.Status is LeadStatus.Booked or LeadStatus.Closed or LeadStatus.ClosedWon)
+        {
+            return null;
+        }
+
+        QualificationQuestionPolicy? categoryQuestion = workflow
+            .GetQualificationQuestions()
+            .SingleOrDefault(question =>
+                question.AnswerKind == QualificationAnswerKind.Choice &&
+                question.Key.Equals(
+                    analysisOptions.CategoryQuestionKey,
+                    StringComparison.OrdinalIgnoreCase));
+        string[]? categories = categoryQuestion?.AllowedValues;
+        if (categories is null ||
+            categories.Length is 0 or > LeadAnalysisSchema.MaximumAllowedCategories ||
+            categories.Any(category => category.Equals(
+                LeadAnalysisSchema.UnknownCategory,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        List<ScheduledAction> supersededActions = await dbContext.ScheduledActions
+            .Where(action =>
+                action.LeadId == lead.Id &&
+                action.ActionType == LeadAnalysisScheduledActionTypes.AnalyzeLead &&
+                action.Status == ScheduledActionStatus.Pending)
+            .ToListAsync(cancellationToken);
+        foreach (ScheduledAction supersededAction in supersededActions)
+        {
+            supersededAction.Cancel(now);
+        }
+
+        Guid actionId = Guid.CreateVersion7();
+        LeadAnalysisScheduledActionPayload payload = new(
+            1,
+            LeadAnalysisSchema.CurrentVersion,
+            sourceMessage.Id,
+            workflow.Id,
+            workflow.Version,
+            categoryQuestion!.Key,
+            categories.ToArray());
+        dbContext.ScheduledActions.Add(new ScheduledAction(
+            actionId,
+            tenant.Id,
+            lead.Id,
+            LeadAnalysisScheduledActionTypes.AnalyzeLead,
+            now,
+            $"ai-analysis:{lead.Id:N}:{sourceMessage.Id:N}:{LeadAnalysisSchema.CurrentVersion}",
+            LeadAnalysisScheduledActionPayloadSerializer.Serialize(payload),
+            now));
+        return actionId;
     }
 
     private async Task<QualificationQuestionPolicy?> GetCurrentQualificationQuestion(

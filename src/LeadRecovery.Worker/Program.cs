@@ -1,5 +1,6 @@
 using Hangfire;
 
+using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Infrastructure;
 using LeadRecovery.Infrastructure.Analysis;
@@ -19,20 +20,26 @@ if (!Uri.TryCreate(webhookBaseUrl.TrimEnd('/'), UriKind.Absolute, out Uri? baseU
     throw new InvalidOperationException("TWILIO_WEBHOOK_BASE_URL must be an absolute URL.");
 }
 
+bool aiEnabled = builder.Configuration.GetValue<bool?>("AI_ENABLED") ??
+    builder.Configuration.GetValue("Ai:Enabled", false);
+string aiCategoryQuestionKey = builder.Configuration["AI_CATEGORY_QUESTION_KEY"] ??
+    builder.Configuration["Ai:CategoryQuestionKey"] ??
+    LeadAnalysisWorkflowOptions.DefaultCategoryQuestionKey;
+
 builder.Services.AddScoped<BackgroundTenantContext>();
 builder.Services.AddScoped<ITenantContext>(services =>
     services.GetRequiredService<BackgroundTenantContext>());
 builder.Services.AddScoped<ITenantExecutionScope>(services =>
     services.GetRequiredService<BackgroundTenantContext>());
-builder.Services.AddInfrastructure(databaseConnectionString);
+builder.Services.AddInfrastructure(
+    databaseConnectionString,
+    new LeadAnalysisWorkflowOptions(aiEnabled, aiCategoryQuestionKey));
 builder.Services.AddLeadRecoveryHangfire(databaseConnectionString);
 builder.Services.AddSmsProvider(new SmsProviderOptions(
     builder.Configuration["SMS_PROVIDER"] ?? "fake",
     builder.Configuration.GetValue("ALLOW_REAL_SMS", false),
     builder.Configuration["TWILIO_ACCOUNT_SID"],
     builder.Configuration["TWILIO_AUTH_TOKEN"]));
-bool aiEnabled = builder.Configuration.GetValue<bool?>("AI_ENABLED") ??
-    builder.Configuration.GetValue("Ai:Enabled", false);
 if (aiEnabled)
 {
     string provider = builder.Configuration["AI_PROVIDER"] ??
@@ -65,8 +72,9 @@ builder.Services.AddSingleton(new SmsWorkerOptions(
     TimeSpan.FromMinutes(5)));
 builder.Services.AddHangfireServer(options =>
 {
-    options.Queues = ["sms"];
-    options.WorkerCount = builder.Configuration.GetValue("SMS_WORKER_COUNT", 2);
+    options.Queues = ["sms", "analysis"];
+    options.WorkerCount = builder.Configuration.GetValue<int?>("JOBS_WORKER_COUNT") ??
+        builder.Configuration.GetValue("SMS_WORKER_COUNT", 2);
 });
 builder.Services.AddHostedService<ScheduledActionDispatcher>();
 

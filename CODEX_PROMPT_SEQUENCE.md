@@ -44,8 +44,9 @@ Implementation status (2026-07-21): complete. Continue with Prompt 8.
 
 Implement LR-0701 through LR-0703. Use strict structured output, minimum data, human review, confidence handling, and fallback. No autonomous customer-facing generation.
 
-Implementation status (2026-07-21): LR-0701 is complete. Continue with LR-0702
-only; do not redo the provider adapter or implement LR-0703 in the same issue.
+Implementation status (2026-07-27): complete for LR-0701 through LR-0703.
+Continue with Prompt 9 and LR-0801; preserve the structured-output,
+human-review, deterministic-fallback, and no-autonomous-send boundaries.
 
 ## Prompt 9 - Hardening
 

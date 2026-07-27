@@ -9,15 +9,15 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  13773
+        "bytes":  14441
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  217168
+        "bytes":  227097
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  4385
+        "bytes":  4442
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -37,19 +37,19 @@
     },
     {
         "path":  "docs/01_PRODUCT_REQUIREMENTS.md",
-        "bytes":  12135
+        "bytes":  12203
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  15053
+        "bytes":  16104
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  18042
+        "bytes":  18632
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  14862
+        "bytes":  15161
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
@@ -57,15 +57,15 @@
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
-        "bytes":  6262
+        "bytes":  6767
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  11018
+        "bytes":  11561
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  11140
+        "bytes":  11801
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
@@ -73,15 +73,15 @@
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
-        "bytes":  5708
+        "bytes":  6014
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  10476
+        "bytes":  10767
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  16606
+        "bytes":  17773
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -160,16 +160,20 @@
         "bytes":  3081
     },
     {
+        "path":  "docs/decisions/0018-ai-workflow-invocation-and-fallback.md",
+        "bytes":  3826
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  2238
+        "bytes":  2343
     },
     {
         "path":  "README.md",
-        "bytes":  13847
+        "bytes":  14224
     },
     {
         "path":  "templates/.env.example",
-        "bytes":  1675
+        "bytes":  1776
     },
     {
         "path":  "templates/appsettings.Development.example.json",

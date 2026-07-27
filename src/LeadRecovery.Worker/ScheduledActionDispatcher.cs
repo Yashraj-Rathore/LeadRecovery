@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 
 using Hangfire;
 
+using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
@@ -64,7 +65,8 @@ internal sealed partial class ScheduledActionDispatcher(
                   {SmsScheduledActionTypes.SendManualSms},
                   {WorkflowScheduledActionTypes.SendQualificationQuestion},
                   {WorkflowScheduledActionTypes.SendBookingLink},
-                  {WorkflowScheduledActionTypes.SendFollowUpSms})
+                  {WorkflowScheduledActionTypes.SendFollowUpSms},
+                  {LeadAnalysisScheduledActionTypes.AnalyzeLead})
             """,
             cancellationToken);
 
@@ -76,7 +78,8 @@ internal sealed partial class ScheduledActionDispatcher(
                     action.ActionType ==
                         WorkflowScheduledActionTypes.SendQualificationQuestion ||
                     action.ActionType == WorkflowScheduledActionTypes.SendBookingLink ||
-                    action.ActionType == WorkflowScheduledActionTypes.SendFollowUpSms) &&
+                    action.ActionType == WorkflowScheduledActionTypes.SendFollowUpSms ||
+                    action.ActionType == LeadAnalysisScheduledActionTypes.AnalyzeLead) &&
                 action.Status == ScheduledActionStatus.Pending &&
                 action.ScheduledForUtc <= now)
             .OrderBy(action => action.ScheduledForUtc)
@@ -94,7 +97,15 @@ internal sealed partial class ScheduledActionDispatcher(
             }
 
             string correlationId = $"worker:{action.Id:N}:{now.ToUnixTimeSeconds()}";
-            if (action.ActionType == SmsScheduledActionTypes.SendManualSms)
+            if (action.ActionType == LeadAnalysisScheduledActionTypes.AnalyzeLead)
+            {
+                _ = backgroundJobs.Enqueue<ScheduledLeadAnalysisJob>(job => job.ExecuteAsync(
+                    action.Id,
+                    action.TenantId,
+                    correlationId,
+                    CancellationToken.None));
+            }
+            else if (action.ActionType == SmsScheduledActionTypes.SendManualSms)
             {
                 _ = backgroundJobs.Enqueue<ScheduledManualSmsJob>(job => job.ExecuteAsync(
                     action.Id,

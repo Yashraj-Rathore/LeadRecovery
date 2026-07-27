@@ -6,6 +6,7 @@ using LeadRecovery.Api.Identity;
 using LeadRecovery.Api.Integrations.Twilio;
 using LeadRecovery.Api.Middleware;
 using LeadRecovery.Api.Tenancy;
+using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Authorization;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Identity;
@@ -26,13 +27,21 @@ string databaseConnectionString = builder.Configuration.GetConnectionString("Dat
     ?? throw new InvalidOperationException(
         "The ConnectionStrings:Database configuration value is required.");
 
+bool aiEnabled = builder.Configuration.GetValue<bool?>("AI_ENABLED") ??
+    builder.Configuration.GetValue("Ai:Enabled", false);
+string aiCategoryQuestionKey = builder.Configuration["AI_CATEGORY_QUESTION_KEY"] ??
+    builder.Configuration["Ai:CategoryQuestionKey"] ??
+    LeadAnalysisWorkflowOptions.DefaultCategoryQuestionKey;
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<HttpTenantContext>();
 builder.Services.AddScoped<ITenantContext>(services =>
     services.GetRequiredService<HttpTenantContext>());
 builder.Services.AddScoped<ITenantExecutionScope>(services =>
     services.GetRequiredService<HttpTenantContext>());
-builder.Services.AddInfrastructure(databaseConnectionString);
+builder.Services.AddInfrastructure(
+    databaseConnectionString,
+    new LeadAnalysisWorkflowOptions(aiEnabled, aiCategoryQuestionKey));
 builder.Services.AddTwilioCallIngestion(builder.Configuration["TWILIO_AUTH_TOKEN"]);
 builder.Services.AddSingleton(new TwilioWebhookOptions(
     builder.Configuration["TWILIO_WEBHOOK_BASE_URL"],

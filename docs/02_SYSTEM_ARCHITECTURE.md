@@ -125,19 +125,25 @@ before returning. The default sender is an in-process fake; live Twilio access
 requires two explicit configuration gates.
 
 LR-0701 adds a provider-neutral Application analysis interface and strict
-validator plus an optional Infrastructure OpenAI Responses API adapter. The
-Worker registers it only when explicitly enabled, but no job invokes analysis
-yet. Provider translation, bounded retry/timeout, minimum-data redaction, and
-response-envelope handling remain outside Domain and Application. At LR-0701,
-persistence, workflow invocation, and dashboard review were deferred to
-LR-0702/LR-0703.
+validator plus an optional Infrastructure OpenAI Responses API adapter.
+Provider translation, bounded retry/timeout, minimum-data redaction, and
+response-envelope handling remain outside Domain and Application.
 
 LR-0702 adds tenant-filtered `AiAnalysis` persistence and a staff-only review
 use case to the existing Lead dashboard module. Original suggestions remain
 immutable; accepted or corrected values and reviewer metadata are stored
 separately behind an opaque concurrency version. Accept/edit/reject writes are
-CSRF-protected and audited, but enqueue no customer work. The Worker still has
-no analysis job; invocation and fallback remain LR-0703.
+CSRF-protected and audited, but enqueue no customer work.
+
+LR-0703 schedules a tenant-owned `AnalyzeLead` action after eligible inbound
+SMS processing commits its deterministic result. API and Worker configuration
+must explicitly enable analysis, and the active workflow must expose the
+configured Choice question used as the allowed-category snapshot. The Worker
+builds at most eight relevant turns, hashes the canonical request, invokes the
+provider once at job level, and persists either one `AiAnalysis` or a bounded
+failure audit. Pending analysis for older inbound context is coalesced. A
+provider or validation failure may move an active Lead to `NeedsHuman`, creates
+no customer Message, and cannot roll back the inbound or qualification work.
 
 ### 4.4 PostgreSQL
 
@@ -277,7 +283,8 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0014: operational dashboard and manual SMS;
 - ADR-0015: deterministic qualification, booking, and follow-up;
 - ADR-0016: structured lead-analysis adapter;
-- ADR-0017: human-reviewed AI analysis.
+- ADR-0017: human-reviewed AI analysis;
+- ADR-0018: AI workflow invocation and fallback.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -418,6 +425,15 @@ during a spring-forward gap advance to the first valid minute. Ambiguous local
 times choose the larger UTC offset, producing the earliest matching instant.
 Urgent human review is durable dashboard/audit work and may bypass ordinary
 send hours when the tenant policy allows it.
+
+Milestone 7 reuses the same durable-intent boundary for `AnalyzeLead`. The
+inbound transaction snapshots the active workflow/version, source message,
+category-question key, and allowed categories into the action. Preparation
+locks and starts the action before the provider call. Completion locks it
+again to persist the validated result or terminal failure. Hangfire performs no
+job retry for analysis; the adapter alone may perform zero through two bounded
+transient retries. If a running lease expires, reconciliation records fallback
+without calling the provider again.
 
 LR-0204 introduced the durable `ScheduledAction` record and the
 `ExternalEventReceipt` system ledger without dispatching work or calling a

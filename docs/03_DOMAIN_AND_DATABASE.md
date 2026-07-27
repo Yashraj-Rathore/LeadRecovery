@@ -317,6 +317,12 @@ and `SendFollowUpSms`. Idempotency keys include Lead, workflow version, stage,
 and sequence as applicable. The booking transition cancels that Lead's pending
 automated actions; running and terminal actions are not rewritten.
 
+LR-0703 adds `AnalyzeLead`. Its JSON payload snapshots the source inbound
+Message, analysis schema, active workflow identity/version, category-question
+key, and allowed categories. A newer inbound reply cancels older Pending
+analysis actions for the Lead. The Worker permits one provider invocation per
+action at job level; Completed, Failed, and Cancelled remain terminal.
+
 ### ExternalEventReceipt
 
 The integration/system idempotency ledger. It is not ordinary tenant-owned
@@ -382,7 +388,10 @@ validated structured JSON are immutable; a one-way
 `(TenantId, LeadId, SchemaVersion, InputHash)` prevents duplicate analysis of
 the same input and schema, while compound Lead and reviewer-membership foreign
 keys enforce tenant ownership. The dashboard exposes `Version` as an opaque
-review token. LR-0703 still owns workflow invocation and failure routing.
+review token. LR-0703 computes the hash from the canonical bounded request,
+persists the record only after successful validation, and records failure on
+the associated action instead of creating an invalid analysis. No schema
+migration is required beyond the LR-0702 `AiAnalysis` storage.
 
 ### AuditEvent
 

@@ -23,8 +23,7 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 6 are complete. LR-0101 through LR-0604, LR-0701, and
-LR-0702 are implemented.
+Milestones 0 through 7 are complete. LR-0101 through LR-0703 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -45,15 +44,17 @@ attention-first queue rows, clearer loading/empty/error feedback, consistent
 coverage improve daily use without adding a component-library dependency or
 changing an API/workflow contract.
 
-LR-0701 adds a provider-neutral analysis contract, independent strict schema
-validation, and an optional OpenAI Responses API adapter. The adapter is
-disabled by default, sends a redacted and bounded recent transcript with
-`store: false`, and returns typed failures for timeouts, refusals, HTTP errors,
-or invalid output. LR-0702 now persists immutable validated suggestions and
-adds tenant-scoped accept, correct, and reject controls with low-confidence
+Milestone 7 adds a provider-neutral analysis contract, independent strict
+schema validation, and an optional OpenAI Responses API adapter. Eligible
+inbound replies now create coalesced, durable `AnalyzeLead` work only when AI
+is explicitly enabled and the active workflow exposes an approved category
+question. The Worker sends a bounded, redacted transcript, persists immutable
+validated suggestions, and routes provider or validation failures to
+`NeedsHuman` without interrupting the committed deterministic workflow.
+Tenant-scoped accept, correct, and reject controls retain low-confidence
 labels, optimistic review concurrency, and redacted audit history. Suggested
-replies remain visibly unsent drafts and no review action creates a Message or
-ScheduledAction. Automatic invocation and outage fallback remain LR-0703.
+replies remain visibly unsent drafts; analysis and review never send a customer
+message or automatically apply a suggestion.
 
 The currently implemented browser and health contract is:
 
@@ -78,8 +79,8 @@ The currently implemented browser and health contract is:
 - `POST /api/v1/webhooks/twilio/sms/inbound` and
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
-- the worker executes due recovery, qualification, booking, follow-up, and
-  manual-message actions through
+- the worker executes due recovery, qualification, booking, follow-up,
+  manual-message, and optional lead-analysis actions through
   PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
@@ -167,12 +168,15 @@ when `SMS_PROVIDER=twilio` and `ALLOW_REAL_SMS=true` are both set and the
 Twilio account SID/auth token are present. Keep the fake defaults for automated
 tests and local workflow development.
 
-AI analysis also stays disabled by default. LR-0701 registers the adapter only
-when `AI_ENABLED=true`; provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
+AI analysis stays disabled by default. Set `AI_ENABLED=true` consistently for
+both the API and Worker, provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
 (default `gpt-5.6-sol`), and the bounded timeout/retry settings from
-`templates/.env.example`. The current Worker has no analysis job yet, so
-enabling this registration alone does not persist a suggestion or send any
-customer-facing content.
+`templates/.env.example`. `AI_CATEGORY_QUESTION_KEY` selects the active
+workflow Choice question whose values form the tenant-approved category
+snapshot; it defaults to `service` and fails closed when that question is
+absent or invalid. Eligible inbound replies then create durable analysis work.
+Provider failure routes the Lead to staff without undoing deterministic
+qualification, and no analysis result sends customer-facing content.
 
 The fictional demo seed includes one pending low-confidence analysis so the
 LR-0702 review workflow can be demonstrated without enabling AI or providing an
@@ -714,14 +718,14 @@ Optional features:
 
 All AI output must be structured, versioned, confidence-scored, and editable by staff.
 
-LR-0701 implements the optional provider-neutral request/result contract,
-version 1.0 strict local validator, and an OpenAI Responses API adapter with
-bounded redacted input, timeouts, retries, and typed failures. LR-0701 itself
-does not invoke or persist analysis or send a suggested reply. LR-0702 now
-persists the immutable suggestion and provides authorized
-staff accept/edit/reject review with low-confidence labels and redacted audit.
-Reviewing a suggested reply never sends it. Workflow invocation and fallback
-remain LR-0703.
+Milestone 7 implements the optional provider-neutral request/result contract,
+version 1.0 strict local validator, OpenAI Responses API adapter, durable
+workflow invocation, immutable suggestion persistence, and authorized staff
+accept/edit/reject review. Analysis is explicitly enabled, uses the active
+workflow's approved category snapshot and bounded redacted recent context, and
+never controls deterministic qualification or sends a suggested reply.
+Provider/validation failure is recorded once and may route the Lead to
+`NeedsHuman`; the already committed deterministic workflow remains available.
 
 ### FR-007 Reporting
 
@@ -959,19 +963,25 @@ before returning. The default sender is an in-process fake; live Twilio access
 requires two explicit configuration gates.
 
 LR-0701 adds a provider-neutral Application analysis interface and strict
-validator plus an optional Infrastructure OpenAI Responses API adapter. The
-Worker registers it only when explicitly enabled, but no job invokes analysis
-yet. Provider translation, bounded retry/timeout, minimum-data redaction, and
-response-envelope handling remain outside Domain and Application. At LR-0701,
-persistence, workflow invocation, and dashboard review were deferred to
-LR-0702/LR-0703.
+validator plus an optional Infrastructure OpenAI Responses API adapter.
+Provider translation, bounded retry/timeout, minimum-data redaction, and
+response-envelope handling remain outside Domain and Application.
 
 LR-0702 adds tenant-filtered `AiAnalysis` persistence and a staff-only review
 use case to the existing Lead dashboard module. Original suggestions remain
 immutable; accepted or corrected values and reviewer metadata are stored
 separately behind an opaque concurrency version. Accept/edit/reject writes are
-CSRF-protected and audited, but enqueue no customer work. The Worker still has
-no analysis job; invocation and fallback remain LR-0703.
+CSRF-protected and audited, but enqueue no customer work.
+
+LR-0703 schedules a tenant-owned `AnalyzeLead` action after eligible inbound
+SMS processing commits its deterministic result. API and Worker configuration
+must explicitly enable analysis, and the active workflow must expose the
+configured Choice question used as the allowed-category snapshot. The Worker
+builds at most eight relevant turns, hashes the canonical request, invokes the
+provider once at job level, and persists either one `AiAnalysis` or a bounded
+failure audit. Pending analysis for older inbound context is coalesced. A
+provider or validation failure may move an active Lead to `NeedsHuman`, creates
+no customer Message, and cannot roll back the inbound or qualification work.
 
 ### 4.4 PostgreSQL
 
@@ -1111,7 +1121,8 @@ Accepted, authoritative decisions are recorded under `docs/decisions/`:
 - ADR-0014: operational dashboard and manual SMS;
 - ADR-0015: deterministic qualification, booking, and follow-up;
 - ADR-0016: structured lead-analysis adapter;
-- ADR-0017: human-reviewed AI analysis.
+- ADR-0017: human-reviewed AI analysis;
+- ADR-0018: AI workflow invocation and fallback.
 
 The platform also uses same-origin browser deployment where practical,
 deterministic workflow rules with AI limited to assistance, and application
@@ -1252,6 +1263,15 @@ during a spring-forward gap advance to the first valid minute. Ambiguous local
 times choose the larger UTC offset, producing the earliest matching instant.
 Urgent human review is durable dashboard/audit work and may bypass ordinary
 send hours when the tenant policy allows it.
+
+Milestone 7 reuses the same durable-intent boundary for `AnalyzeLead`. The
+inbound transaction snapshots the active workflow/version, source message,
+category-question key, and allowed categories into the action. Preparation
+locks and starts the action before the provider call. Completion locks it
+again to persist the validated result or terminal failure. Hangfire performs no
+job retry for analysis; the adapter alone may perform zero through two bounded
+transient retries. If a running lease expires, reconciliation records fallback
+without calling the provider again.
 
 LR-0204 introduced the durable `ScheduledAction` record and the
 `ExternalEventReceipt` system ledger without dispatching work or calling a
@@ -1608,6 +1628,12 @@ and `SendFollowUpSms`. Idempotency keys include Lead, workflow version, stage,
 and sequence as applicable. The booking transition cancels that Lead's pending
 automated actions; running and terminal actions are not rewritten.
 
+LR-0703 adds `AnalyzeLead`. Its JSON payload snapshots the source inbound
+Message, analysis schema, active workflow identity/version, category-question
+key, and allowed categories. A newer inbound reply cancels older Pending
+analysis actions for the Lead. The Worker permits one provider invocation per
+action at job level; Completed, Failed, and Cancelled remain terminal.
+
 ### ExternalEventReceipt
 
 The integration/system idempotency ledger. It is not ordinary tenant-owned
@@ -1673,7 +1699,10 @@ validated structured JSON are immutable; a one-way
 `(TenantId, LeadId, SchemaVersion, InputHash)` prevents duplicate analysis of
 the same input and schema, while compound Lead and reviewer-membership foreign
 keys enforce tenant ownership. The dashboard exposes `Version` as an opaque
-review token. LR-0703 still owns workflow invocation and failure routing.
+review token. LR-0703 computes the hash from the canonical bounded request,
+persists the record only after successful validation, and records failure on
+the associated action instead of creating an invalid analysis. No schema
+migration is required beyond the LR-0702 `AiAnalysis` storage.
 
 ### AuditEvent
 
@@ -2162,10 +2191,13 @@ Every attempt has a configured 1-30 second timeout. Network failures and HTTP
 408, 409, 429, and 5xx responses receive at most two bounded exponential-delay
 retries. Refusal, non-transient HTTP failure, an invalid provider envelope, or
 locally schema-invalid output returns a typed failure with no suggestion.
-LR-0702 now persists validated suggestions and provides staff review, but no
-production workflow invokes the adapter yet. Suggested replies are never sent
-by review routes. Workflow invocation and provider-failure fallback remain
-LR-0703.
+LR-0703 invokes this adapter from the Worker's `analysis` queue for an eligible
+durable `AnalyzeLead` action. One application execution surrounds the adapter's
+bounded internal retries; Hangfire retry is disabled for this job. Validated
+output is deduplicated by schema version and canonical input hash before
+`AiAnalysis` persistence. Failure is terminal for the action and may route the
+Lead to `NeedsHuman`; it creates neither an error SMS nor any other customer
+Message. Suggested replies are never sent by analysis or review routes.
 
 ## 12. Webhook idempotency algorithm
 
@@ -2593,8 +2625,14 @@ If AI fails:
 
 LR-0701 bounds each attempt to 1-30 seconds, retries only network/408/409/429/
 5xx failures, permits at most two retries, and caps a provider response at 64
-KiB. Workflow continuation, durable input-hash deduplication, persistence, and
-NeedsHuman routing remain LR-0703.
+KiB. LR-0703 schedules analysis only after deterministic inbound processing has
+been persisted. It coalesces older Pending work, disables Hangfire retries for
+the analysis job, and suppresses a second provider call after lease recovery.
+The canonical request hash and schema version deduplicate successful output.
+A typed provider/validation failure terminally fails the action, records only a
+bounded redacted code, and routes an eligible Lead to `NeedsHuman`; it does not
+create a customer Message. The deterministic qualification result remains
+committed and usable whether analysis succeeds, fails, or is disabled.
 
 ## 10. Human review
 
@@ -2823,6 +2861,14 @@ require CSRF and current membership; ReadOnly receives `403`, and cross-tenant
 Lead or analysis IDs return `404`. Reviewer identity is bound to a same-tenant
 membership. Review audits contain status and corrected field names only, not
 customer summary/extracted content, suggested replies, or correction text.
+
+LR-0703 snapshots only tenant-approved categories and uses at most eight
+sent/delivered/received turns ending at the triggering inbound Message. It does
+not include notes, credentials, provider metadata, or unrelated Lead history.
+Action and audit failures store normalized bounded codes rather than provider
+bodies or conversation content. Preparation and completion re-check tenant,
+Lead, customer opt-out, workflow version, source Message, and automation state;
+invalid or stale work fails closed without a provider call or customer send.
 
 ## 8. Secrets management
 
@@ -3098,6 +3144,16 @@ cross-tenant denial, optimistic review concurrency, redacted correction audit,
 and the absence of Message/ScheduledAction side effects. Playwright verifies
 the AI label, low-confidence warning, unsent-draft guardrail, staff correction,
 and visible audited timeline result using fictional seed data.
+
+LR-0703 adds Application tests for canonical input hashing, strict scheduled
+payload parsing, ignored work, and one-call typed failure completion. Real
+PostgreSQL integration tests independently sign inbound SMS requests and prove
+that deterministic qualification commits before analysis; a provider outage
+routes the Lead to `NeedsHuman`, records one terminal failed action, emits no
+customer Message, and is ignored on duplicate execution. Success persists one
+validated analysis without applying it, while consecutive inbound replies
+cancel older Pending analysis work. Tests use an unavailable or in-process fake
+provider and never call a live AI service.
 
 ## 3. Test environments
 
@@ -3667,7 +3723,11 @@ pending workflow action visible and cancellable to authorized tenant staff.
 LR-0701 emits structured provider success/failure logs with provider name,
 model reference, attempt count, and a fixed bounded outcome. It never logs the
 API key, prompt, conversation text, raw structured output, contact details, or
-provider error body. AI metrics and alerts remain LR-0801.
+provider error body. LR-0703 analysis jobs add TenantId, ScheduledActionId,
+CorrelationId, and a bounded workflow outcome to the existing structured
+scope. Durable actions and redacted timeline audits expose created, failed,
+cancelled, duplicate-skipped, and repeat-suppressed outcomes without message
+content or input hashes. AI metrics and alerts remain LR-0801.
 
 ## 5. Alerts
 
@@ -3997,13 +4057,16 @@ Exit criteria:
 - AI outage leaves core workflow working;
 - low-confidence output requires review.
 
-Implementation status (2026-07-21): LR-0701 is complete; LR-0702 and LR-0703
-remain. Application defines the provider-neutral request/result and strict
-schema validator. The optional Worker registration uses a bounded OpenAI
-Responses API adapter with redacted recent input, `store: false`, local output
-validation, typed failures, a per-attempt timeout, and at most two transient
-retries. No workflow invokes or persists analysis yet, and no AI output reaches
-the dashboard or a customer.
+Implementation status (2026-07-27): complete for LR-0701 through LR-0703.
+Application defines the provider-neutral request/result and strict schema
+validator. The optional Worker uses a bounded OpenAI Responses API adapter with
+redacted recent input, `store: false`, local output validation, typed failures,
+a per-attempt timeout, and at most two transient adapter retries. Eligible
+inbound replies create coalesced durable analysis work, validated suggestions
+are deduplicated and presented for staff review, and provider outage routes the
+Lead to `NeedsHuman` without undoing deterministic workflow state or sending a
+customer-facing AI message. Unit, PostgreSQL, API, and Playwright coverage prove
+the provider, persistence, review, fallback, and no-autonomous-send boundaries.
 
 ### Milestone 8 - Production hardening (Week 8)
 
@@ -4577,9 +4640,9 @@ uses a typed HTTP client for strict OpenAI Responses API JSON Schema output,
 disables provider storage, masks phone/email values, caps recent context and
 response size, and returns failure without a suggestion for refusal or invalid
 output. Timeout is 1-30 seconds per attempt and only transient network/HTTP
-failures receive zero through two retries. The adapter is disabled by default
-and is not yet invoked or persisted; review UI and workflow fallback remain
-LR-0702 and LR-0703.
+failures receive zero through two retries. The adapter remains disabled by
+default; LR-0702 and LR-0703 integrate its validated result with persistence,
+staff review, workflow invocation, and fallback without changing this boundary.
 
 ### LR-0702 Human review UI
 
@@ -4598,8 +4661,9 @@ optional evaluation reason, reviewer, time, and opaque concurrency version.
 The Lead detail UI explicitly labels AI content, marks low confidence, exposes
 accept/edit/reject only to dashboard operators, and labels suggested replies as
 unsent drafts. Review actions are CSRF-protected, tenant-scoped, and redacted in
-audit; they create no Message or ScheduledAction. Automatic invocation and
-provider-outage fallback remain LR-0703.
+audit; they create no Message or ScheduledAction. LR-0703 invokes and persists
+analysis independently of review, so a review decision still has no autonomous
+customer-facing side effect.
 
 ### LR-0703 AI fallback
 
@@ -4609,6 +4673,21 @@ provider-outage fallback remain LR-0703.
 - deterministic workflow continues;
 - lead can be flagged NeedsHuman;
 - no repeated costly retry storm.
+
+Implementation note (2026-07-27): complete. Each eligible inbound SMS commits
+deterministic processing and a tenant-owned `AnalyzeLead` action in the same
+transaction when AI is explicitly enabled and the active workflow supplies the
+configured approved-category Choice question. New inbound context cancels
+older Pending analyses. The Worker re-checks tenant, opt-out, Lead, workflow,
+and source-message eligibility, hashes at most eight relevant turns, invokes
+the provider once at job level, and persists at most one validated analysis per
+Lead/schema/input hash. Hangfire retries are disabled; the adapter retains only
+its zero-through-two bounded transient retries, and an expired lease cannot
+call the provider again. Provider/validation failure terminally fails the
+action, emits a redacted audit, routes an eligible Lead to `NeedsHuman`, and
+creates no customer Message. PostgreSQL tests prove outage continuity,
+duplicate suppression, pending-work coalescing, success persistence, and the
+absence of autonomous customer action.
 
 ## Epic E8 - Operations and security
 
@@ -5076,6 +5155,7 @@ updated in the same change so they remain aligned.
 | [0015](0015-deterministic-qualification-booking-and-follow-up.md) | Deterministic qualification, booking, and follow-up | Accepted |
 | [0016](0016-structured-lead-analysis-adapter.md) | Structured lead-analysis adapter | Accepted |
 | [0017](0017-human-reviewed-ai-analysis.md) | Human-reviewed AI analysis | Accepted |
+| [0018](0018-ai-workflow-invocation-and-fallback.md) | AI workflow invocation and fallback | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -6019,6 +6099,77 @@ conversation summaries or draft replies into the audit ledger.
 
 ---
 
+<!-- SOURCE: docs/decisions/0018-ai-workflow-invocation-and-fallback.md -->
+
+# ADR-0018: AI workflow invocation and fallback
+
+- Status: Accepted
+- Date: 2026-07-27
+- Decision owners: LeadRecovery maintainers
+
+## Context
+
+LR-0703 must invoke the optional structured-analysis adapter without making AI
+the workflow controller. Inbound processing must remain reliable during an AI
+outage, provider calls must not form a costly retry storm, and neither a
+suggestion nor a failure may automatically send customer-facing content.
+
+The existing transactional-background-work design already persists
+`ScheduledAction` intent before Hangfire dispatch. LR-0702 already stores an
+immutable, input-hash-deduplicated `AiAnalysis` and provides staff review, so a
+new table, endpoint, broker, or service boundary is unnecessary.
+
+## Decision
+
+1. AI is disabled by default. API and Worker configuration must explicitly set
+   `AI_ENABLED=true`. The active workflow must contain the configured Choice
+   question (`AI_CATEGORY_QUESTION_KEY`, default `service`); its values are the
+   tenant-approved category snapshot. Missing or invalid configuration creates
+   no analysis action.
+2. After an eligible signed inbound SMS is persisted and deterministic
+   qualification is evaluated, the same transaction creates one immediately
+   due `AnalyzeLead` action. Its strict payload snapshots the source Message,
+   analysis schema, workflow identity/version, question key, and categories.
+   A newer inbound reply cancels older Pending analysis actions for that Lead.
+3. The Worker re-checks the tenant, automation, Lead status, customer opt-out,
+   active workflow snapshot, and source Message before calling the provider.
+   It builds at most eight sent/delivered/received turns ending at the source
+   Message and computes a SHA-256 hash over the canonical provider-neutral
+   request. Existing Lead/schema/input hashes complete without another call.
+4. An analysis action permits one provider invocation at job level. Hangfire
+   automatic retry is disabled. The adapter may still perform its ADR-0016
+   zero-through-two transient retries within that invocation. If a running
+   lease expires, reconciliation terminally records fallback without invoking
+   the provider again.
+5. A locally validated result creates at most one immutable `AiAnalysis` and
+   completes the action. Suggestions are not copied into deterministic Lead
+   fields. `RequiresHumanReview` may route an active Lead to `NeedsHuman`, but
+   review remains an explicit staff decision under ADR-0017.
+6. A typed provider, refusal, timeout, configuration, or validation failure
+   terminally fails the action, stores only a normalized bounded failure code
+   in action/audit data, and routes an eligible active Lead to `NeedsHuman`.
+   The inbound Message and deterministic qualification are already committed
+   and remain available.
+7. Success and failure create no customer Message and enqueue no AI-generated
+   reply. The separate manual-SMS path remains the only way staff can send an
+   AI draft, with its existing authorization, opt-out, and provider gates.
+
+## Consequences
+
+- Provider outage cannot roll back or stop deterministic qualification, and
+  staff receive durable fallback visibility.
+- Burst replies coalesce before execution, canonical hashes suppress duplicate
+  successful input, and lease recovery cannot repeat a costly provider call.
+- API and Worker AI configuration should remain consistent. A mismatch fails
+  safe: no API scheduling when disabled, and the Worker's unavailable adapter
+  records fallback instead of making an unconfigured network call.
+- One provider call may be lost if the process exits after the external call
+  but before completion. The recovered action deliberately routes to human
+  rather than risking a second billable call.
+- No database migration or public API change is required for LR-0703.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -6067,8 +6218,9 @@ Implementation status (2026-07-21): complete. Continue with Prompt 8.
 
 Implement LR-0701 through LR-0703. Use strict structured output, minimum data, human review, confidence handling, and fallback. No autonomous customer-facing generation.
 
-Implementation status (2026-07-21): LR-0701 is complete. Continue with LR-0702
-only; do not redo the provider adapter or implement LR-0703 in the same issue.
+Implementation status (2026-07-27): complete for LR-0701 through LR-0703.
+Continue with Prompt 9 and LR-0801; preserve the structured-output,
+human-review, deterministic-fallback, and no-autonomous-send boundaries.
 
 ## Prompt 9 - Hardening
 

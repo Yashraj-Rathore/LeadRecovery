@@ -84,7 +84,11 @@ pending workflow action visible and cancellable to authorized tenant staff.
 LR-0701 emits structured provider success/failure logs with provider name,
 model reference, attempt count, and a fixed bounded outcome. It never logs the
 API key, prompt, conversation text, raw structured output, contact details, or
-provider error body. AI metrics and alerts remain LR-0801.
+provider error body. LR-0703 analysis jobs add TenantId, ScheduledActionId,
+CorrelationId, and a bounded workflow outcome to the existing structured
+scope. Durable actions and redacted timeline audits expose created, failed,
+cancelled, duplicate-skipped, and repeat-suppressed outcomes without message
+content or input hashes. AI metrics and alerts remain LR-0801.
 
 ## 5. Alerts
 

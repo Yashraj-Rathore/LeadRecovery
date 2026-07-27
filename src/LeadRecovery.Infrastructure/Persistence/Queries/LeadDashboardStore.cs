@@ -1188,6 +1188,10 @@ internal sealed class LeadDashboardStore(
         "AiAnalysisAccepted" => "AI suggestion accepted",
         "AiAnalysisEdited" => "AI suggestion edited",
         "AiAnalysisRejected" => "AI suggestion rejected",
+        "AiAnalysisCreated" => "AI suggestion ready for review",
+        "AiAnalysisFailed" => "AI unavailable - staff review required",
+        "AiAnalysisRepeatSuppressed" => "Repeated AI request suppressed",
+        "AiAnalysisCancelled" => "AI analysis cancelled by policy",
         _ => "Lead activity updated",
     };
 }

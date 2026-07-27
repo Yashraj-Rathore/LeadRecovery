@@ -268,14 +268,14 @@ Optional features:
 
 All AI output must be structured, versioned, confidence-scored, and editable by staff.
 
-LR-0701 implements the optional provider-neutral request/result contract,
-version 1.0 strict local validator, and an OpenAI Responses API adapter with
-bounded redacted input, timeouts, retries, and typed failures. LR-0701 itself
-does not invoke or persist analysis or send a suggested reply. LR-0702 now
-persists the immutable suggestion and provides authorized
-staff accept/edit/reject review with low-confidence labels and redacted audit.
-Reviewing a suggested reply never sends it. Workflow invocation and fallback
-remain LR-0703.
+Milestone 7 implements the optional provider-neutral request/result contract,
+version 1.0 strict local validator, OpenAI Responses API adapter, durable
+workflow invocation, immutable suggestion persistence, and authorized staff
+accept/edit/reject review. Analysis is explicitly enabled, uses the active
+workflow's approved category snapshot and bounded redacted recent context, and
+never controls deterministic qualification or sends a suggested reply.
+Provider/validation failure is recorded once and may route the Lead to
+`NeedsHuman`; the already committed deterministic workflow remains available.
 
 ### FR-007 Reporting
 

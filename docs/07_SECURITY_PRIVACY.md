@@ -172,6 +172,14 @@ Lead or analysis IDs return `404`. Reviewer identity is bound to a same-tenant
 membership. Review audits contain status and corrected field names only, not
 customer summary/extracted content, suggested replies, or correction text.
 
+LR-0703 snapshots only tenant-approved categories and uses at most eight
+sent/delivered/received turns ending at the triggering inbound Message. It does
+not include notes, credentials, provider metadata, or unrelated Lead history.
+Action and audit failures store normalized bounded codes rather than provider
+bodies or conversation content. Preparation and completion re-check tenant,
+Lead, customer opt-out, workflow version, source Message, and automation state;
+invalid or stale work fails closed without a provider call or customer send.
+
 ## 8. Secrets management
 
 Local development:

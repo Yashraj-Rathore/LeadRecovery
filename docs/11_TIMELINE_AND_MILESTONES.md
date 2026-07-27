@@ -206,13 +206,16 @@ Exit criteria:
 - AI outage leaves core workflow working;
 - low-confidence output requires review.
 
-Implementation status (2026-07-21): LR-0701 is complete; LR-0702 and LR-0703
-remain. Application defines the provider-neutral request/result and strict
-schema validator. The optional Worker registration uses a bounded OpenAI
-Responses API adapter with redacted recent input, `store: false`, local output
-validation, typed failures, a per-attempt timeout, and at most two transient
-retries. No workflow invokes or persists analysis yet, and no AI output reaches
-the dashboard or a customer.
+Implementation status (2026-07-27): complete for LR-0701 through LR-0703.
+Application defines the provider-neutral request/result and strict schema
+validator. The optional Worker uses a bounded OpenAI Responses API adapter with
+redacted recent input, `store: false`, local output validation, typed failures,
+a per-attempt timeout, and at most two transient adapter retries. Eligible
+inbound replies create coalesced durable analysis work, validated suggestions
+are deduplicated and presented for staff review, and provider outage routes the
+Lead to `NeedsHuman` without undoing deterministic workflow state or sending a
+customer-facing AI message. Unit, PostgreSQL, API, and Playwright coverage prove
+the provider, persistence, review, fallback, and no-autonomous-send boundaries.
 
 ### Milestone 8 - Production hardening (Week 8)
 

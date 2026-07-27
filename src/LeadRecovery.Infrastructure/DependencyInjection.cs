@@ -10,6 +10,7 @@ using LeadRecovery.Infrastructure.Identity;
 using LeadRecovery.Infrastructure.Integrations.Twilio;
 using LeadRecovery.Infrastructure.Messaging;
 using LeadRecovery.Infrastructure.Persistence;
+using LeadRecovery.Infrastructure.Persistence.Analysis;
 using LeadRecovery.Infrastructure.Persistence.Automations;
 using LeadRecovery.Infrastructure.Persistence.Integrations;
 using LeadRecovery.Infrastructure.Persistence.Messaging;
@@ -28,7 +29,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        string databaseConnectionString)
+        string databaseConnectionString,
+        LeadAnalysisWorkflowOptions? analysisOptions = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(databaseConnectionString);
@@ -59,6 +61,11 @@ public static class DependencyInjection
         services.AddScoped<ISmsWorkflowPersistence, SmsWorkflowPersistence>();
         services.AddScoped<IManualSmsWorkflowPersistence, ManualSmsWorkflowPersistence>();
         services.AddScoped<IWorkflowSmsPersistence, WorkflowSmsPersistence>();
+        services.AddSingleton(
+            analysisOptions ?? new LeadAnalysisWorkflowOptions(enabled: false));
+        services.AddSingleton<ILeadAnalysisInputHasher, LeadAnalysisInputHasher>();
+        services.AddScoped<ILeadAnalysisWorkflowPersistence, LeadAnalysisWorkflowPersistence>();
+        services.TryAddSingleton<ILeadAnalysisService, UnavailableLeadAnalysisService>();
         services.TryAddSingleton<ISmsSender, FakeSmsSender>();
         services.AddSingleton<ISmsMetrics, SmsMetrics>();
         services.AddScoped<SendScheduledRecoverySmsUseCase>();
@@ -66,6 +73,7 @@ public static class DependencyInjection
         services.AddScoped<SendScheduledWorkflowSmsUseCase>();
         services.AddScoped<ProcessInboundSmsUseCase>();
         services.AddScoped<ProcessDeliveryStatusUseCase>();
+        services.AddScoped<ExecuteScheduledLeadAnalysisUseCase>();
         services.AddSingleton<IBusinessHoursScheduler, BusinessHoursScheduler>();
         services.AddSingleton<IQualificationEvaluator, QualificationEvaluator>();
         services.AddScoped<CreateCustomerUseCase>();
@@ -109,6 +117,7 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
         services.TryAddSingleton<ILeadAnalysisResultValidator, LeadAnalysisResultValidator>();
+        services.RemoveAll<ILeadAnalysisService>();
         services.AddSingleton(options);
         services.AddHttpClient<ILeadAnalysisService, OpenAiLeadAnalysisService>(client =>
         {

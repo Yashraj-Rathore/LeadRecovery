@@ -147,6 +147,16 @@ and the absence of Message/ScheduledAction side effects. Playwright verifies
 the AI label, low-confidence warning, unsent-draft guardrail, staff correction,
 and visible audited timeline result using fictional seed data.
 
+LR-0703 adds Application tests for canonical input hashing, strict scheduled
+payload parsing, ignored work, and one-call typed failure completion. Real
+PostgreSQL integration tests independently sign inbound SMS requests and prove
+that deterministic qualification commits before analysis; a provider outage
+routes the Lead to `NeedsHuman`, records one terminal failed action, emits no
+customer Message, and is ignored on duplicate execution. Success persists one
+validated analysis without applying it, while consecutive inbound replies
+cancel older Pending analysis work. Tests use an unavailable or in-process fake
+provider and never call a live AI service.
+
 ## 3. Test environments
 
 ### Local

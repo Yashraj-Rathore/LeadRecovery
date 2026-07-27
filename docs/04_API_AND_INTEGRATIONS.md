@@ -339,10 +339,13 @@ Every attempt has a configured 1-30 second timeout. Network failures and HTTP
 408, 409, 429, and 5xx responses receive at most two bounded exponential-delay
 retries. Refusal, non-transient HTTP failure, an invalid provider envelope, or
 locally schema-invalid output returns a typed failure with no suggestion.
-LR-0702 now persists validated suggestions and provides staff review, but no
-production workflow invokes the adapter yet. Suggested replies are never sent
-by review routes. Workflow invocation and provider-failure fallback remain
-LR-0703.
+LR-0703 invokes this adapter from the Worker's `analysis` queue for an eligible
+durable `AnalyzeLead` action. One application execution surrounds the adapter's
+bounded internal retries; Hangfire retry is disabled for this job. Validated
+output is deduplicated by schema version and canonical input hash before
+`AiAnalysis` persistence. Failure is terminal for the action and may route the
+Lead to `NeedsHuman`; it creates neither an error SMS nor any other customer
+Message. Suggested replies are never sent by analysis or review routes.
 
 ## 12. Webhook idempotency algorithm
 

@@ -16,8 +16,7 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 6 are complete. LR-0101 through LR-0604, LR-0701, and
-LR-0702 are implemented.
+Milestones 0 through 7 are complete. LR-0101 through LR-0703 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -38,15 +37,17 @@ attention-first queue rows, clearer loading/empty/error feedback, consistent
 coverage improve daily use without adding a component-library dependency or
 changing an API/workflow contract.
 
-LR-0701 adds a provider-neutral analysis contract, independent strict schema
-validation, and an optional OpenAI Responses API adapter. The adapter is
-disabled by default, sends a redacted and bounded recent transcript with
-`store: false`, and returns typed failures for timeouts, refusals, HTTP errors,
-or invalid output. LR-0702 now persists immutable validated suggestions and
-adds tenant-scoped accept, correct, and reject controls with low-confidence
+Milestone 7 adds a provider-neutral analysis contract, independent strict
+schema validation, and an optional OpenAI Responses API adapter. Eligible
+inbound replies now create coalesced, durable `AnalyzeLead` work only when AI
+is explicitly enabled and the active workflow exposes an approved category
+question. The Worker sends a bounded, redacted transcript, persists immutable
+validated suggestions, and routes provider or validation failures to
+`NeedsHuman` without interrupting the committed deterministic workflow.
+Tenant-scoped accept, correct, and reject controls retain low-confidence
 labels, optimistic review concurrency, and redacted audit history. Suggested
-replies remain visibly unsent drafts and no review action creates a Message or
-ScheduledAction. Automatic invocation and outage fallback remain LR-0703.
+replies remain visibly unsent drafts; analysis and review never send a customer
+message or automatically apply a suggestion.
 
 The currently implemented browser and health contract is:
 
@@ -71,8 +72,8 @@ The currently implemented browser and health contract is:
 - `POST /api/v1/webhooks/twilio/sms/inbound` and
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
-- the worker executes due recovery, qualification, booking, follow-up, and
-  manual-message actions through
+- the worker executes due recovery, qualification, booking, follow-up,
+  manual-message, and optional lead-analysis actions through
   PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
@@ -160,12 +161,15 @@ when `SMS_PROVIDER=twilio` and `ALLOW_REAL_SMS=true` are both set and the
 Twilio account SID/auth token are present. Keep the fake defaults for automated
 tests and local workflow development.
 
-AI analysis also stays disabled by default. LR-0701 registers the adapter only
-when `AI_ENABLED=true`; provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
+AI analysis stays disabled by default. Set `AI_ENABLED=true` consistently for
+both the API and Worker, provide `OPENAI_API_KEY`, an explicit `AI_MODEL`
 (default `gpt-5.6-sol`), and the bounded timeout/retry settings from
-`templates/.env.example`. The current Worker has no analysis job yet, so
-enabling this registration alone does not persist a suggestion or send any
-customer-facing content.
+`templates/.env.example`. `AI_CATEGORY_QUESTION_KEY` selects the active
+workflow Choice question whose values form the tenant-approved category
+snapshot; it defaults to `service` and fails closed when that question is
+absent or invalid. Eligible inbound replies then create durable analysis work.
+Provider failure routes the Lead to staff without undoing deterministic
+qualification, and no analysis result sends customer-facing content.
 
 The fictional demo seed includes one pending low-confidence analysis so the
 LR-0702 review workflow can be demonstrated without enabling AI or providing an
