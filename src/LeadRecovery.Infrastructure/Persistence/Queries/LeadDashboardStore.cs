@@ -5,6 +5,7 @@ using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Leads;
 using LeadRecovery.Application.Messaging;
+using LeadRecovery.Application.Observability;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Audit;
@@ -467,6 +468,7 @@ internal sealed class LeadDashboardStore(
                 affectedActionCount = await CreateValidResumeAction(
                     lead,
                     expectedVersion,
+                    correlationId,
                     now,
                     cancellationToken);
             }
@@ -675,6 +677,8 @@ internal sealed class LeadDashboardStore(
         }
 
         dbContext.Messages.Add(message);
+        WorkflowTelemetryContext telemetry = WorkflowTelemetryContextCapture.Capture(
+            correlationId);
         ScheduledAction action = new(
             Guid.CreateVersion7(),
             tenantContext.TenantId,
@@ -683,7 +687,10 @@ internal sealed class LeadDashboardStore(
             now,
             $"manual-message:{message.Id:N}",
             JsonSerializer.Serialize(new { schemaVersion = 1, messageId = message.Id }),
-            now);
+            now,
+            telemetry.CorrelationId,
+            telemetry.TraceParent,
+            telemetry.TraceState);
         dbContext.ScheduledActions.Add(action);
         AddAudit(
             lead,
@@ -1008,6 +1015,7 @@ internal sealed class LeadDashboardStore(
     private async Task<int> CreateValidResumeAction(
         Lead lead,
         long expectedVersion,
+        string correlationId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -1043,6 +1051,8 @@ internal sealed class LeadDashboardStore(
             return 0;
         }
 
+        WorkflowTelemetryContext telemetry = WorkflowTelemetryContextCapture.Capture(
+            correlationId);
         dbContext.ScheduledActions.Add(new ScheduledAction(
             Guid.CreateVersion7(),
             lead.TenantId,
@@ -1051,7 +1061,10 @@ internal sealed class LeadDashboardStore(
             now.AddSeconds(number.InitialDelaySeconds),
             $"dashboard-resume:{lead.Id:N}:{expectedVersion}",
             JsonSerializer.Serialize(new { schemaVersion = 1, reason = "StaffResume" }),
-            now));
+            now,
+            telemetry.CorrelationId,
+            telemetry.TraceParent,
+            telemetry.TraceState));
         return 1;
     }
 

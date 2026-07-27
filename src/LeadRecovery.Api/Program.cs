@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading.RateLimiting;
 
 using LeadRecovery.Api.Demo;
@@ -12,6 +13,7 @@ using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Identity;
 using LeadRecovery.Infrastructure;
 using LeadRecovery.Infrastructure.Identity;
+using LeadRecovery.Infrastructure.Observability;
 using LeadRecovery.Infrastructure.Persistence;
 
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -22,6 +24,30 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.Configure(options =>
+    options.ActivityTrackingOptions =
+        ActivityTrackingOptions.TraceId |
+        ActivityTrackingOptions.SpanId |
+        ActivityTrackingOptions.ParentId);
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
+    options.UseUtcTimestamp = true;
+});
+string? configuredLogLevel = builder.Configuration["LOG_LEVEL"];
+if (!string.IsNullOrWhiteSpace(configuredLogLevel))
+{
+    if (!Enum.TryParse(configuredLogLevel, ignoreCase: true, out LogLevel minimumLogLevel) ||
+        !Enum.IsDefined(minimumLogLevel))
+    {
+        throw new InvalidOperationException("LOG_LEVEL must be a valid .NET log level.");
+    }
+
+    builder.Logging.SetMinimumLevel(minimumLogLevel);
+}
 
 string databaseConnectionString = builder.Configuration.GetConnectionString("Database")
     ?? throw new InvalidOperationException(
@@ -42,6 +68,11 @@ builder.Services.AddScoped<ITenantExecutionScope>(services =>
 builder.Services.AddInfrastructure(
     databaseConnectionString,
     new LeadAnalysisWorkflowOptions(aiEnabled, aiCategoryQuestionKey));
+builder.Services.AddLeadRecoveryObservability(
+    builder.Configuration,
+    "LeadRecovery.Api",
+    builder.Environment.EnvironmentName,
+    instrumentAspNetCore: true);
 builder.Services.AddTwilioCallIngestion(builder.Configuration["TWILIO_AUTH_TOKEN"]);
 builder.Services.AddSingleton(new TwilioWebhookOptions(
     builder.Configuration["TWILIO_WEBHOOK_BASE_URL"],

@@ -16,7 +16,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 7 are complete. LR-0101 through LR-0703 are implemented.
+Milestones 0 through 7 are complete. LR-0101 through LR-0703 and LR-0801 are
+implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -29,6 +30,12 @@ automation. All browser writes use CSRF and role authorization; Lead writes use
 opaque optimistic-concurrency tokens and return the latest safe representation
 on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
 cover these flows without enabling live SMS.
+
+LR-0801 adds JSON structured logging, server-derived correlation IDs, durable
+W3C trace propagation from provider webhooks through scheduled jobs to Twilio
+or OpenAI calls, and opt-in OTLP trace/metric export. Paid-provider metrics are
+tenant-scoped using opaque server-derived IDs, while tests prevent message,
+contact, credential, or other PII values from entering logs and metric labels.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,

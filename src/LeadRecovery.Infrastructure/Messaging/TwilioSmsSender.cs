@@ -1,6 +1,7 @@
 using System.Globalization;
 
 using LeadRecovery.Application.Messaging;
+using LeadRecovery.Infrastructure.Observability;
 
 using Twilio.Clients;
 using Twilio.Exceptions;
@@ -32,6 +33,10 @@ internal sealed class TwilioSmsSender : ISmsSender
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using TelemetryOperation telemetry = LeadRecoveryTelemetry.StartProvider(
+            "Twilio",
+            "sms_send",
+            request.TenantId);
         try
         {
             MessageResource message = await MessageResource.CreateAsync(
@@ -40,28 +45,38 @@ internal sealed class TwilioSmsSender : ISmsSender
                 body: request.Body,
                 statusCallback: request.StatusCallbackUri,
                 client: _client);
+            telemetry.Complete("Accepted");
             return SmsSendResult.Accepted(message.Sid);
         }
         catch (ApiException exception) when (
             exception.Status == 429 || exception.Status >= 500)
         {
+            telemetry.Complete("TransientFailure", isError: true);
             return SmsSendResult.Transient(
                 GetFailureCode(exception),
                 "The provider is temporarily unavailable.");
         }
         catch (ApiException exception)
         {
+            telemetry.Complete("PermanentFailure", isError: true);
             return SmsSendResult.Permanent(
                 GetFailureCode(exception),
                 "The provider rejected the message.");
         }
         catch (HttpRequestException)
         {
+            telemetry.Complete("NetworkFailure", isError: true);
             return SmsSendResult.Transient("network", "The provider could not be reached.");
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            telemetry.Complete("Timeout", isError: true);
             return SmsSendResult.Transient("timeout", "The provider request timed out.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            telemetry.Complete("Cancelled");
+            throw;
         }
     }
 

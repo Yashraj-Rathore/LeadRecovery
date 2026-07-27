@@ -1,6 +1,7 @@
 namespace LeadRecovery.Application.Messaging;
 
 public sealed record SmsSendRequest(
+    Guid TenantId,
     string FromPhoneE164,
     string ToPhoneE164,
     string Body,

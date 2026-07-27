@@ -7,6 +7,7 @@ using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Domain.Automations;
+using LeadRecovery.Infrastructure.Observability;
 using LeadRecovery.Infrastructure.Persistence;
 
 using Microsoft.EntityFrameworkCore;
@@ -84,7 +85,16 @@ internal sealed partial class ScheduledActionDispatcher(
                 action.ScheduledForUtc <= now)
             .OrderBy(action => action.ScheduledForUtc)
             .ThenBy(action => action.Id)
-            .Select(action => new { action.Id, action.TenantId, action.ActionType })
+            .Select(action => new
+            {
+                action.Id,
+                action.TenantId,
+                action.ActionType,
+                action.ScheduledForUtc,
+                action.CorrelationId,
+                action.TraceParent,
+                action.TraceState,
+            })
             .Take(100)
             .ToListAsync(cancellationToken);
 
@@ -96,37 +106,53 @@ internal sealed partial class ScheduledActionDispatcher(
                 continue;
             }
 
-            string correlationId = $"worker:{action.Id:N}:{now.ToUnixTimeSeconds()}";
+            string correlationId = action.CorrelationId ??
+                $"action:{action.Id:N}";
+            LeadRecoveryTelemetry.RecordQueueDelay(
+                action.ActionType,
+                now.Subtract(action.ScheduledForUtc));
             if (action.ActionType == LeadAnalysisScheduledActionTypes.AnalyzeLead)
             {
-                _ = backgroundJobs.Enqueue<ScheduledLeadAnalysisJob>(job => job.ExecuteAsync(
+                _ = backgroundJobs.Enqueue<ScheduledLeadAnalysisJob>(job =>
+                    job.ExecuteWithTelemetryAsync(
                     action.Id,
                     action.TenantId,
                     correlationId,
+                    action.TraceParent,
+                    action.TraceState,
                     CancellationToken.None));
             }
             else if (action.ActionType == SmsScheduledActionTypes.SendManualSms)
             {
-                _ = backgroundJobs.Enqueue<ScheduledManualSmsJob>(job => job.ExecuteAsync(
+                _ = backgroundJobs.Enqueue<ScheduledManualSmsJob>(job =>
+                    job.ExecuteWithTelemetryAsync(
                     action.Id,
                     action.TenantId,
                     correlationId,
+                    action.TraceParent,
+                    action.TraceState,
                     CancellationToken.None));
             }
             else if (WorkflowScheduledActionTypes.IsWorkflowSms(action.ActionType))
             {
-                _ = backgroundJobs.Enqueue<ScheduledWorkflowSmsJob>(job => job.ExecuteAsync(
+                _ = backgroundJobs.Enqueue<ScheduledWorkflowSmsJob>(job =>
+                    job.ExecuteWithTelemetryAsync(
                     action.Id,
                     action.TenantId,
                     correlationId,
+                    action.TraceParent,
+                    action.TraceState,
                     CancellationToken.None));
             }
             else
             {
-                _ = backgroundJobs.Enqueue<ScheduledRecoverySmsJob>(job => job.ExecuteAsync(
+                _ = backgroundJobs.Enqueue<ScheduledRecoverySmsJob>(job =>
+                    job.ExecuteWithTelemetryAsync(
                     action.Id,
                     action.TenantId,
                     correlationId,
+                    action.TraceParent,
+                    action.TraceState,
                     CancellationToken.None));
             }
             _recentlyEnqueued[action.Id] = now;

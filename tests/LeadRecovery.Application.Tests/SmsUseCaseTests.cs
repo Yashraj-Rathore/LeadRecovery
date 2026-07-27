@@ -112,6 +112,7 @@ public sealed class SmsUseCaseTests
             actionId,
             Guid.CreateVersion7(),
             new SmsSendRequest(
+                tenantId,
                 "+14165550100",
                 "+14165550101",
                 "Hello",

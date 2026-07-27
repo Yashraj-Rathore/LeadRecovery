@@ -5,6 +5,7 @@ using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
+using LeadRecovery.Application.Observability;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Audit;
 using LeadRecovery.Domain.Automations;
@@ -185,6 +186,7 @@ internal sealed class SmsWorkflowPersistence(
             action.Id,
             message.Id,
             new SmsSendRequest(
+                tenantId,
                 sendingNumber.PhoneNumberE164,
                 lead.PrimaryPhoneE164,
                 message.Body,
@@ -545,6 +547,7 @@ internal sealed class SmsWorkflowPersistence(
                         lead,
                         workflow,
                         message,
+                        webhookEvent.CorrelationId,
                         now,
                         cancellationToken);
                 }
@@ -585,6 +588,7 @@ internal sealed class SmsWorkflowPersistence(
         Lead lead,
         WorkflowDefinition workflow,
         Message sourceMessage,
+        string correlationId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -633,6 +637,8 @@ internal sealed class SmsWorkflowPersistence(
             workflow.Version,
             categoryQuestion!.Key,
             categories.ToArray());
+        WorkflowTelemetryContext telemetry = WorkflowTelemetryContextCapture.Capture(
+            correlationId);
         dbContext.ScheduledActions.Add(new ScheduledAction(
             actionId,
             tenant.Id,
@@ -641,7 +647,10 @@ internal sealed class SmsWorkflowPersistence(
             now,
             $"ai-analysis:{lead.Id:N}:{sourceMessage.Id:N}:{LeadAnalysisSchema.CurrentVersion}",
             LeadAnalysisScheduledActionPayloadSerializer.Serialize(payload),
-            now));
+            now,
+            telemetry.CorrelationId,
+            telemetry.TraceParent,
+            telemetry.TraceState));
         return actionId;
     }
 

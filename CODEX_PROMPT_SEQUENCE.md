@@ -52,6 +52,10 @@ human-review, deterministic-fallback, and no-autonomous-send boundaries.
 
 Implement LR-0801 through LR-0804. Add telemetry, kill switch, retention dry-run, rate limiting, security headers, alerts/runbooks, and PII-safe logs.
 
+Implementation status (2026-07-27): LR-0801 is complete. Continue with
+LR-0802; retain the PII-safe JSON logging, durable W3C propagation, and
+optional OTLP-export baseline.
+
 ## Prompt 10 - Containers and Kubernetes
 
 Implement LR-0901 and LR-0902. First prove Docker Compose works, then add Kubernetes base/overlays, probes, resources, migration job, ingress, and secret references. Demonstrate a rolling update and pod restart recovery.

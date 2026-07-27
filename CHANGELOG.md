@@ -195,6 +195,21 @@ All notable repository and product-specification changes are recorded here.
   persistence, outage continuity, duplicate execution suppression, and pending
   analysis coalescing, plus ADR-0018 documenting the invocation and fallback
   boundary.
+- LR-0801 PII-safe JSON console logging with server-derived correlation IDs,
+  W3C trace/span fields, and structured API/Worker scopes.
+- Durable webhook-to-worker trace propagation through nullable scheduled-action
+  correlation, `traceparent`, and `tracestate` fields, including rolling-deploy
+  compatibility for previously queued Hangfire jobs.
+- OpenTelemetry 1.17.0 HTTP, runtime, Npgsql, workflow, Twilio, SMS, and OpenAI
+  instrumentation with opt-in OTLP trace/metric export and tenant-attributed
+  paid-provider request/duration metrics.
+- Unit and PostgreSQL acceptance coverage for safe correlation parsing,
+  telemetry persistence, webhook/job/provider span parentage, core metric
+  emission, and exclusion of contact data, message content, tenant identity,
+  and credentials from AI provider logs.
+- ADR-0019 documenting the observability boundary, bounded telemetry labels,
+  exporter fail-open behavior, queued-work compatibility, and migration
+  rollback order.
 
 ### Changed
 

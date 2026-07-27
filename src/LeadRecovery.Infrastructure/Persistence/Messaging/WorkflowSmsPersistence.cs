@@ -189,6 +189,7 @@ internal sealed class WorkflowSmsPersistence(
             action.Id,
             message.Id,
             new SmsSendRequest(
+                tenantId,
                 sendingNumber!.PhoneNumberE164,
                 lead.PrimaryPhoneE164,
                 message.Body,

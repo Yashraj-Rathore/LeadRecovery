@@ -449,6 +449,12 @@ absence of autonomous customer action.
 - core metrics exported;
 - PII redaction test.
 
+Implementation status (2026-07-27): complete. API and Worker JSON logs carry
+server-derived correlation and W3C activity fields; durable scheduled actions
+continue webhook traces into worker and paid-provider spans; OTLP exports core
+HTTP, runtime, database, workflow, SMS, Twilio, and paid-provider metrics; and
+unit/PostgreSQL tests enforce bounded context plus PII-safe logs and labels.
+
 ### LR-0802 Kill switch
 
 **Acceptance:**

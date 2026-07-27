@@ -64,6 +64,37 @@ public sealed class ScheduledActionReceiptPersistenceTests(LeadRecoveryApiFixtur
     }
 
     [Fact]
+    public async Task ScheduledActionTelemetryContextRoundTripsThroughPostgreSql()
+    {
+        Guid tenantId = Guid.CreateVersion7();
+        Guid leadId = await PersistTenantAndLead(tenantId, "+14165550158");
+        const string correlationId = "webhook:01JTESTTRACE";
+        const string traceParent =
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        const string traceState = "vendor=value";
+        ScheduledAction action = CreateAction(
+            tenantId,
+            leadId,
+            "telemetry-context",
+            correlationId,
+            traceParent,
+            traceState);
+        await PersistAction(action);
+
+        await using AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope();
+        using TenantClaimScope tenantClaim = new(scope.ServiceProvider, tenantId);
+        LeadRecoveryDbContext dbContext =
+            scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        ScheduledAction persisted = await dbContext.ScheduledActions.SingleAsync(
+            candidate => candidate.Id == action.Id,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(correlationId, persisted.CorrelationId);
+        Assert.Equal(traceParent, persisted.TraceParent);
+        Assert.Equal(traceState, persisted.TraceState);
+    }
+
+    [Fact]
     public async Task CompoundForeignKeyRejectsCrossTenantScheduledActionLead()
     {
         Guid firstTenantId = Guid.CreateVersion7();
@@ -262,7 +293,10 @@ public sealed class ScheduledActionReceiptPersistenceTests(LeadRecoveryApiFixtur
     private static ScheduledAction CreateAction(
         Guid tenantId,
         Guid leadId,
-        string idempotencyKey) =>
+        string idempotencyKey,
+        string? correlationId = null,
+        string? traceParent = null,
+        string? traceState = null) =>
         new(
             Guid.CreateVersion7(),
             tenantId,
@@ -271,7 +305,10 @@ public sealed class ScheduledActionReceiptPersistenceTests(LeadRecoveryApiFixtur
             CreatedAtUtc.AddHours(1),
             idempotencyKey,
             "{}",
-            CreatedAtUtc);
+            CreatedAtUtc,
+            correlationId,
+            traceParent,
+            traceState);
 
     private static ExternalEventReceipt CreateReceipt(
         Guid id,

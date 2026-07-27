@@ -111,6 +111,7 @@ internal sealed class ManualSmsWorkflowPersistence(
             action.Id,
             preparedMessage.Id,
             new SmsSendRequest(
+                tenantId,
                 preparedSendingNumber.PhoneNumberE164,
                 lead.PrimaryPhoneE164,
                 preparedMessage.Body,

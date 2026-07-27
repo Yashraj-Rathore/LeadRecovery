@@ -6,7 +6,9 @@ namespace LeadRecovery.Infrastructure.Messaging;
 
 internal sealed class SmsMetrics : ISmsMetrics, IDisposable
 {
-    private readonly Meter _meter = new("LeadRecovery.Messaging.Sms", "1.0.0");
+    public const string MeterName = "LeadRecovery.Messaging.Sms";
+
+    private readonly Meter _meter = new(MeterName, "1.0.0");
     private readonly Counter<long> _outbound;
     private readonly Counter<long> _inbound;
     private readonly Counter<long> _delivery;

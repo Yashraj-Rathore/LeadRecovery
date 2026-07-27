@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using LeadRecovery.Application.Observability;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Audit;
 using LeadRecovery.Domain.Automations;
@@ -122,6 +123,9 @@ public sealed class ProcessCallStatusWebhookUseCase(
                         persistence.AddLead(lead);
                     }
 
+                    WorkflowTelemetryContext telemetry =
+                        WorkflowTelemetryContextCapture.Capture(
+                            webhookEvent.CorrelationId);
                     ScheduledAction action = new(
                         Guid.CreateVersion7(),
                         route.TenantId,
@@ -130,7 +134,10 @@ public sealed class ProcessCallStatusWebhookUseCase(
                         now.AddSeconds(route.InitialDelaySeconds),
                         $"twilio:{webhookEvent.ExternalEventId}",
                         JsonSerializer.Serialize(new { schemaVersion = 1 }),
-                        now);
+                        now,
+                        telemetry.CorrelationId,
+                        telemetry.TraceParent,
+                        telemetry.TraceState);
                     persistence.AddScheduledAction(action);
 
                     outcome = CallStatusProcessingOutcome.RecoveryScheduled;

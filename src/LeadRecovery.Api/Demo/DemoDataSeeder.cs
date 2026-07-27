@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
+using LeadRecovery.Application.Observability;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Audit;
@@ -272,6 +273,9 @@ internal sealed class DemoDataSeeder(
                     dbContext.Leads.Add(lead);
                     if (item.Source == LeadSource.MissedCall)
                     {
+                        WorkflowTelemetryContext telemetry =
+                            WorkflowTelemetryContextCapture.Capture(
+                                $"demo:{lead.Id:N}");
                         ScheduledAction action = new(
                             Guid.CreateVersion7(),
                             tenant.Id,
@@ -280,7 +284,10 @@ internal sealed class DemoDataSeeder(
                             now.AddMinutes(10),
                             $"demo-recovery:{lead.Id:N}",
                             JsonSerializer.Serialize(new { schemaVersion = 1 }),
-                            createdAt.AddMinutes(1));
+                            createdAt.AddMinutes(1),
+                            telemetry.CorrelationId,
+                            telemetry.TraceParent,
+                            telemetry.TraceState);
                         dbContext.ScheduledActions.Add(action);
                         dbContext.AuditEvents.Add(new AuditEvent(
                             Guid.CreateVersion7(),

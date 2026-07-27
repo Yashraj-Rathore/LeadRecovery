@@ -18,7 +18,10 @@ public sealed class ScheduledAction : ITenantOwnedEntity
         DateTimeOffset scheduledForUtc,
         string idempotencyKey,
         string payloadJson,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        string? correlationId = null,
+        string? traceParent = null,
+        string? traceState = null)
     {
         Id = RequireId(id, nameof(id));
         TenantId = RequireId(tenantId, nameof(tenantId));
@@ -33,6 +36,22 @@ public sealed class ScheduledAction : ITenantOwnedEntity
             ScheduledActionFieldLimits.IdempotencyKeyMaximumLength,
             nameof(idempotencyKey));
         PayloadJson = RequireJsonObject(payloadJson);
+        CorrelationId = NormalizeCorrelationId(correlationId);
+        TraceParent = NormalizeOptional(
+            traceParent,
+            ScheduledActionFieldLimits.TraceParentMaximumLength,
+            nameof(traceParent));
+        TraceState = NormalizeOptional(
+            traceState,
+            ScheduledActionFieldLimits.TraceStateMaximumLength,
+            nameof(traceState));
+        if (TraceParent is null && TraceState is not null)
+        {
+            throw new ArgumentException(
+                "Trace state requires a trace parent.",
+                nameof(traceState));
+        }
+
         Status = ScheduledActionStatus.Pending;
         CreatedAtUtc = RequireUtc(createdAtUtc, nameof(createdAtUtc));
         UpdatedAtUtc = CreatedAtUtc;
@@ -57,6 +76,12 @@ public sealed class ScheduledAction : ITenantOwnedEntity
     public string PayloadJson { get; private set; } = string.Empty;
 
     public string? LastError { get; private set; }
+
+    public string? CorrelationId { get; private set; }
+
+    public string? TraceParent { get; private set; }
+
+    public string? TraceState { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
@@ -216,6 +241,46 @@ public sealed class ScheduledAction : ITenantOwnedEntity
             throw new ArgumentException(
                 $"The value cannot exceed {maximumLength} characters.",
                 parameterName);
+        }
+
+        return normalized;
+    }
+
+    private static string? NormalizeOptional(
+        string? value,
+        int maximumLength,
+        string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        string normalized = value.Trim();
+        if (normalized.Length > maximumLength ||
+            normalized.Any(character => char.IsControl(character)))
+        {
+            throw new ArgumentException(
+                $"The value must be printable and cannot exceed {maximumLength} characters.",
+                parameterName);
+        }
+
+        return normalized;
+    }
+
+    private static string? NormalizeCorrelationId(string? value)
+    {
+        string? normalized = NormalizeOptional(
+            value,
+            ScheduledActionFieldLimits.CorrelationIdMaximumLength,
+            nameof(value));
+        if (normalized is not null && normalized.Any(character =>
+            !char.IsAsciiLetterOrDigit(character) &&
+            character is not ('-' or '_' or '.' or ':' or '/')))
+        {
+            throw new ArgumentException(
+                "Correlation IDs may contain only ASCII letters, digits, '-', '_', '.', ':', or '/'.",
+                nameof(value));
         }
 
         return normalized;

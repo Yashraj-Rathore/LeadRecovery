@@ -1,5 +1,6 @@
 using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Messaging;
+using LeadRecovery.Application.Observability;
 using LeadRecovery.Domain.Automations;
 using LeadRecovery.Domain.Leads;
 using LeadRecovery.Domain.Tenancy;
@@ -176,6 +177,7 @@ internal sealed class WorkflowActionScheduler(
             return false;
         }
 
+        WorkflowTelemetryContext telemetry = WorkflowTelemetryContextCapture.Capture();
         dbContext.ScheduledActions.Add(new ScheduledAction(
             Guid.CreateVersion7(),
             lead.TenantId,
@@ -184,7 +186,10 @@ internal sealed class WorkflowActionScheduler(
             scheduledFor,
             idempotencyKey,
             WorkflowScheduledActionPayloadSerializer.Serialize(payload),
-            now));
+            now,
+            telemetry.CorrelationId,
+            telemetry.TraceParent,
+            telemetry.TraceState));
         return true;
     }
 }

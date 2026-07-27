@@ -25,6 +25,7 @@ updated in the same change so they remain aligned.
 | [0016](0016-structured-lead-analysis-adapter.md) | Structured lead-analysis adapter | Accepted |
 | [0017](0017-human-reviewed-ai-analysis.md) | Human-reviewed AI analysis | Accepted |
 | [0018](0018-ai-workflow-invocation-and-fallback.md) | AI workflow invocation and fallback | Accepted |
+| [0019](0019-observability-and-trace-propagation.md) | Observability and trace propagation | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.

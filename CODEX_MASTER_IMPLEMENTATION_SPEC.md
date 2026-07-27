@@ -23,7 +23,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 7 are complete. LR-0101 through LR-0703 are implemented.
+Milestones 0 through 7 are complete. LR-0101 through LR-0703 and LR-0801 are
+implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -36,6 +37,12 @@ automation. All browser writes use CSRF and role authorization; Lead writes use
 opaque optimistic-concurrency tokens and return the latest safe representation
 on conflicts. Unit, PostgreSQL integration, performance, and Playwright tests
 cover these flows without enabling live SMS.
+
+LR-0801 adds JSON structured logging, server-derived correlation IDs, durable
+W3C trace propagation from provider webhooks through scheduled jobs to Twilio
+or OpenAI calls, and opt-in OTLP trace/metric export. Paid-provider metrics are
+tenant-scoped using opaque server-derived IDs, while tests prevent message,
+contact, credential, or other PII values from entering logs and metric labels.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -3729,6 +3736,57 @@ scope. Durable actions and redacted timeline audits expose created, failed,
 cancelled, duplicate-skipped, and repeat-suppressed outcomes without message
 content or input hashes. AI metrics and alerts remain LR-0801.
 
+### LR-0801 implementation baseline
+
+The API and Worker emit newline-delimited JSON console logs with UTC timestamps,
+scopes, and W3C trace/span IDs. API requests receive a server-derived
+`X-Correlation-ID`; untrusted client values are not reflected. Scheduled jobs
+reuse that correlation ID in their structured scope. Phone numbers, email
+addresses, message bodies, prompts, provider response bodies, API keys, and
+authentication material are excluded from logs and telemetry tags.
+
+The API creates W3C server spans for HTTP requests. A webhook-created
+`ScheduledAction` stores a bounded correlation ID plus nullable `traceparent`
+and `tracestate`. The Worker resumes the stored context as a consumer span and
+creates child spans for real Twilio SMS sends and OpenAI analysis calls. The
+three columns are nullable so actions queued before the LR-0801 migration keep
+working; legacy Hangfire method signatures remain available during a rolling
+deployment.
+
+OpenTelemetry 1.17.0 exports traces and metrics over OTLP when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is an absolute HTTP or HTTPS collector URL. A
+blank value disables network export while retaining JSON console logs. Both
+processes attach service name, service version, and environment resources. Set
+`LOG_LEVEL` to a named .NET log level to change the JSON console threshold; an
+invalid value fails startup rather than silently changing visibility.
+
+Exported instrumentation includes ASP.NET Core, `HttpClient`, runtime, Npgsql,
+the existing Twilio webhook/SMS outcome meters, and the following bounded
+operational instruments:
+
+| Instrument | Type | Safe dimensions |
+|---|---|---|
+| `leadrecovery.jobs.executions` | counter | job type, outcome |
+| `leadrecovery.jobs.duration` | histogram (seconds) | job type, outcome |
+| `leadrecovery.jobs.queue_delay` | histogram (seconds) | job type |
+| `leadrecovery.provider.requests` | counter | provider, operation, tenant ID, outcome |
+| `leadrecovery.provider.duration` | histogram (seconds) | provider, operation, tenant ID, outcome |
+
+The tenant dimension is a server-derived opaque GUID and is present only on
+paid provider-call metrics, where cost attribution requires it. Do not add
+Lead IDs, phone numbers, message text, URLs, provider SIDs, exception messages,
+or other unbounded/customer-controlled values as metric labels.
+
+Migration `AddScheduledActionTelemetryContext` is additive and requires no
+downtime. Roll back application binaries before reversing it; dropping the
+columns while new binaries are active will break scheduling, and reversing it
+intentionally discards trace continuity for already queued work.
+
+For an incident, begin with the response correlation ID, locate the matching
+API JSON scope, then follow its trace through the scheduled-action consumer
+span and provider child span. If OTLP export fails, workflows continue and the
+JSON logs plus durable scheduled-action status remain the fallback evidence.
+
 ## 5. Alerts
 
 Initial alerts:
@@ -4700,6 +4758,12 @@ absence of autonomous customer action.
 - core metrics exported;
 - PII redaction test.
 
+Implementation status (2026-07-27): complete. API and Worker JSON logs carry
+server-derived correlation and W3C activity fields; durable scheduled actions
+continue webhook traces into worker and paid-provider spans; OTLP exports core
+HTTP, runtime, database, workflow, SMS, Twilio, and paid-provider metrics; and
+unit/PostgreSQL tests enforce bounded context plus PII-safe logs and labels.
+
 ### LR-0802 Kill switch
 
 **Acceptance:**
@@ -5156,6 +5220,7 @@ updated in the same change so they remain aligned.
 | [0016](0016-structured-lead-analysis-adapter.md) | Structured lead-analysis adapter | Accepted |
 | [0017](0017-human-reviewed-ai-analysis.md) | Human-reviewed AI analysis | Accepted |
 | [0018](0018-ai-workflow-invocation-and-fallback.md) | AI workflow invocation and fallback | Accepted |
+| [0019](0019-observability-and-trace-propagation.md) | Observability and trace propagation | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -6170,6 +6235,71 @@ new table, endpoint, broker, or service boundary is unnecessary.
 
 ---
 
+<!-- SOURCE: docs/decisions/0019-observability-and-trace-propagation.md -->
+
+# ADR-0019: Observability and trace propagation
+
+- Status: Accepted
+- Date: 2026-07-27
+- Decision owners: LeadRecovery maintainers
+
+## Context
+
+LR-0801 requires operators to connect an inbound webhook to durable background
+work and any paid provider call without putting customer data in logs or metric
+labels. ASP.NET request activities end before Hangfire dispatch, so ambient
+context alone cannot cross the database-backed queue. Telemetry export must not
+become a workflow dependency, and deployment must remain compatible with jobs
+queued by the preceding release.
+
+## Decision
+
+1. API and Worker use W3C activity identifiers and PII-safe JSON console logs.
+   API correlation IDs are server-derived; customer-provided correlation values
+   are not trusted or reflected.
+2. A newly scheduled action stores a bounded correlation ID and nullable W3C
+   `traceparent`/`tracestate`. The Worker resumes valid stored context as a
+   consumer span. Invalid or legacy context starts a safe new trace and does not
+   block the action.
+3. Existing four-argument Hangfire entry points remain callable for queued jobs.
+   New dispatches use telemetry-aware entry points, preserving rolling-deploy
+   compatibility without rewriting Hangfire storage.
+4. ASP.NET Core, `HttpClient`, runtime, Npgsql, workflow, Twilio/SMS, and OpenAI
+   meters/spans use OpenTelemetry. Traces and metrics export through OTLP only
+   when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. Export is observational;
+   an unavailable collector cannot control or stop deterministic workflows.
+5. Job metrics use bounded job-type/outcome dimensions. Paid-provider metrics
+   add the server-derived tenant GUID for cost attribution. Customer-controlled
+   values, contact details, message/prompt content, URLs, provider SIDs, error
+   descriptions, and secrets are forbidden from log messages and telemetry
+   labels.
+6. The scheduled-action telemetry columns are additive and nullable. Rollback
+   deploys the older binaries before dropping them. Reversal may discard trace
+   continuity but does not change workflow state or tenant ownership.
+
+## Consequences
+
+- Operators can follow webhook, queued job, and provider work as one trace and
+  correlate it with durable action state.
+- Local development requires no collector and still receives structured JSON
+  logs; production must configure an OTLP-compatible backend and its alerts.
+- Tenant-level provider cost analysis is possible without high-cardinality PII.
+- Adding a new provider or job type requires a bounded operation name and a PII
+  review before it can emit tags.
+
+## Alternatives rejected
+
+- Passing trace context only as Hangfire arguments: database intent would not
+  retain the evidence before dispatch, and redispatch/recovery could lose it.
+- Logging message bodies or phone numbers for searchability: this creates an
+  unnecessary privacy and retention burden.
+- Requiring a collector for application startup or workflow execution:
+  observability failure must not become a customer-workflow outage.
+- Adding a broker solely for trace propagation: the modular monolith and
+  PostgreSQL scheduled-action boundary already provide the durable handoff.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -6225,6 +6355,10 @@ human-review, deterministic-fallback, and no-autonomous-send boundaries.
 ## Prompt 9 - Hardening
 
 Implement LR-0801 through LR-0804. Add telemetry, kill switch, retention dry-run, rate limiting, security headers, alerts/runbooks, and PII-safe logs.
+
+Implementation status (2026-07-27): LR-0801 is complete. Continue with
+LR-0802; retain the PII-safe JSON logging, durable W3C propagation, and
+optional OTLP-export baseline.
 
 ## Prompt 10 - Containers and Kubernetes
 

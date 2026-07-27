@@ -90,6 +90,57 @@ scope. Durable actions and redacted timeline audits expose created, failed,
 cancelled, duplicate-skipped, and repeat-suppressed outcomes without message
 content or input hashes. AI metrics and alerts remain LR-0801.
 
+### LR-0801 implementation baseline
+
+The API and Worker emit newline-delimited JSON console logs with UTC timestamps,
+scopes, and W3C trace/span IDs. API requests receive a server-derived
+`X-Correlation-ID`; untrusted client values are not reflected. Scheduled jobs
+reuse that correlation ID in their structured scope. Phone numbers, email
+addresses, message bodies, prompts, provider response bodies, API keys, and
+authentication material are excluded from logs and telemetry tags.
+
+The API creates W3C server spans for HTTP requests. A webhook-created
+`ScheduledAction` stores a bounded correlation ID plus nullable `traceparent`
+and `tracestate`. The Worker resumes the stored context as a consumer span and
+creates child spans for real Twilio SMS sends and OpenAI analysis calls. The
+three columns are nullable so actions queued before the LR-0801 migration keep
+working; legacy Hangfire method signatures remain available during a rolling
+deployment.
+
+OpenTelemetry 1.17.0 exports traces and metrics over OTLP when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is an absolute HTTP or HTTPS collector URL. A
+blank value disables network export while retaining JSON console logs. Both
+processes attach service name, service version, and environment resources. Set
+`LOG_LEVEL` to a named .NET log level to change the JSON console threshold; an
+invalid value fails startup rather than silently changing visibility.
+
+Exported instrumentation includes ASP.NET Core, `HttpClient`, runtime, Npgsql,
+the existing Twilio webhook/SMS outcome meters, and the following bounded
+operational instruments:
+
+| Instrument | Type | Safe dimensions |
+|---|---|---|
+| `leadrecovery.jobs.executions` | counter | job type, outcome |
+| `leadrecovery.jobs.duration` | histogram (seconds) | job type, outcome |
+| `leadrecovery.jobs.queue_delay` | histogram (seconds) | job type |
+| `leadrecovery.provider.requests` | counter | provider, operation, tenant ID, outcome |
+| `leadrecovery.provider.duration` | histogram (seconds) | provider, operation, tenant ID, outcome |
+
+The tenant dimension is a server-derived opaque GUID and is present only on
+paid provider-call metrics, where cost attribution requires it. Do not add
+Lead IDs, phone numbers, message text, URLs, provider SIDs, exception messages,
+or other unbounded/customer-controlled values as metric labels.
+
+Migration `AddScheduledActionTelemetryContext` is additive and requires no
+downtime. Roll back application binaries before reversing it; dropping the
+columns while new binaries are active will break scheduling, and reversing it
+intentionally discards trace continuity for already queued work.
+
+For an incident, begin with the response correlation ID, locate the matching
+API JSON scope, then follow its trace through the scheduled-action consumer
+span and provider child span. If OTLP export fails, workflows continue and the
+JSON logs plus durable scheduled-action status remain the fallback evidence.
+
 ## 5. Alerts
 
 Initial alerts:

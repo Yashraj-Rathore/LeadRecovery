@@ -32,8 +32,26 @@ public sealed class ScheduledActionTests
         Assert.Equal(ScheduledActionStatus.Pending, action.Status);
         Assert.Equal(0, action.AttemptCount);
         Assert.Null(action.LastError);
+        Assert.Null(action.CorrelationId);
+        Assert.Null(action.TraceParent);
+        Assert.Null(action.TraceState);
         Assert.Equal(CreatedAtUtc, action.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, action.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void ConstructorStoresNormalizedTelemetryContext()
+    {
+        ScheduledAction action = CreateAction(
+            correlationId: " webhook:trace-123 ",
+            traceParent: " 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 ",
+            traceState: " vendor=value ");
+
+        Assert.Equal("webhook:trace-123", action.CorrelationId);
+        Assert.Equal(
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            action.TraceParent);
+        Assert.Equal("vendor=value", action.TraceState);
     }
 
     [Fact]
@@ -157,6 +175,23 @@ public sealed class ScheduledActionTests
         Assert.Throws<ArgumentException>(() => CreateAction(id: Guid.Empty));
         Assert.Throws<ArgumentException>(() => CreateAction(tenantId: Guid.Empty));
         Assert.Throws<ArgumentException>(() => CreateAction(leadId: Guid.Empty));
+        Assert.Throws<ArgumentException>(() => CreateAction(
+            correlationId: new string(
+                'a',
+                ScheduledActionFieldLimits.CorrelationIdMaximumLength + 1)));
+        Assert.Throws<ArgumentException>(() => CreateAction(
+            traceParent: new string(
+                'a',
+                ScheduledActionFieldLimits.TraceParentMaximumLength + 1)));
+        Assert.Throws<ArgumentException>(() => CreateAction(
+            traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            traceState: new string(
+                'a',
+                ScheduledActionFieldLimits.TraceStateMaximumLength + 1)));
+        Assert.Throws<ArgumentException>(() => CreateAction(
+            traceState: "vendor=value"));
+        Assert.Throws<ArgumentException>(() => CreateAction(
+            correlationId: "unsafe customer@example.test"));
     }
 
     [Fact]
@@ -179,7 +214,10 @@ public sealed class ScheduledActionTests
         string actionType = "SendSms",
         DateTimeOffset? scheduledForUtc = null,
         string idempotencyKey = "follow-up:1",
-        string payloadJson = "{}") =>
+        string payloadJson = "{}",
+        string? correlationId = null,
+        string? traceParent = null,
+        string? traceState = null) =>
         new(
             id ?? Guid.CreateVersion7(),
             tenantId ?? Guid.CreateVersion7(),
@@ -188,5 +226,8 @@ public sealed class ScheduledActionTests
             scheduledForUtc ?? CreatedAtUtc.AddMinutes(5),
             idempotencyKey,
             payloadJson,
-            CreatedAtUtc);
+            CreatedAtUtc,
+            correlationId,
+            traceParent,
+            traceState);
 }

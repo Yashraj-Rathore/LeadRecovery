@@ -4,6 +4,7 @@ using System.Text.Json;
 using LeadRecovery.Application.Analysis;
 using LeadRecovery.Infrastructure.Analysis;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LeadRecovery.IntegrationTests;
@@ -18,7 +19,11 @@ public sealed class OpenAiLeadAnalysisServiceTests
         SequenceHandler handler = new();
         handler.EnqueueJson(HttpStatusCode.OK, CompletedResponse(ValidStructuredOutput));
         using HttpClient client = new(handler);
-        OpenAiLeadAnalysisService service = CreateService(client, maximumRetryCount: 2);
+        CollectingLogger<OpenAiLeadAnalysisService> logger = new();
+        OpenAiLeadAnalysisService service = CreateService(
+            client,
+            maximumRetryCount: 2,
+            logger: logger);
         List<ConversationTurn> turns = Enumerable.Range(0, 10)
             .Select(index => new ConversationTurn(
                 index % 2 == 0
@@ -72,6 +77,16 @@ public sealed class OpenAiLeadAnalysisServiceTests
         string serviceArea = inputRoot.GetProperty("serviceAreaRules").GetString()!;
         Assert.Contains("[phone]", serviceArea, StringComparison.Ordinal);
         Assert.Contains("[email]", serviceArea, StringComparison.Ordinal);
+
+        string logOutput = string.Join(Environment.NewLine, logger.Entries);
+        Assert.Contains("provider request completed", logOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("caller@example.test", logOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("416", logOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("dispatcher@example.test", logOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("905", logOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("about the leak", logOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("test-api-key", logOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain(TenantId.ToString(), logOutput, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -174,7 +189,8 @@ public sealed class OpenAiLeadAnalysisServiceTests
     private static OpenAiLeadAnalysisService CreateService(
         HttpClient client,
         TimeSpan? timeout = null,
-        int maximumRetryCount = 0) =>
+        int maximumRetryCount = 0,
+        ILogger<OpenAiLeadAnalysisService>? logger = null) =>
         new(
             client,
             new OpenAiLeadAnalysisOptions(
@@ -185,7 +201,7 @@ public sealed class OpenAiLeadAnalysisServiceTests
                 TimeSpan.FromMilliseconds(50),
                 endpoint: new Uri("https://api.openai.test/v1/responses")),
             new LeadAnalysisResultValidator(),
-            NullLogger<OpenAiLeadAnalysisService>.Instance);
+            logger ?? NullLogger<OpenAiLeadAnalysisService>.Instance);
 
     private static LeadAnalysisRequest CreateRequest() =>
         new(
@@ -295,4 +311,32 @@ public sealed class OpenAiLeadAnalysisServiceTests
         string Body,
         string? AuthorizationScheme,
         string? AuthorizationParameter);
+
+    private sealed class CollectingLogger<T> : ILogger<T>
+    {
+        public List<string> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull =>
+            NullScope.Instance;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add(formatter(state, exception));
+
+        private sealed class NullScope : IDisposable
+        {
+            public static NullScope Instance { get; } = new();
+
+            public void Dispose()
+            {
+            }
+        }
+    }
 }

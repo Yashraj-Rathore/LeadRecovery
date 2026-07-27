@@ -92,6 +92,18 @@ internal sealed class ScheduledActionConfiguration : IEntityTypeConfiguration<Sc
             .HasColumnName("last_error")
             .HasMaxLength(ScheduledActionFieldLimits.LastErrorMaximumLength);
 
+        builder.Property(action => action.CorrelationId)
+            .HasColumnName("correlation_id")
+            .HasMaxLength(ScheduledActionFieldLimits.CorrelationIdMaximumLength);
+
+        builder.Property(action => action.TraceParent)
+            .HasColumnName("trace_parent")
+            .HasMaxLength(ScheduledActionFieldLimits.TraceParentMaximumLength);
+
+        builder.Property(action => action.TraceState)
+            .HasColumnName("trace_state")
+            .HasMaxLength(ScheduledActionFieldLimits.TraceStateMaximumLength);
+
         builder.Property(action => action.CreatedAtUtc)
             .HasColumnName("created_at_utc")
             .IsRequired();

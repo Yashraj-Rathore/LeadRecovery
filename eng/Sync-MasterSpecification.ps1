@@ -41,6 +41,7 @@ $sourcePaths = @(
     'docs/decisions/0016-structured-lead-analysis-adapter.md'
     'docs/decisions/0017-human-reviewed-ai-analysis.md'
     'docs/decisions/0018-ai-workflow-invocation-and-fallback.md'
+    'docs/decisions/0019-observability-and-trace-propagation.md'
     'CODEX_PROMPT_SEQUENCE.md'
     'templates/definition-of-done.md'
 )

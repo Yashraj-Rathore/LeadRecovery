@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 
 using LeadRecovery.Application.Analysis;
 using LeadRecovery.Domain.Leads;
+using LeadRecovery.Infrastructure.Observability;
 
 using Microsoft.Extensions.Logging;
 
@@ -47,6 +48,36 @@ public sealed partial class OpenAiLeadAnalysisService(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using TelemetryOperation telemetry = LeadRecoveryTelemetry.StartProvider(
+            OpenAiLeadAnalysisOptions.ProviderName,
+            "lead_analysis",
+            request.TenantId);
+        try
+        {
+            LeadAnalysisResult result = await AnalyzeCoreAsync(request, cancellationToken);
+            telemetry.Complete(
+                result.Succeeded
+                    ? "Succeeded"
+                    : result.Failure?.Kind.ToString() ?? "InvalidResult",
+                isError: !result.Succeeded);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            telemetry.Complete("Cancelled");
+            throw;
+        }
+        catch
+        {
+            telemetry.Complete("UnhandledError", isError: true);
+            throw;
+        }
+    }
+
+    private async Task<LeadAnalysisResult> AnalyzeCoreAsync(
+        LeadAnalysisRequest request,
+        CancellationToken cancellationToken)
+    {
         byte[] requestContent = BuildRequestContent(request);
         int maximumAttempts = options.MaximumRetryCount + 1;
 

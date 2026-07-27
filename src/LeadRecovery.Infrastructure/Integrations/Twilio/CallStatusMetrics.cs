@@ -6,7 +6,9 @@ namespace LeadRecovery.Infrastructure.Integrations.Twilio;
 
 internal sealed class CallStatusMetrics : ICallStatusMetrics, IDisposable
 {
-    private readonly Meter _meter = new("LeadRecovery.Integrations.Twilio", "1.0.0");
+    public const string MeterName = "LeadRecovery.Integrations.Twilio";
+
+    private readonly Meter _meter = new(MeterName, "1.0.0");
     private readonly Counter<long> _outcomes;
     private readonly Counter<long> _signatureRejections;
 

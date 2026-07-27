@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -36,6 +37,9 @@ public sealed class LeadAnalysisWorkflowTests(LeadRecoveryApiFixture fixture)
         using HttpResponseMessage response = await PostInboundAsync(application, seed);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        string responseCorrelationId = response.Headers
+            .GetValues("X-Correlation-ID")
+            .Single();
         Guid actionId;
         await using (AsyncServiceScope scope = application.Services.CreateAsyncScope())
         {
@@ -57,11 +61,19 @@ public sealed class LeadAnalysisWorkflowTests(LeadRecoveryApiFixture fixture)
                 candidate =>
                     candidate.ActionType ==
                     WorkflowScheduledActionTypes.SendBookingLink);
-            actionId = (await dbContext.ScheduledActions.IgnoreQueryFilters().SingleAsync(
+            ScheduledAction createdAnalysisAction =
+                await dbContext.ScheduledActions.IgnoreQueryFilters().SingleAsync(
                 candidate =>
                     candidate.LeadId == seed.LeadId &&
                     candidate.ActionType == LeadAnalysisScheduledActionTypes.AnalyzeLead,
-                TestContext.Current.CancellationToken)).Id;
+                TestContext.Current.CancellationToken);
+            actionId = createdAnalysisAction.Id;
+            Assert.Equal(responseCorrelationId, createdAnalysisAction.CorrelationId);
+            Assert.True(ActivityContext.TryParse(
+                createdAnalysisAction.TraceParent,
+                createdAnalysisAction.TraceState,
+                isRemote: true,
+                out _));
         }
 
         LeadAnalysisWorkflowOutcome first;
