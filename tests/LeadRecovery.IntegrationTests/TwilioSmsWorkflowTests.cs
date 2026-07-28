@@ -573,7 +573,9 @@ public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
             services.GetRequiredService<TestBackgroundTenantContext>());
         builder.Services.AddScoped<ITenantExecutionScope>(services =>
             services.GetRequiredService<TestBackgroundTenantContext>());
-        builder.Services.AddInfrastructure(fixture.DatabaseConnectionString);
+        builder.Services.AddInfrastructure(
+            fixture.DatabaseConnectionString,
+            new AutomationRuntimeOptions(GlobalAutomationEnabled: true));
         builder.Services.AddLeadRecoveryHangfire(fixture.DatabaseConnectionString);
         builder.Services.AddSmsProvider(new SmsProviderOptions("fake", false, null, null));
         builder.Services.AddSingleton(new SmsWorkerOptions(

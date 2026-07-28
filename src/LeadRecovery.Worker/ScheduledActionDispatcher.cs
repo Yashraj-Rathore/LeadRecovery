@@ -71,16 +71,32 @@ internal sealed partial class ScheduledActionDispatcher(
             """,
             cancellationToken);
 
+        AutomationControlUseCase automationControl =
+            scope.ServiceProvider.GetRequiredService<AutomationControlUseCase>();
+        GlobalAutomationEnforcementResult enforcement =
+            await automationControl.EnforceGlobalDisableAsync(cancellationToken);
+        if (enforcement.CancelledActionCount > 0)
+        {
+            LogGlobalAutomationCancelled(
+                logger,
+                enforcement.CancelledActionCount);
+        }
+
         var dueActions = await dbContext.ScheduledActions
             .IgnoreQueryFilters()
             .Where(action =>
-                (action.ActionType == ProcessCallStatusWebhookUseCase.RecoveryActionType ||
-                    action.ActionType == SmsScheduledActionTypes.SendManualSms ||
-                    action.ActionType ==
-                        WorkflowScheduledActionTypes.SendQualificationQuestion ||
-                    action.ActionType == WorkflowScheduledActionTypes.SendBookingLink ||
-                    action.ActionType == WorkflowScheduledActionTypes.SendFollowUpSms ||
-                    action.ActionType == LeadAnalysisScheduledActionTypes.AnalyzeLead) &&
+                (action.ActionType == SmsScheduledActionTypes.SendManualSms ||
+                    (enforcement.GlobalEnabled &&
+                        (action.ActionType ==
+                            ProcessCallStatusWebhookUseCase.RecoveryActionType ||
+                            action.ActionType ==
+                                WorkflowScheduledActionTypes.SendQualificationQuestion ||
+                            action.ActionType ==
+                                WorkflowScheduledActionTypes.SendBookingLink ||
+                            action.ActionType ==
+                                WorkflowScheduledActionTypes.SendFollowUpSms ||
+                            action.ActionType ==
+                                LeadAnalysisScheduledActionTypes.AnalyzeLead))) &&
                 action.Status == ScheduledActionStatus.Pending &&
                 action.ScheduledForUtc <= now)
             .OrderBy(action => action.ScheduledForUtc)
@@ -174,4 +190,12 @@ internal sealed partial class ScheduledActionDispatcher(
         ILogger logger,
         Guid scheduledActionId,
         Guid tenantId);
+
+    [LoggerMessage(
+        EventId = 2012,
+        Level = LogLevel.Warning,
+        Message = "Global automation kill switch cancelled {CancelledActionCount} pending automated actions.")]
+    private static partial void LogGlobalAutomationCancelled(
+        ILogger logger,
+        int cancelledActionCount);
 }

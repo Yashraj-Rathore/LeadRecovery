@@ -2,6 +2,7 @@ using System.Data;
 using System.Text.Json;
 
 using LeadRecovery.Application.Analysis;
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Audit;
@@ -19,7 +20,8 @@ namespace LeadRecovery.Infrastructure.Persistence.Analysis;
 internal sealed class LeadAnalysisWorkflowPersistence(
     LeadRecoveryDbContext dbContext,
     ITenantExecutionScope tenantExecutionScope,
-    ILeadAnalysisInputHasher inputHasher)
+    ILeadAnalysisInputHasher inputHasher,
+    IAutomationRuntimePolicy automationRuntimePolicy)
     : ILeadAnalysisWorkflowPersistence
 {
     private const int MaximumInputTurns = 8;
@@ -102,6 +104,7 @@ internal sealed class LeadAnalysisWorkflowPersistence(
                 candidate => candidate.Id == lead.CustomerId,
                 cancellationToken);
         bool eligible =
+            automationRuntimePolicy.GlobalAutomationEnabled &&
             tenant.Status is TenantStatus.Trial or TenantStatus.Active &&
             tenant.AutomationEnabled &&
             lead.AutomationState == AutomationState.Active &&

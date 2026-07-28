@@ -5,19 +5,19 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  33253
+        "bytes":  36042
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  15420
+        "bytes":  16424
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  234375
+        "bytes":  243517
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  4617
+        "bytes":  4680
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -41,7 +41,7 @@
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  16104
+        "bytes":  16794
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
@@ -49,11 +49,11 @@
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  15161
+        "bytes":  16021
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
-        "bytes":  8024
+        "bytes":  8598
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
@@ -61,7 +61,7 @@
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
-        "bytes":  11561
+        "bytes":  12106
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
@@ -73,7 +73,7 @@
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
-        "bytes":  8948
+        "bytes":  11190
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
@@ -81,7 +81,7 @@
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  18164
+        "bytes":  18677
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -168,16 +168,20 @@
         "bytes":  3186
     },
     {
+        "path":  "docs/decisions/0020-automation-kill-switch.md",
+        "bytes":  2323
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  2448
+        "bytes":  2546
     },
     {
         "path":  "README.md",
-        "bytes":  14628
+        "bytes":  15792
     },
     {
         "path":  "templates/.env.example",
-        "bytes":  2004
+        "bytes":  2084
     },
     {
         "path":  "templates/appsettings.Development.example.json",

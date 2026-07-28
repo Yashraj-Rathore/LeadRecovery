@@ -464,6 +464,14 @@ unit/PostgreSQL tests enforce bounded context plus PII-safe logs and labels.
 - inbound capture/dashboard remain available;
 - runbook tested.
 
+Implementation status (2026-07-28): complete. Global configuration and dynamic
+tenant controls fail closed at scheduling and execution, cancel queued
+automated sends/analysis while preserving manual staff SMS, and leave signed
+inbound capture, delivery callbacks, authentication, and dashboard reads
+available. Owner/Manager UI and API writes use CSRF, fixed reason codes,
+optimistic concurrency, redacted audit/metric records, and PostgreSQL plus
+Playwright acceptance coverage of the disable/recovery runbook.
+
 ### LR-0803 Retention job
 
 **Acceptance:**

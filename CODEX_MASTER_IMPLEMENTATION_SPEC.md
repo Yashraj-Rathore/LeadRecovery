@@ -23,7 +23,7 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 7 are complete. LR-0101 through LR-0703 and LR-0801 are
+Milestones 0 through 7 are complete. LR-0101 through LR-0703, LR-0801, and LR-0802 are
 implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
@@ -43,6 +43,14 @@ W3C trace propagation from provider webhooks through scheduled jobs to Twilio
 or OpenAI calls, and opt-in OTLP trace/metric export. Paid-provider metrics are
 tenant-scoped using opaque server-derived IDs, while tests prevent message,
 contact, credential, or other PII values from entering logs and metric labels.
+
+LR-0802 adds fail-closed global and tenant automation controls. The Worker
+cancels queued automated recovery, qualification, booking, follow-up, and AI
+analysis work while preserving manual staff SMS, signed inbound SMS capture,
+delivery callbacks, authentication, and the Lead dashboard. Owner and Manager
+members can pause or resume their tenant from the workspace header; every
+change uses CSRF, optimistic concurrency, a fixed reason code, and redacted
+audit data.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -70,6 +78,9 @@ The currently implemented browser and health contract is:
 - `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`,
   `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
   session;
+- `GET /api/v1/automation/` exposes effective global/tenant state to tenant
+  members, while `POST /api/v1/automation/tenant` lets Owner and Manager
+  members pause or resume tenant automation with CSRF and concurrency checks;
 - `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
   `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
   assignees, ordered timeline, structured qualification answers, approved
@@ -184,6 +195,13 @@ snapshot; it defaults to `service` and fails closed when that question is
 absent or invalid. Eligible inbound replies then create durable analysis work.
 Provider failure routes the Lead to staff without undoing deterministic
 qualification, and no analysis result sends customer-facing content.
+
+Automation also fails closed by default. Set `AUTOMATION_GLOBAL_ENABLED=true`
+for both the API and Worker only when automated sends and analysis should run.
+Setting it to `false` in both processes and restarting them activates the
+platform kill switch and cancels queued automated actions; manual staff SMS,
+inbound capture, delivery callbacks, and dashboard access remain available.
+Tenant Owner/Manager controls are dynamic and do not require a restart.
 
 The fictional demo seed includes one pending low-confidence analysis so the
 LR-0702 review workflow can be demonstrated without enabling AI or providing an
@@ -1287,6 +1305,16 @@ PostgreSQL-backed Hangfire. Booking uses the same scoped EF context to persist
 the Lead transition and cancel only its pending automated actions in one
 transaction.
 
+LR-0802 places a fail-closed runtime policy at every automated scheduling and
+execution boundary. `AUTOMATION_GLOBAL_ENABLED` must be true in both API and
+Worker for automated recovery, qualification, booking, follow-up, or analysis
+work to run. `Tenant.AutomationEnabled` is the dynamic tenant switch. Disabling
+either switch prevents new automated intent; the Worker and tenant mutation
+also cancel queued automated action types. Manual staff SMS is deliberately
+outside this switch, while inbound callbacks and tenant dashboard reads remain
+available. Global state is process configuration and requires coordinated API
+and Worker restart; tenant state is transactional PostgreSQL data.
+
 ## 13. Caching
 
 Do not add distributed caching in MVP. Optimize indexed database queries first. Short-lived in-memory caching may be used only for non-sensitive, non-tenant-confusing reference data.
@@ -1908,6 +1936,22 @@ headers as authority. Password reset, refresh, tenant switching, and
 PlatformAdmin support grants are deferred and are not advertised by the
 implemented OpenAPI contract.
 
+### 3.1 Automation control endpoints
+
+- `GET /api/v1/automation/` returns global, tenant, and effective automation
+  state plus an opaque tenant row version to every authenticated tenant member.
+- `POST /api/v1/automation/tenant` requires Owner or Manager role,
+  `X-CSRF-TOKEN`, the current opaque row version, the desired state, and a fixed
+  reason code. Disable reasons are `TenantRequest`, `OperationalIncident`, or
+  `PlannedMaintenance`; enable reasons are `TenantRequest`, `IncidentResolved`,
+  or `MaintenanceComplete`.
+
+The write returns the refreshed state and number of queued automated actions
+cancelled. A stale version returns `409` with the current safe state. TenantId
+and actor identity are derived from the authenticated session. The endpoint
+never controls manual staff SMS, inbound capture, delivery callbacks, or
+dashboard availability.
+
 ## 4. Lead endpoints
 
 ### List leads
@@ -2369,6 +2413,15 @@ and 390-pixel mobile layouts preserve essential controls without horizontal
 overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
 high-contrast outline, and reduced-motion and increased-contrast preferences
 are respected.
+
+LR-0802 adds a compact, high-contrast automation status to the shared workspace
+header. Every role can see `Automation on`, `Tenant paused`, `Platform paused`,
+or the fail-safe unknown state. Owner and Manager members can open the control,
+review its impact, and pause or resume tenant automation; Staff and ReadOnly
+members receive status-only presentation. Mutation feedback reports cancelled
+queued work, concurrency conflicts trigger a fresh status read, and the copy
+explicitly confirms that inbound capture, the dashboard, and manual staff
+messages remain available.
 
 LR-0702 adds a prominent responsive review card before the conversation/action
 grid whenever analyses exist. It always says that content is AI-generated,
@@ -2876,6 +2929,14 @@ Action and audit failures store normalized bounded codes rather than provider
 bodies or conversation content. Preparation and completion re-check tenant,
 Lead, customer opt-out, workflow version, source Message, and automation state;
 invalid or stale work fails closed without a provider call or customer send.
+
+LR-0802 treats missing global configuration as automation disabled. The tenant
+switch is restricted to Owner and Manager memberships, requires antiforgery
+validation, and uses an opaque application-managed concurrency token. Clients
+choose only fixed direction-appropriate reason codes; audit and telemetry data
+contain opaque IDs, reason enums, scope, and cancellation counts rather than
+message bodies, phone numbers, credentials, or arbitrary operator text. The
+switch cannot weaken signed inbound webhook validation or opt-out enforcement.
 
 ## 8. Secrets management
 
@@ -3771,6 +3832,7 @@ operational instruments:
 | `leadrecovery.jobs.queue_delay` | histogram (seconds) | job type |
 | `leadrecovery.provider.requests` | counter | provider, operation, tenant ID, outcome |
 | `leadrecovery.provider.duration` | histogram (seconds) | provider, operation, tenant ID, outcome |
+| `leadrecovery.automation.actions_cancelled` | counter | automation scope, tenant ID |
 
 The tenant dimension is a server-derived opaque GUID and is present only on
 paid provider-call metrics, where cost attribution requires it. Do not add
@@ -3786,6 +3848,19 @@ For an incident, begin with the response correlation ID, locate the matching
 API JSON scope, then follow its trace through the scheduled-action consumer
 span and provider child span. If OTLP export fails, workflows continue and the
 JSON logs plus durable scheduled-action status remain the fallback evidence.
+
+### LR-0802 kill-switch baseline
+
+`AUTOMATION_GLOBAL_ENABLED` defaults to false and is read independently by the
+API and Worker. Operators must set the same value in both processes. Global
+disable is enforced on each dispatcher pass, cancels all pending automated
+action types across tenants, and still permits manual staff SMS dispatch.
+Tenant disable is a serializable Owner/Manager mutation of
+`Tenant.AutomationEnabled`; it cancels that tenant's pending automated actions
+in the same transaction and records a redacted audit. Every automated
+scheduling and execution path rechecks global, tenant, Lead, and opt-out
+eligibility. Inbound SMS/delivery callbacks and dashboard reads do not depend
+on either automation switch.
 
 ## 5. Alerts
 
@@ -3849,11 +3924,30 @@ Initial alerts:
 
 ### Runbook D - Disable automation
 
-1. Activate global or tenant kill switch.
-2. Cancel pending automated-message actions.
-3. Keep inbound message capture and dashboard available.
-4. Confirm no sends for a test lead.
-5. Inform tenant and record reason.
+1. Choose scope. For one tenant, an Owner or Manager opens the workspace-header
+   control and selects **Pause tenant automation**. For a platform incident,
+   set `AUTOMATION_GLOBAL_ENABLED=false` for both API and Worker and restart or
+   roll out both processes.
+2. Confirm the header reports `Tenant paused` or `Platform paused`. Check the
+   `leadrecovery.automation.actions_cancelled` metric and Worker JSON log count;
+   pending automated recovery, qualification, booking, follow-up, and analysis
+   actions must be `Cancelled`.
+3. Confirm any pending `SendManualSms` action remains pending/dispatchable.
+   Manual staff callbacks and messages are intentionally not kill-switched.
+4. Send a signed inbound test SMS to a non-production test Lead. Confirm it is
+   persisted once and appears in Lead detail while no new automated action is
+   queued. Confirm the inbox and Lead detail remain readable.
+5. Record the incident/maintenance reason and affected tenants. Do not bypass
+   Twilio signature validation or opt-out enforcement.
+6. To recover one tenant, select **Resume tenant automation** after the cause is
+   resolved. To recover globally, set `AUTOMATION_GLOBAL_ENABLED=true` in both
+   processes and restart/roll out both. Verify the effective header state and a
+   controlled new test event; cancelled work is not silently recreated.
+
+The PostgreSQL integration acceptance tests execute this runbook boundary:
+tenant disable cancels queued automation, stale/unauthorized writes fail,
+signed-persistence use cases continue inbound capture, dashboard reads remain
+available, and global disable preserves a pending manual action.
 
 ### Runbook E - Suspected tenant data exposure
 
@@ -4773,6 +4867,14 @@ unit/PostgreSQL tests enforce bounded context plus PII-safe logs and labels.
 - inbound capture/dashboard remain available;
 - runbook tested.
 
+Implementation status (2026-07-28): complete. Global configuration and dynamic
+tenant controls fail closed at scheduling and execution, cancel queued
+automated sends/analysis while preserving manual staff SMS, and leave signed
+inbound capture, delivery callbacks, authentication, and dashboard reads
+available. Owner/Manager UI and API writes use CSRF, fixed reason codes,
+optimistic concurrency, redacted audit/metric records, and PostgreSQL plus
+Playwright acceptance coverage of the disable/recovery runbook.
+
 ### LR-0803 Retention job
 
 **Acceptance:**
@@ -5221,6 +5323,7 @@ updated in the same change so they remain aligned.
 | [0017](0017-human-reviewed-ai-analysis.md) | Human-reviewed AI analysis | Accepted |
 | [0018](0018-ai-workflow-invocation-and-fallback.md) | AI workflow invocation and fallback | Accepted |
 | [0019](0019-observability-and-trace-propagation.md) | Observability and trace propagation | Accepted |
+| [0020](0020-automation-kill-switch.md) | Automation kill-switch scope and recovery | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -6300,6 +6403,60 @@ queued by the preceding release.
 
 ---
 
+<!-- SOURCE: docs/decisions/0020-automation-kill-switch.md -->
+
+# ADR-0020: Automation kill-switch scope and recovery
+
+- Status: Accepted
+- Date: 2026-07-28
+- Decision owners: LeadRecovery engineering and operations
+
+## Context
+
+LR-0802 requires operators to stop automated customer work at platform or
+tenant scope without losing inbound evidence or the staff workspace. The
+existing tenant aggregate already stores `AutomationEnabled`, while the global
+environment variable existed as an unused safe default. Manual staff messages
+need a deliberate policy because cancelling every scheduled action would also
+remove explicit human work.
+
+## Decision
+
+Automation is effective only when both `AUTOMATION_GLOBAL_ENABLED` and
+`Tenant.AutomationEnabled` are true. Missing global configuration means false.
+The global value is process configuration and must be coordinated across API
+and Worker restarts; the tenant value is a transactional, optimistic-concurrent
+Owner/Manager control.
+
+Automated action types are initial recovery SMS, qualification questions,
+booking links, follow-ups, and AI analysis. Disable prevents new scheduling and
+rechecks eligibility immediately before execution. Tenant disable cancels its
+pending automated actions in the same transaction. The Worker enforces global
+disable by cancelling pending automated actions across tenants on each
+dispatcher pass.
+
+`SendManualSms` is outside the automation switch because it is explicit staff
+intent and retains its opt-out/provider safety checks. Signed inbound SMS,
+delivery callbacks, authentication, and dashboard reads remain available.
+Cancelled work is not silently recreated on recovery; a new eligible event or
+explicit existing domain workflow must create new intent.
+
+Changes use fixed direction-appropriate reason codes, server-derived actor and
+tenant identity, redacted audits, and a bounded cancellation metric.
+
+## Consequences
+
+- Platform disable requires a coordinated API/Worker rollout; a split value is
+  visible in process behavior and must be treated as an incomplete operation.
+- Safety does not depend only on queue cancellation because scheduling and
+  provider preparation independently recheck eligibility.
+- Operators can continue receiving and triaging customer replies while
+  automation is paused.
+- Recovery avoids surprise sends because previously cancelled actions remain
+  terminal.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -6356,9 +6513,9 @@ human-review, deterministic-fallback, and no-autonomous-send boundaries.
 
 Implement LR-0801 through LR-0804. Add telemetry, kill switch, retention dry-run, rate limiting, security headers, alerts/runbooks, and PII-safe logs.
 
-Implementation status (2026-07-27): LR-0801 is complete. Continue with
-LR-0802; retain the PII-safe JSON logging, durable W3C propagation, and
-optional OTLP-export baseline.
+Implementation status (2026-07-28): LR-0801 and LR-0802 are complete. Continue
+with LR-0803; retain the PII-safe observability baseline and the global/tenant
+fail-closed automation controls while implementing retention dry-run behavior.
 
 ## Prompt 10 - Containers and Kubernetes
 

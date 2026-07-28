@@ -125,6 +125,7 @@ operational instruments:
 | `leadrecovery.jobs.queue_delay` | histogram (seconds) | job type |
 | `leadrecovery.provider.requests` | counter | provider, operation, tenant ID, outcome |
 | `leadrecovery.provider.duration` | histogram (seconds) | provider, operation, tenant ID, outcome |
+| `leadrecovery.automation.actions_cancelled` | counter | automation scope, tenant ID |
 
 The tenant dimension is a server-derived opaque GUID and is present only on
 paid provider-call metrics, where cost attribution requires it. Do not add
@@ -140,6 +141,19 @@ For an incident, begin with the response correlation ID, locate the matching
 API JSON scope, then follow its trace through the scheduled-action consumer
 span and provider child span. If OTLP export fails, workflows continue and the
 JSON logs plus durable scheduled-action status remain the fallback evidence.
+
+### LR-0802 kill-switch baseline
+
+`AUTOMATION_GLOBAL_ENABLED` defaults to false and is read independently by the
+API and Worker. Operators must set the same value in both processes. Global
+disable is enforced on each dispatcher pass, cancels all pending automated
+action types across tenants, and still permits manual staff SMS dispatch.
+Tenant disable is a serializable Owner/Manager mutation of
+`Tenant.AutomationEnabled`; it cancels that tenant's pending automated actions
+in the same transaction and records a redacted audit. Every automated
+scheduling and execution path rechecks global, tenant, Lead, and opt-out
+eligibility. Inbound SMS/delivery callbacks and dashboard reads do not depend
+on either automation switch.
 
 ## 5. Alerts
 
@@ -203,11 +217,30 @@ Initial alerts:
 
 ### Runbook D - Disable automation
 
-1. Activate global or tenant kill switch.
-2. Cancel pending automated-message actions.
-3. Keep inbound message capture and dashboard available.
-4. Confirm no sends for a test lead.
-5. Inform tenant and record reason.
+1. Choose scope. For one tenant, an Owner or Manager opens the workspace-header
+   control and selects **Pause tenant automation**. For a platform incident,
+   set `AUTOMATION_GLOBAL_ENABLED=false` for both API and Worker and restart or
+   roll out both processes.
+2. Confirm the header reports `Tenant paused` or `Platform paused`. Check the
+   `leadrecovery.automation.actions_cancelled` metric and Worker JSON log count;
+   pending automated recovery, qualification, booking, follow-up, and analysis
+   actions must be `Cancelled`.
+3. Confirm any pending `SendManualSms` action remains pending/dispatchable.
+   Manual staff callbacks and messages are intentionally not kill-switched.
+4. Send a signed inbound test SMS to a non-production test Lead. Confirm it is
+   persisted once and appears in Lead detail while no new automated action is
+   queued. Confirm the inbox and Lead detail remain readable.
+5. Record the incident/maintenance reason and affected tenants. Do not bypass
+   Twilio signature validation or opt-out enforcement.
+6. To recover one tenant, select **Resume tenant automation** after the cause is
+   resolved. To recover globally, set `AUTOMATION_GLOBAL_ENABLED=true` in both
+   processes and restart/roll out both. Verify the effective header state and a
+   controlled new test event; cancelled work is not silently recreated.
+
+The PostgreSQL integration acceptance tests execute this runbook boundary:
+tenant disable cancels queued automation, stale/unauthorized writes fail,
+signed-persistence use cases continue inbound capture, dashboard reads remain
+available, and global disable preserves a pending manual action.
 
 ### Runbook E - Suspected tenant data exposure
 

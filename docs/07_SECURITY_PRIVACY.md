@@ -180,6 +180,14 @@ bodies or conversation content. Preparation and completion re-check tenant,
 Lead, customer opt-out, workflow version, source Message, and automation state;
 invalid or stale work fails closed without a provider call or customer send.
 
+LR-0802 treats missing global configuration as automation disabled. The tenant
+switch is restricted to Owner and Manager memberships, requires antiforgery
+validation, and uses an opaque application-managed concurrency token. Clients
+choose only fixed direction-appropriate reason codes; audit and telemetry data
+contain opaque IDs, reason enums, scope, and cancellation counts rather than
+message bodies, phone numbers, credentials, or arbitrary operator text. The
+switch cannot weaken signed inbound webhook validation or opt-out enforcement.
+
 ## 8. Secrets management
 
 Local development:

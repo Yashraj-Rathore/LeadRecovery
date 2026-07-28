@@ -210,6 +210,21 @@ All notable repository and product-specification changes are recorded here.
 - ADR-0019 documenting the observability boundary, bounded telemetry labels,
   exporter fail-open behavior, queued-work compatibility, and migration
   rollback order.
+- LR-0802 fail-closed global and tenant automation controls covering recovery,
+  qualification, booking, follow-up, and optional AI analysis scheduling and
+  execution.
+- Owner/Manager workspace-header controls with effective platform/tenant state,
+  CSRF, opaque concurrency, fixed reason codes, cancellation feedback, and
+  Staff/ReadOnly status-only access.
+- Serializable tenant cancellation, Worker-wide queued automation enforcement,
+  redacted audit events, and the bounded
+  `leadrecovery.automation.actions_cancelled` metric while preserving manual
+  staff SMS, inbound capture, delivery callbacks, and dashboard access.
+- Unit, PostgreSQL integration, telemetry, and Playwright coverage for global
+  and tenant disable, stale/unauthorized writes, queued-action cancellation,
+  inbound/dashboard continuity, manual-action preservation, and recovery.
+- ADR-0020 documenting kill-switch scope, fail-closed configuration, dynamic
+  tenant control, manual-message exclusion, and recovery semantics.
 
 ### Changed
 

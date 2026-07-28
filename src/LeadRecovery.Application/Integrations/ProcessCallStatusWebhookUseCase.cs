@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Observability;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Audit;
@@ -13,6 +14,7 @@ public sealed class ProcessCallStatusWebhookUseCase(
     ICallStatusPersistence persistence,
     ITenantExecutionScope tenantExecutionScope,
     ICallStatusMetrics metrics,
+    IAutomationRuntimePolicy automationRuntimePolicy,
     TimeProvider timeProvider)
 {
     public const string RecoveryActionType = "SendInitialRecoverySms";
@@ -59,6 +61,13 @@ public sealed class ProcessCallStatusWebhookUseCase(
                     }
 
                     receipt.AssignTenant(route.TenantId);
+                    if (!automationRuntimePolicy.GlobalAutomationEnabled)
+                    {
+                        outcome = CallStatusProcessingOutcome.IgnoredAutomationDisabled;
+                        CompleteIgnoredReceipt(receipt, outcome, webhookEvent, now);
+                        return;
+                    }
+
                     if (!route.IsOperational)
                     {
                         outcome = CallStatusProcessingOutcome.IgnoredTenantInactive;

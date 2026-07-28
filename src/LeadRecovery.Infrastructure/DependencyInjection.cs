@@ -30,10 +30,12 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         string databaseConnectionString,
+        AutomationRuntimeOptions automationOptions,
         LeadAnalysisWorkflowOptions? analysisOptions = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(databaseConnectionString);
+        ArgumentNullException.ThrowIfNull(automationOptions);
 
         services.AddDbContext<LeadRecoveryDbContext>(options =>
             options.UseNpgsql(
@@ -56,6 +58,10 @@ public static class DependencyInjection
         services.AddSingleton<IPhoneNumberNormalizer, LibPhoneNumberNormalizer>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<ICallStatusPersistence, CallStatusPersistence>();
+        services.AddSingleton(automationOptions);
+        services.AddSingleton<IAutomationRuntimePolicy>(automationOptions);
+        services.AddScoped<IAutomationControlStore, AutomationControlStore>();
+        services.AddScoped<AutomationControlUseCase>();
         services.AddSingleton<ICallStatusMetrics, CallStatusMetrics>();
         services.AddScoped<ProcessCallStatusWebhookUseCase>();
         services.AddScoped<ISmsWorkflowPersistence, SmsWorkflowPersistence>();

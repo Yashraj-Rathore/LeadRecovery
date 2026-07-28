@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Hangfire;
 
 using LeadRecovery.Application.Analysis;
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Infrastructure;
 using LeadRecovery.Infrastructure.Analysis;
@@ -48,6 +49,9 @@ if (!Uri.TryCreate(webhookBaseUrl.TrimEnd('/'), UriKind.Absolute, out Uri? baseU
 
 bool aiEnabled = builder.Configuration.GetValue<bool?>("AI_ENABLED") ??
     builder.Configuration.GetValue("Ai:Enabled", false);
+bool globalAutomationEnabled =
+    builder.Configuration.GetValue<bool?>("AUTOMATION_GLOBAL_ENABLED") ??
+    builder.Configuration.GetValue("LeadRecovery:AutomationGlobalEnabled", false);
 string aiCategoryQuestionKey = builder.Configuration["AI_CATEGORY_QUESTION_KEY"] ??
     builder.Configuration["Ai:CategoryQuestionKey"] ??
     LeadAnalysisWorkflowOptions.DefaultCategoryQuestionKey;
@@ -59,6 +63,7 @@ builder.Services.AddScoped<ITenantExecutionScope>(services =>
     services.GetRequiredService<BackgroundTenantContext>());
 builder.Services.AddInfrastructure(
     databaseConnectionString,
+    new AutomationRuntimeOptions(globalAutomationEnabled),
     new LeadAnalysisWorkflowOptions(aiEnabled, aiCategoryQuestionKey));
 builder.Services.AddLeadRecoveryObservability(
     builder.Configuration,

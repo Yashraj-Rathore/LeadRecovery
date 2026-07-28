@@ -11,7 +11,8 @@ namespace LeadRecovery.Infrastructure.Persistence.Automations;
 
 internal sealed class WorkflowActionScheduler(
     LeadRecoveryDbContext dbContext,
-    IBusinessHoursScheduler businessHoursScheduler)
+    IBusinessHoursScheduler businessHoursScheduler,
+    IAutomationRuntimePolicy automationRuntimePolicy)
     : IWorkflowActionScheduler
 {
     public async Task<bool> ScheduleFirstQualificationAsync(
@@ -21,6 +22,11 @@ internal sealed class WorkflowActionScheduler(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        if (!CanSchedule(tenant, lead))
+        {
+            return false;
+        }
+
         QualificationQuestionPolicy? first = workflow
             .GetQualificationQuestions()
             .FirstOrDefault();
@@ -41,6 +47,11 @@ internal sealed class WorkflowActionScheduler(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        if (!CanSchedule(tenant, lead))
+        {
+            return false;
+        }
+
         QualificationQuestionPolicy question = workflow
             .GetQualificationQuestions()
             .Single(candidate => candidate.Key.Equals(
@@ -76,6 +87,11 @@ internal sealed class WorkflowActionScheduler(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        if (!CanSchedule(tenant, lead))
+        {
+            return false;
+        }
+
         ArgumentException.ThrowIfNullOrWhiteSpace(stage);
         string normalizedStage = stage.Trim();
         string idempotencyKey =
@@ -108,6 +124,11 @@ internal sealed class WorkflowActionScheduler(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        if (!CanSchedule(tenant, lead))
+        {
+            return 0;
+        }
+
         ArgumentException.ThrowIfNullOrWhiteSpace(stage);
         int added = 0;
         foreach (FollowUpStepPolicy step in workflow.GetFollowUpSteps())
@@ -192,4 +213,11 @@ internal sealed class WorkflowActionScheduler(
             telemetry.TraceState));
         return true;
     }
+
+    private bool CanSchedule(Tenant tenant, Lead lead) =>
+        automationRuntimePolicy.GlobalAutomationEnabled &&
+        tenant.AutomationEnabled &&
+        tenant.Status is TenantStatus.Trial or TenantStatus.Active &&
+        lead.AutomationState == AutomationState.Active &&
+        lead.Status is not (LeadStatus.Booked or LeadStatus.Closed or LeadStatus.ClosedWon);
 }

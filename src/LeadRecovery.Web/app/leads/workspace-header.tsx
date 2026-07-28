@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AuthSession } from "../../lib/api";
 import { getInitials } from "../../lib/presentation";
+import { AutomationControl } from "./automation-control";
 import { LogoutButton } from "./logout-button";
 
 export function WorkspaceHeader({ session }: { session: AuthSession }) {
@@ -25,6 +26,7 @@ export function WorkspaceHeader({ session }: { session: AuthSession }) {
         </nav>
 
         <div className="session-block">
+          <AutomationControl role={session.role} />
           <span className="user-avatar" aria-hidden="true">
             {getInitials(session.displayName)}
           </span>

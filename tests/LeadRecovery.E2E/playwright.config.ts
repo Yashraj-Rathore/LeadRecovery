@@ -54,6 +54,7 @@ export default defineConfig({
         ASPNETCORE_ENVIRONMENT: "Development",
         ASPNETCORE_URLS: "http://127.0.0.1:8080",
         CONNECTIONSTRINGS__DATABASE: databaseConnectionString,
+        AUTOMATION_GLOBAL_ENABLED: "true",
         DemoSeed__Enabled: "true",
         DemoSeed__OwnerEmail: ownerEmail,
         DemoSeed__OwnerPassword: ownerPassword,

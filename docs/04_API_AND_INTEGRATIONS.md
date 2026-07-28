@@ -49,6 +49,22 @@ headers as authority. Password reset, refresh, tenant switching, and
 PlatformAdmin support grants are deferred and are not advertised by the
 implemented OpenAPI contract.
 
+### 3.1 Automation control endpoints
+
+- `GET /api/v1/automation/` returns global, tenant, and effective automation
+  state plus an opaque tenant row version to every authenticated tenant member.
+- `POST /api/v1/automation/tenant` requires Owner or Manager role,
+  `X-CSRF-TOKEN`, the current opaque row version, the desired state, and a fixed
+  reason code. Disable reasons are `TenantRequest`, `OperationalIncident`, or
+  `PlannedMaintenance`; enable reasons are `TenantRequest`, `IncidentResolved`,
+  or `MaintenanceComplete`.
+
+The write returns the refreshed state and number of queued automated actions
+cancelled. A stale version returns `409` with the current safe state. TenantId
+and actor identity are derived from the authenticated session. The endpoint
+never controls manual staff SMS, inbound capture, delivery callbacks, or
+dashboard availability.
+
 ## 4. Lead endpoints
 
 ### List leads

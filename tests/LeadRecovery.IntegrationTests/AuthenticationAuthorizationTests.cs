@@ -9,6 +9,7 @@ using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Contracts.Authentication;
+using LeadRecovery.Contracts.Automations;
 using LeadRecovery.Contracts.Leads;
 using LeadRecovery.Domain.Analysis;
 using LeadRecovery.Domain.Automations;
@@ -649,6 +650,210 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
                     message.ClientIdempotencyKey == request.IdempotencyKey,
                 TestContext.Current.CancellationToken);
         Assert.Equal(1, messageCount);
+    }
+
+    [Fact]
+    public async Task TenantKillSwitchCancelsAutomationWhileInboundAndDashboardRemainAvailable()
+    {
+        TenantData tenant = await SeedTenant();
+        UserData owner = await SeedUser(tenant, TenantRole.Owner, createLead: true);
+        UserData staff = await SeedUser(tenant, TenantRole.Staff, createLead: false);
+        Guid leadId = Assert.IsType<Guid>(owner.LeadId);
+        await ConfigureTenantMessaging(tenant, leadId, addPendingRecovery: true);
+
+        using HttpClient ownerClient = CreateClient();
+        _ = await Login(ownerClient, owner);
+        AutomationStatusResponse before = Assert.IsType<AutomationStatusResponse>(
+            await ownerClient.GetFromJsonAsync<AutomationStatusResponse>(
+                "/api/v1/automation/",
+                TestContext.Current.CancellationToken));
+        Assert.True(before.EffectiveEnabled);
+
+        using HttpResponseMessage disabledResponse = await PostWithCsrf(
+            ownerClient,
+            "/api/v1/automation/tenant",
+            new SetTenantAutomationRequest(
+                false,
+                before.TenantRowVersion,
+                AutomationControlReason.OperationalIncident.ToString()));
+        disabledResponse.EnsureSuccessStatusCode();
+        AutomationStatusResponse disabled = Assert.IsType<AutomationStatusResponse>(
+            await disabledResponse.Content.ReadFromJsonAsync<AutomationStatusResponse>(
+                TestContext.Current.CancellationToken));
+        Assert.False(disabled.TenantEnabled);
+        Assert.False(disabled.EffectiveEnabled);
+        Assert.Equal(1, disabled.CancelledActionCount);
+
+        using HttpResponseMessage staleResponse = await PostWithCsrf(
+            ownerClient,
+            "/api/v1/automation/tenant",
+            new SetTenantAutomationRequest(
+                true,
+                before.TenantRowVersion,
+                AutomationControlReason.IncidentResolved.ToString()));
+        Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
+
+        using HttpClient staffClient = CreateClient();
+        _ = await Login(staffClient, staff);
+        AutomationStatusResponse staffStatus = Assert.IsType<AutomationStatusResponse>(
+            await staffClient.GetFromJsonAsync<AutomationStatusResponse>(
+                "/api/v1/automation/",
+                TestContext.Current.CancellationToken));
+        Assert.False(staffStatus.EffectiveEnabled);
+        using HttpResponseMessage forbidden = await PostWithCsrf(
+            staffClient,
+            "/api/v1/automation/tenant",
+            new SetTenantAutomationRequest(
+                true,
+                staffStatus.TenantRowVersion,
+                AutomationControlReason.TenantRequest.ToString()));
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        string providerPhone;
+        string customerPhone;
+        await using (AsyncServiceScope scope =
+            fixture.Application.Services.CreateAsyncScope())
+        {
+            LeadRecoveryDbContext dbContext =
+                scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+            using TenantClaimScope tenantClaim =
+                new(scope.ServiceProvider, tenant.TenantId);
+            providerPhone = await dbContext.TenantPhoneNumbers
+                .Select(number => number.PhoneNumberE164)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            customerPhone = await dbContext.Leads
+                .Where(lead => lead.Id == leadId)
+                .Select(lead => lead.PrimaryPhoneE164)
+                .SingleAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using (AsyncServiceScope scope =
+            fixture.Application.Services.CreateAsyncScope())
+        {
+            ProcessInboundSmsUseCase inbound =
+                scope.ServiceProvider.GetRequiredService<ProcessInboundSmsUseCase>();
+            string providerSid = $"SM{Guid.CreateVersion7():N}";
+            InboundSmsOutcome outcome = await inbound.ExecuteAsync(
+                new InboundSmsWebhookEvent(
+                    "Twilio",
+                    providerSid,
+                    customerPhone,
+                    providerPhone,
+                    "Please call me while automation is paused.",
+                    $"twilio:message:{providerSid}",
+                    new string('a', 64),
+                    $"integration-{Guid.CreateVersion7():N}"),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(InboundSmsOutcome.Received, outcome);
+        }
+
+        LeadDetailResponse detail = Assert.IsType<LeadDetailResponse>(
+            await ownerClient.GetFromJsonAsync<LeadDetailResponse>(
+                $"/api/v1/leads/{leadId}",
+                TestContext.Current.CancellationToken));
+        Assert.Contains(
+            detail.Timeline,
+            item => item.Body == "Please call me while automation is paused.");
+
+        await using (AsyncServiceScope scope =
+            fixture.Application.Services.CreateAsyncScope())
+        {
+            LeadRecoveryDbContext dbContext =
+                scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+            Assert.Equal(
+                ScheduledActionStatus.Cancelled,
+                await dbContext.ScheduledActions.IgnoreQueryFilters()
+                    .Where(action =>
+                        action.TenantId == tenant.TenantId &&
+                        action.ActionType ==
+                            ProcessCallStatusWebhookUseCase.RecoveryActionType)
+                    .Select(action => action.Status)
+                    .SingleAsync(TestContext.Current.CancellationToken));
+            Assert.Contains(
+                await dbContext.AuditEvents.IgnoreQueryFilters()
+                    .Where(auditEvent => auditEvent.TenantId == tenant.TenantId)
+                    .Select(auditEvent => auditEvent.Action)
+                    .ToArrayAsync(TestContext.Current.CancellationToken),
+                action => action == "TenantAutomationDisabled");
+        }
+
+        using HttpResponseMessage enabledResponse = await PostWithCsrf(
+            ownerClient,
+            "/api/v1/automation/tenant",
+            new SetTenantAutomationRequest(
+                true,
+                disabled.TenantRowVersion,
+                AutomationControlReason.IncidentResolved.ToString()));
+        enabledResponse.EnsureSuccessStatusCode();
+        AutomationStatusResponse enabled = Assert.IsType<AutomationStatusResponse>(
+            await enabledResponse.Content.ReadFromJsonAsync<AutomationStatusResponse>(
+                TestContext.Current.CancellationToken));
+        Assert.True(enabled.EffectiveEnabled);
+    }
+
+    [Fact]
+    public async Task GlobalKillSwitchCancelsAutomationButPreservesManualActions()
+    {
+        TenantData tenant = await SeedTenant();
+        UserData owner = await SeedUser(tenant, TenantRole.Owner, createLead: true);
+        Guid leadId = Assert.IsType<Guid>(owner.LeadId);
+        await ConfigureTenantMessaging(tenant, leadId, addPendingRecovery: true);
+        Guid manualActionId = Guid.CreateVersion7();
+        await using (AsyncServiceScope scope =
+            fixture.Application.Services.CreateAsyncScope())
+        {
+            LeadRecoveryDbContext dbContext =
+                scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+            using TenantClaimScope tenantClaim =
+                new(scope.ServiceProvider, tenant.TenantId);
+            dbContext.ScheduledActions.Add(new ScheduledAction(
+                manualActionId,
+                tenant.TenantId,
+                leadId,
+                SmsScheduledActionTypes.SendManualSms,
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                $"manual-preserved:{manualActionId:N}",
+                "{}",
+                DateTimeOffset.UtcNow));
+            await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using WebApplicationFactory<Program> globallyDisabled =
+            fixture.Application.WithWebHostBuilder(builder =>
+                builder.UseSetting("AUTOMATION_GLOBAL_ENABLED", "false"));
+        await using (AsyncServiceScope scope =
+            globallyDisabled.Services.CreateAsyncScope())
+        {
+            AutomationControlUseCase control =
+                scope.ServiceProvider.GetRequiredService<AutomationControlUseCase>();
+            GlobalAutomationEnforcementResult result =
+                await control.EnforceGlobalDisableAsync(
+                    TestContext.Current.CancellationToken);
+            Assert.False(result.GlobalEnabled);
+            Assert.True(result.CancelledActionCount >= 1);
+        }
+
+        await using AsyncServiceScope verificationScope =
+            fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext verificationDb =
+            verificationScope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        Dictionary<string, ScheduledActionStatus> statuses =
+            await verificationDb.ScheduledActions.IgnoreQueryFilters()
+                .Where(action =>
+                    action.TenantId == tenant.TenantId &&
+                    (action.ActionType ==
+                        ProcessCallStatusWebhookUseCase.RecoveryActionType ||
+                        action.Id == manualActionId))
+                .ToDictionaryAsync(
+                    action => action.ActionType,
+                    action => action.Status,
+                    TestContext.Current.CancellationToken);
+        Assert.Equal(
+            ScheduledActionStatus.Cancelled,
+            statuses[ProcessCallStatusWebhookUseCase.RecoveryActionType]);
+        Assert.Equal(
+            ScheduledActionStatus.Pending,
+            statuses[SmsScheduledActionTypes.SendManualSms]);
     }
 
     [Fact]

@@ -20,7 +20,8 @@ internal sealed class WorkflowSmsPersistence(
     LeadRecoveryDbContext dbContext,
     ITenantExecutionScope tenantExecutionScope,
     IBusinessHoursScheduler businessHoursScheduler,
-    IWorkflowActionScheduler actionScheduler)
+    IWorkflowActionScheduler actionScheduler,
+    IAutomationRuntimePolicy automationRuntimePolicy)
     : IWorkflowSmsPersistence
 {
     public async Task<PreparedOutboundSms?> PrepareWorkflowOutboundAsync(
@@ -69,6 +70,7 @@ internal sealed class WorkflowSmsPersistence(
             candidate => candidate.PhoneE164 == lead.PrimaryPhoneE164,
             cancellationToken);
         bool eligible = workflow is not null &&
+            automationRuntimePolicy.GlobalAutomationEnabled &&
             tenant.Status is TenantStatus.Trial or TenantStatus.Active &&
             tenant.AutomationEnabled &&
             lead.AutomationState == AutomationState.Active &&

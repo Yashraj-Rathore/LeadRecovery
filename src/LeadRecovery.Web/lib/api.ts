@@ -113,10 +113,18 @@ export type ApiProblem = {
   current?: LeadDetail | null;
 };
 
-export async function securePost(
+export type AutomationStatus = {
+  globalEnabled: boolean;
+  tenantEnabled: boolean;
+  effectiveEnabled: boolean;
+  tenantRowVersion: string;
+  cancelledActionCount: number;
+};
+
+export async function securePost<TSuccess = LeadDetail>(
   path: string,
   body: unknown,
-): Promise<{ response: Response; payload: LeadDetail | ApiProblem | null }> {
+): Promise<{ response: Response; payload: TSuccess | ApiProblem | null }> {
   const csrfResponse = await fetch("/api/v1/auth/csrf", {
     cache: "no-store",
     credentials: "same-origin",
@@ -135,9 +143,9 @@ export async function securePost(
     },
     body: JSON.stringify(body),
   });
-  let payload: LeadDetail | ApiProblem | null = null;
+  let payload: TSuccess | ApiProblem | null = null;
   if (response.headers.get("content-type")?.includes("json")) {
-    payload = (await response.json()) as LeadDetail | ApiProblem;
+    payload = (await response.json()) as TSuccess | ApiProblem;
   }
 
   return { response, payload };

@@ -23,7 +23,8 @@ namespace LeadRecovery.Infrastructure.Persistence.Queries;
 internal sealed class LeadDashboardStore(
     LeadRecoveryDbContext dbContext,
     ITenantContext tenantContext,
-    IWorkflowActionScheduler workflowActionScheduler)
+    IWorkflowActionScheduler workflowActionScheduler,
+    IAutomationRuntimePolicy automationRuntimePolicy)
     : ILeadDashboardStore
 {
     public async Task<LeadDetail?> GetDetailAsync(
@@ -454,13 +455,14 @@ internal sealed class LeadDashboardStore(
                 Tenant tenant = await dbContext.Tenants.SingleAsync(
                     candidate => candidate.Id == tenantContext.TenantId,
                     cancellationToken);
-                if (!tenant.AutomationEnabled ||
+                if (!automationRuntimePolicy.GlobalAutomationEnabled ||
+                    !tenant.AutomationEnabled ||
                     tenant.Status is not (TenantStatus.Trial or TenantStatus.Active))
                 {
                     return await Rollback(
                         transaction,
                         LeadOperationResult.PolicyBlocked(
-                            "Tenant automation must be enabled before a lead can resume."),
+                            "Global and tenant automation must be enabled before a lead can resume."),
                         cancellationToken);
                 }
 

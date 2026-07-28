@@ -442,6 +442,16 @@ PostgreSQL-backed Hangfire. Booking uses the same scoped EF context to persist
 the Lead transition and cancel only its pending automated actions in one
 transaction.
 
+LR-0802 places a fail-closed runtime policy at every automated scheduling and
+execution boundary. `AUTOMATION_GLOBAL_ENABLED` must be true in both API and
+Worker for automated recovery, qualification, booking, follow-up, or analysis
+work to run. `Tenant.AutomationEnabled` is the dynamic tenant switch. Disabling
+either switch prevents new automated intent; the Worker and tenant mutation
+also cancel queued automated action types. Manual staff SMS is deliberately
+outside this switch, while inbound callbacks and tenant dashboard reads remain
+available. Global state is process configuration and requires coordinated API
+and Worker restart; tenant state is transactional PostgreSQL data.
+
 ## 13. Caching
 
 Do not add distributed caching in MVP. Optimize indexed database queries first. Short-lived in-memory caching may be used only for non-sensitive, non-tenant-confusing reference data.

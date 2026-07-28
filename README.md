@@ -16,7 +16,7 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 7 are complete. LR-0101 through LR-0703 and LR-0801 are
+Milestones 0 through 7 are complete. LR-0101 through LR-0703, LR-0801, and LR-0802 are
 implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
@@ -36,6 +36,14 @@ W3C trace propagation from provider webhooks through scheduled jobs to Twilio
 or OpenAI calls, and opt-in OTLP trace/metric export. Paid-provider metrics are
 tenant-scoped using opaque server-derived IDs, while tests prevent message,
 contact, credential, or other PII values from entering logs and metric labels.
+
+LR-0802 adds fail-closed global and tenant automation controls. The Worker
+cancels queued automated recovery, qualification, booking, follow-up, and AI
+analysis work while preserving manual staff SMS, signed inbound SMS capture,
+delivery callbacks, authentication, and the Lead dashboard. Owner and Manager
+members can pause or resume their tenant from the workspace header; every
+change uses CSRF, optimistic concurrency, a fixed reason code, and redacted
+audit data.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -63,6 +71,9 @@ The currently implemented browser and health contract is:
 - `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`,
   `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
   session;
+- `GET /api/v1/automation/` exposes effective global/tenant state to tenant
+  members, while `POST /api/v1/automation/tenant` lets Owner and Manager
+  members pause or resume tenant automation with CSRF and concurrency checks;
 - `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
   `GET /api/v1/leads/{leadId}` provide the filtered inbox, eligible tenant
   assignees, ordered timeline, structured qualification answers, approved
@@ -177,6 +188,13 @@ snapshot; it defaults to `service` and fails closed when that question is
 absent or invalid. Eligible inbound replies then create durable analysis work.
 Provider failure routes the Lead to staff without undoing deterministic
 qualification, and no analysis result sends customer-facing content.
+
+Automation also fails closed by default. Set `AUTOMATION_GLOBAL_ENABLED=true`
+for both the API and Worker only when automated sends and analysis should run.
+Setting it to `false` in both processes and restarting them activates the
+platform kill switch and cancels queued automated actions; manual staff SMS,
+inbound capture, delivery callbacks, and dashboard access remain available.
+Tenant Owner/Manager controls are dynamic and do not require a restart.
 
 The fictional demo seed includes one pending low-confidence analysis so the
 LR-0702 review workflow can be demonstrated without enabling AI or providing an

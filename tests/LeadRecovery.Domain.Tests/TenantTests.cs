@@ -84,4 +84,23 @@ public sealed class TenantTests
             "America/Toronto",
             CreatedAtUtc.AddSeconds(-1)));
     }
+
+    [Fact]
+    public void AutomationSwitchIsExplicitIdempotentAndMonotonic()
+    {
+        Tenant tenant = new(
+            Guid.CreateVersion7(),
+            "Alpha Plumbing",
+            "alpha-plumbing",
+            "America/Toronto",
+            CreatedAtUtc);
+
+        tenant.SetAutomationEnabled(true, CreatedAtUtc.AddMinutes(1));
+        tenant.SetAutomationEnabled(true, CreatedAtUtc);
+
+        Assert.True(tenant.AutomationEnabled);
+        Assert.Equal(CreatedAtUtc.AddMinutes(1), tenant.UpdatedAtUtc);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            tenant.SetAutomationEnabled(false, CreatedAtUtc));
+    }
 }

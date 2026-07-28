@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: LeadRecovery API
-  version: 1.0.0-milestone.6
-  description: Implemented Milestone 6 browser, deterministic qualification, booking, follow-up, Twilio webhook, and SMS workflow contract.
+  version: 1.0.0-milestone.8
+  description: Implemented browser, automation control, deterministic workflow, AI review, Twilio webhook, and SMS contract through LR-0802.
 servers:
   - url: https://app.example.com/api/v1
 paths:
@@ -209,6 +209,59 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '401':
           description: Not authenticated.
+  /automation/:
+    get:
+      tags: [Automation]
+      summary: Get effective platform and tenant automation state
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: Current global, tenant, and effective state with tenant concurrency token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationStatus'
+        '401':
+          description: Not authenticated.
+  /automation/tenant:
+    post:
+      tags: [Automation]
+      summary: Pause or resume tenant automation
+      description: Owner/Manager only. Pending automated actions are cancelled on disable; manual staff SMS and inbound capture remain available.
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTenantAutomationRequest'
+      responses:
+        '200':
+          description: State applied or already current; cancellation count is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationStatus'
+        '400':
+          description: Antiforgery, version, or reason validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: Not authenticated.
+        '403':
+          description: Membership is not Owner or Manager.
+        '409':
+          description: Tenant automation state changed concurrently; current state is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationStatus'
   /leads:
     get:
       tags: [Leads]
@@ -713,6 +766,34 @@ components:
         role:
           type: string
           enum: [Owner, Manager, Staff, ReadOnly]
+    AutomationStatus:
+      type: object
+      required: [globalEnabled, tenantEnabled, effectiveEnabled, tenantRowVersion, cancelledActionCount]
+      properties:
+        globalEnabled:
+          type: boolean
+        tenantEnabled:
+          type: boolean
+        effectiveEnabled:
+          type: boolean
+        tenantRowVersion:
+          type: string
+          description: Opaque concurrency token for tenant automation writes.
+        cancelledActionCount:
+          type: integer
+          minimum: 0
+    SetTenantAutomationRequest:
+      type: object
+      required: [enabled, expectedRowVersion, reasonCode]
+      properties:
+        enabled:
+          type: boolean
+        expectedRowVersion:
+          type: string
+          minLength: 1
+        reasonCode:
+          type: string
+          enum: [TenantRequest, OperationalIncident, PlannedMaintenance, IncidentResolved, MaintenanceComplete]
     LeadStatus:
       type: string
       enum: [New, Contacting, AwaitingCustomer, Qualified, BookingOffered, NeedsHuman, Booked, Closed, ClosedWon]

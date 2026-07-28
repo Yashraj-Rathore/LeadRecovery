@@ -94,6 +94,7 @@ public sealed class ObservabilityTelemetryTests
         }
 
         LeadRecoveryTelemetry.RecordQueueDelay("AnalyzeLead", TimeSpan.FromSeconds(2));
+        LeadRecoveryTelemetry.RecordAutomationCancellation("tenant", TenantId, 3);
 
         Assert.Contains(measurements, item =>
             item.Name == "leadrecovery.jobs.executions" && item.Value == 1);
@@ -105,6 +106,12 @@ public sealed class ObservabilityTelemetryTests
             item.Name == "leadrecovery.provider.requests" && item.Value == 1);
         Assert.Contains(measurements, item =>
             item.Name == "leadrecovery.provider.duration");
+        Assert.Contains(measurements, item =>
+            item.Name == "leadrecovery.automation.actions_cancelled" &&
+            item.Value == 3 &&
+            item.Tags.Any(tag =>
+                tag.Key == "automation.scope" &&
+                Equals(tag.Value, "tenant")));
 
         string telemetryText = string.Join(
             '|',

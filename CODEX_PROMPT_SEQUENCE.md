@@ -52,9 +52,9 @@ human-review, deterministic-fallback, and no-autonomous-send boundaries.
 
 Implement LR-0801 through LR-0804. Add telemetry, kill switch, retention dry-run, rate limiting, security headers, alerts/runbooks, and PII-safe logs.
 
-Implementation status (2026-07-27): LR-0801 is complete. Continue with
-LR-0802; retain the PII-safe JSON logging, durable W3C propagation, and
-optional OTLP-export baseline.
+Implementation status (2026-07-28): LR-0801 and LR-0802 are complete. Continue
+with LR-0803; retain the PII-safe observability baseline and the global/tenant
+fail-closed automation controls while implementing retention dry-run behavior.
 
 ## Prompt 10 - Containers and Kubernetes
 

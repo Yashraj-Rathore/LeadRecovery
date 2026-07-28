@@ -122,6 +122,15 @@ overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
 high-contrast outline, and reduced-motion and increased-contrast preferences
 are respected.
 
+LR-0802 adds a compact, high-contrast automation status to the shared workspace
+header. Every role can see `Automation on`, `Tenant paused`, `Platform paused`,
+or the fail-safe unknown state. Owner and Manager members can open the control,
+review its impact, and pause or resume tenant automation; Staff and ReadOnly
+members receive status-only presentation. Mutation feedback reports cancelled
+queued work, concurrency conflicts trigger a fresh status read, and the copy
+explicitly confirms that inbound capture, the dashboard, and manual staff
+messages remain available.
+
 LR-0702 adds a prominent responsive review card before the conversation/action
 grid whenever analyses exist. It always says that content is AI-generated,
 shows confidence as a percentage plus text, and gives sub-65% suggestions a

@@ -29,6 +29,10 @@ public static class LeadRecoveryTelemetry
     private static readonly Histogram<double> ProviderDuration = Meter.CreateHistogram<double>(
         "leadrecovery.provider.duration",
         unit: "s");
+    private static readonly Counter<long> AutomationActionsCancelled =
+        Meter.CreateCounter<long>(
+            "leadrecovery.automation.actions_cancelled",
+            unit: "{action}");
 
     public static TelemetryOperation StartJob(
         string jobType,
@@ -121,6 +125,31 @@ public static class LeadRecoveryTelemetry
         JobQueueDelay.Record(
             Math.Max(0, delay.TotalSeconds),
             new KeyValuePair<string, object?>("job.type", normalizedJobType));
+    }
+
+    public static void RecordAutomationCancellation(
+        string switchScope,
+        Guid tenantId,
+        int actionCount)
+    {
+        if (tenantId == Guid.Empty)
+        {
+            throw new ArgumentException("A tenant ID is required.", nameof(tenantId));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(actionCount);
+
+        if (actionCount == 0)
+        {
+            return;
+        }
+
+        AutomationActionsCancelled.Add(
+            actionCount,
+            new KeyValuePair<string, object?>(
+                "automation.scope",
+                NormalizeTag(switchScope, nameof(switchScope))),
+            new KeyValuePair<string, object?>("tenant.id", tenantId.ToString("N")));
     }
 
     private static string NormalizeTag(string value, string parameterName)

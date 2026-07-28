@@ -58,6 +58,7 @@ public sealed class LeadRecoveryApiFixture : IAsyncLifetime
         {
             builder.UseSetting("ConnectionStrings:Database", connectionString);
             builder.UseSetting("RateLimiting:LoginPermitLimit", "100");
+            builder.UseSetting("AUTOMATION_GLOBAL_ENABLED", "true");
             builder.UseSetting(
                 "TWILIO_AUTH_TOKEN",
                 "integration-test-twilio-auth-token");

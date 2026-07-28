@@ -166,6 +166,29 @@ test("staff operates a lead with accessible filters, conflict recovery, and safe
   await expect(page.getByText("Send booking link")).toHaveCount(0);
 });
 
+test("owner can pause and resume tenant automation without losing dashboard access", async ({
+  page,
+}) => {
+  await login(page, required("E2E_OWNER_EMAIL"), required("E2E_OWNER_PASSWORD"));
+
+  const automationSummary = page.locator("summary.automation-switch-status");
+  await automationSummary.click();
+  await expect(
+    page.getByText("Approved automated recovery and follow-up work can run for this tenant."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Pause tenant automation" }).click();
+  await expect(automationSummary).toHaveText("Tenant paused");
+  await expect(page.getByRole("status")).toContainText("pending automated");
+  await expect(page.getByRole("heading", { name: "Lead inbox" })).toBeVisible();
+
+  const leadsResponse = await page.request.get("/api/v1/leads/?pageSize=25");
+  expect(leadsResponse.ok()).toBeTruthy();
+
+  await page.getByRole("button", { name: "Resume tenant automation" }).click();
+  await expect(automationSummary).toHaveText("Automation on");
+  await expect(page.getByRole("status")).toContainText("Tenant automation resumed");
+});
+
 test("workspace navigation and primary actions remain usable on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/login");
@@ -194,8 +217,19 @@ test("workspace navigation and primary actions remain usable on mobile", async (
   await firstLead.click();
 
   await expect(page.getByRole("heading", { name: "Conversation timeline" })).toBeVisible();
-  const detailViewportFits = await page.evaluate(() =>
-    document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
-  );
-  expect(detailViewportFits).toBeTruthy();
+  const overflowingElements = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    return Array.from(document.body.querySelectorAll<HTMLElement>("*"))
+      .filter((element) => {
+        if (!element.checkVisibility()) return false;
+        const bounds = element.getBoundingClientRect();
+        return bounds.left < -1 || bounds.right > viewportWidth + 1;
+      })
+      .map((element) => ({
+        className: element.className,
+        tagName: element.tagName,
+        text: element.innerText.slice(0, 80),
+      }));
+  });
+  expect(overflowingElements).toEqual([]);
 });

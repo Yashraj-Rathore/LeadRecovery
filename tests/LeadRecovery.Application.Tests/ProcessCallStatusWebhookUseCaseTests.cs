@@ -1,3 +1,4 @@
+using LeadRecovery.Application.Automations;
 using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Domain.Audit;
@@ -31,6 +32,7 @@ public sealed class ProcessCallStatusWebhookUseCaseTests
             persistence,
             tenantScope,
             metrics,
+            new AutomationRuntimeOptions(GlobalAutomationEnabled: true),
             new FixedTimeProvider(Now));
 
         CallStatusProcessingOutcome outcome = await useCase.ExecuteAsync(
@@ -76,6 +78,7 @@ public sealed class ProcessCallStatusWebhookUseCaseTests
             persistence,
             new RecordingTenantScope(),
             new RecordingMetrics(),
+            new AutomationRuntimeOptions(GlobalAutomationEnabled: true),
             new FixedTimeProvider(Now));
 
         CallStatusProcessingOutcome outcome = await useCase.ExecuteAsync(
@@ -99,6 +102,7 @@ public sealed class ProcessCallStatusWebhookUseCaseTests
             persistence,
             new RecordingTenantScope(),
             new RecordingMetrics(),
+            new AutomationRuntimeOptions(GlobalAutomationEnabled: true),
             new FixedTimeProvider(Now));
 
         CallStatusProcessingOutcome outcome = await useCase.ExecuteAsync(
@@ -110,6 +114,36 @@ public sealed class ProcessCallStatusWebhookUseCaseTests
         Assert.Empty(persistence.Leads);
         Assert.Empty(persistence.Actions);
         Assert.Empty(persistence.AuditEvents);
+    }
+
+    [Fact]
+    public async Task GlobalDisableRecordsReceiptWithoutCreatingAutomatedWork()
+    {
+        Guid tenantId = Guid.CreateVersion7();
+        InMemoryCallStatusPersistence persistence = new()
+        {
+            Route = new TenantPhoneRecoveryRoute(
+                tenantId,
+                true,
+                ["no-answer"],
+                30,
+                300),
+        };
+        ProcessCallStatusWebhookUseCase useCase = new(
+            persistence,
+            new RecordingTenantScope(),
+            new RecordingMetrics(),
+            new AutomationRuntimeOptions(GlobalAutomationEnabled: false),
+            new FixedTimeProvider(Now));
+
+        CallStatusProcessingOutcome outcome = await useCase.ExecuteAsync(
+            CreateEvent(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(CallStatusProcessingOutcome.IgnoredAutomationDisabled, outcome);
+        Assert.Equal("IgnoredAutomationDisabled", persistence.Receipt?.ProcessingResult);
+        Assert.Empty(persistence.Leads);
+        Assert.Empty(persistence.Actions);
     }
 
     private static CallStatusWebhookEvent CreateEvent() =>

@@ -26,6 +26,7 @@ internal sealed class SmsWorkflowPersistence(
     IWorkflowActionScheduler workflowActionScheduler,
     IQualificationEvaluator qualificationEvaluator,
     IBusinessHoursScheduler businessHoursScheduler,
+    IAutomationRuntimePolicy automationRuntimePolicy,
     LeadAnalysisWorkflowOptions analysisOptions)
     : ISmsWorkflowPersistence
 {
@@ -77,7 +78,8 @@ internal sealed class SmsWorkflowPersistence(
 
         bool tenantOperational =
             tenant.Status is TenantStatus.Trial or TenantStatus.Active &&
-            tenant.AutomationEnabled;
+            tenant.AutomationEnabled &&
+            automationRuntimePolicy.GlobalAutomationEnabled;
         bool leadEligible =
             lead.AutomationState == AutomationState.Active &&
             lead.Status is not (LeadStatus.Booked or LeadStatus.Closed or LeadStatus.ClosedWon);
@@ -593,6 +595,7 @@ internal sealed class SmsWorkflowPersistence(
         CancellationToken cancellationToken)
     {
         if (!analysisOptions.Enabled ||
+            !automationRuntimePolicy.GlobalAutomationEnabled ||
             !tenant.AutomationEnabled ||
             lead.AutomationState != AutomationState.Active ||
             lead.Status is LeadStatus.Booked or LeadStatus.Closed or LeadStatus.ClosedWon)

@@ -26,6 +26,7 @@ updated in the same change so they remain aligned.
 | [0017](0017-human-reviewed-ai-analysis.md) | Human-reviewed AI analysis | Accepted |
 | [0018](0018-ai-workflow-invocation-and-fallback.md) | AI workflow invocation and fallback | Accepted |
 | [0019](0019-observability-and-trace-propagation.md) | Observability and trace propagation | Accepted |
+| [0020](0020-automation-kill-switch.md) | Automation kill-switch scope and recovery | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
