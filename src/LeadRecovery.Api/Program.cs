@@ -24,6 +24,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -291,6 +292,16 @@ builder.Services
         tags: ["ready"]);
 
 var app = builder.Build();
+
+if (args.Contains("--migrate", StringComparer.OrdinalIgnoreCase))
+{
+    await using AsyncServiceScope migrationScope = app.Services.CreateAsyncScope();
+    LeadRecoveryDbContext migrationDbContext =
+        migrationScope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+    await migrationDbContext.Database.MigrateAsync(
+        app.Lifetime.ApplicationStopping);
+    return;
+}
 
 app.UseMiddleware<SecurityHeadersMiddleware>();
 

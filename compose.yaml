@@ -22,5 +22,111 @@ services:
       retries: 10
       start_period: 10s
 
+  migrate:
+    image: leadrecovery-api:${IMAGE_VERSION:-0.0.0-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/api.Dockerfile
+      args:
+        VERSION: ${IMAGE_VERSION:-0.0.0-local}
+        REVISION: ${IMAGE_REVISION:-unknown}
+        CREATED: ${IMAGE_CREATED:-unknown}
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB:-leadrecovery};Username=${POSTGRES_USER:-leadrecovery};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
+    command:
+      - --migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  leadrecovery-api:
+    image: leadrecovery-api:${IMAGE_VERSION:-0.0.0-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/api.Dockerfile
+      args:
+        VERSION: ${IMAGE_VERSION:-0.0.0-local}
+        REVISION: ${IMAGE_REVISION:-unknown}
+        CREATED: ${IMAGE_CREATED:-unknown}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB:-leadrecovery};Username=${POSTGRES_USER:-leadrecovery};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
+      DATA_PROTECTION_KEY_PATH: /keys
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WEBHOOK_BASE_URL: ${TWILIO_WEBHOOK_BASE_URL:-http://localhost:8080}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    volumes:
+      - leadrecovery-keys:/keys
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: leadrecovery-worker:${IMAGE_VERSION:-0.0.0-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/worker.Dockerfile
+      args:
+        VERSION: ${IMAGE_VERSION:-0.0.0-local}
+        REVISION: ${IMAGE_REVISION:-unknown}
+        CREATED: ${IMAGE_CREATED:-unknown}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      ALLOW_REAL_SMS: ${ALLOW_REAL_SMS:-false}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: 8080
+      AUTOMATION_GLOBAL_ENABLED: ${AUTOMATION_GLOBAL_ENABLED:-false}
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB:-leadrecovery};Username=${POSTGRES_USER:-leadrecovery};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      RETENTION_ENABLED: ${RETENTION_ENABLED:-false}
+      RETENTION_MODE: ${RETENTION_MODE:-dry-run}
+      SMS_PROVIDER: ${SMS_PROVIDER:-fake}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WEBHOOK_BASE_URL: ${TWILIO_WEBHOOK_BASE_URL:-http://localhost:8080}
+    ports:
+      - "${WORKER_HEALTH_PORT:-8081}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    image: leadrecovery-web:${IMAGE_VERSION:-0.0.0-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/web.Dockerfile
+      args:
+        API_BASE_URL: http://leadrecovery-api:8080
+        VERSION: ${IMAGE_VERSION:-0.0.0-local}
+        REVISION: ${IMAGE_REVISION:-unknown}
+        CREATED: ${IMAGE_CREATED:-unknown}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      API_BASE_URL: http://leadrecovery-api:8080
+      SERVER_API_BASE_URL: http://leadrecovery-api:8080
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      leadrecovery-api:
+        condition: service_healthy
+
 volumes:
+  leadrecovery-keys:
   leadrecovery-postgres:

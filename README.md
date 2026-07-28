@@ -16,7 +16,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 7 are complete. LR-0101 through LR-0804 are implemented.
+Milestones 0 through 8 are complete. LR-0101 through LR-0902 are implemented;
+LR-0903 CI/CD is the remaining Milestone 9 issue.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -50,6 +51,16 @@ terminal Leads older than the tenant cutoff, records PII-free count manifests,
 and requires an explicit backup acknowledgement before destructive mode.
 LR-0804 adds independently partitioned login, manual-message, and provider-
 webhook limits plus restrictive security headers on every API response.
+
+LR-0901 adds multi-stage, digest-pinned, non-root production images for the
+API, worker, and standalone Next.js dashboard, with OCI metadata and health
+checks. Compose now runs PostgreSQL, a one-shot migration container, API,
+worker, and web with dependency health gates and safe provider defaults.
+LR-0902 adds migration-first Kustomize overlays for local, staging, and
+production; probes, resources, secret references, ingress, network policies,
+dedicated ServiceAccounts, persisted data-protection keys, disruption budgets,
+and production API autoscaling. A real local cluster validated migration,
+readiness, restart recovery, and rolling replacement.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -119,7 +130,7 @@ The currently implemented browser and health contract is:
 | Hangfire PostgreSQL | 1.21.1 | Durable background-job storage |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
-| Node.js | 24.17.0 | Frontend and Playwright runtime |
+| Node.js | 24.18.0 | Frontend, container, and Playwright runtime |
 | pnpm | 11.10.0 | Locked frontend workspace package manager |
 | Next.js | 16.2.11 | Same-origin browser shell |
 | React | 19.2.7 | Browser UI runtime |
@@ -158,6 +169,10 @@ dotnet build LeadRecovery.sln --configuration Release --no-restore
 dotnet test LeadRecovery.sln --configuration Release --no-build
 dotnet run --project src/LeadRecovery.Api
 ```
+
+To build and run the complete production-shaped local container stack instead,
+follow `deploy/docker/README.md`. Kubernetes prerequisites and the mandatory
+migration-first order are documented in `deploy/kubernetes/README.md`.
 
 For the authenticated demo, fill the `DemoSeed__*` values documented in
 `templates/.env.example`, enable the demo seed only in a disposable local

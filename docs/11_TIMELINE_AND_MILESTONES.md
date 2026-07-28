@@ -266,6 +266,15 @@ Exit criteria:
 - secrets absent from repository;
 - previous version can be restored.
 
+Implementation status (2026-07-28): LR-0901 and LR-0902 are complete.
+Production-shaped Compose images and a migration-first five-service stack were
+validated end to end. Kubernetes local/staging/production and migration
+overlays passed server-side schema validation; a local cluster demonstrated
+successful migration, workload readiness, worker pod restart recovery, and an
+API rolling replacement. LR-0903 remains open for authenticated image scanning,
+immutable registry publishing, staged delivery, approval, and rollback
+automation; therefore Milestone 9 is not yet fully complete.
+
 ### Milestone 10 - Pilot package and sales demo (Week 10)
 
 Deliverables:

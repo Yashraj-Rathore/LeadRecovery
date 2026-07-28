@@ -16,6 +16,19 @@ All notable repository and product-specification changes are recorded here.
   analyzer settings, local tool manifest, and backend CI quality gates.
 - Reserved frontend and deployment directories without implementing future
   milestones.
+- LR-0901 multi-stage production API, worker, and standalone Next.js images
+  with immutable base digests, non-root users, OCI release metadata, health
+  checks, a migration-only API mode, and full dependency-gated local Compose.
+- LR-0902 migration-first Kustomize base/local/staging/production overlays with
+  three workloads and Services, ingress/TLS references, external Secret refs,
+  probes, resource controls, restricted security contexts, network policy,
+  persisted data-protection keys, production PDBs, and API autoscaling.
+- Docker Compose and isolated kind acceptance evidence for schema migration,
+  all workload readiness, internal health, worker pod restart recovery, API
+  rolling replacement, and server-side validation of every overlay.
+- ADR-0023 documenting immutable image construction, migration ordering,
+  external database/secrets, storage modes, safe deployment defaults, and the
+  LR-0903 image-scan/release boundary.
 - Architecture decisions for project boundaries, technology versions, tenant
   isolation, background consistency, API concurrency, lead lifecycle, tenant
   context, and canonical customer phone identity.
@@ -243,6 +256,8 @@ All notable repository and product-specification changes are recorded here.
 
 ### Changed
 
+- Updated the reserved Node.js patch from unpublished 24.17.0 to published
+  24.18.0 and aligned local, CI, documentation, and container pins.
 - Clarified that `Booked` and `ClosedWon` are statuses, not close reasons.
 - Replaced SQL Server-style row-version wording with an application-managed
   PostgreSQL `bigint Version` exposed as an opaque base64 API token.

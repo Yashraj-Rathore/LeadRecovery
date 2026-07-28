@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: leadrecovery
+
+commonLabels:
+  app.kubernetes.io/part-of: leadrecovery
+
+resources:
+  - foundation
+  - data-protection-pvc.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - worker-deployment.yaml
+  - worker-service.yaml
+  - web-deployment.yaml
+  - web-service.yaml
+  - ingress.yaml
+  - networkpolicies.yaml
+
+images:
+  - name: ghcr.io/yashraj-rathore/leadrecovery-api
+    newTag: sha-replace-me
+  - name: ghcr.io/yashraj-rathore/leadrecovery-worker
+    newTag: sha-replace-me
+  - name: ghcr.io/yashraj-rathore/leadrecovery-web
+    newTag: sha-replace-me

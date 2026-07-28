@@ -310,3 +310,32 @@ The portfolio demo should show:
 - HPA configuration or documented scaling test.
 
 Do not claim production scale without load-test evidence.
+
+## 16. Implemented LR-0901/LR-0902 baseline
+
+The committed implementation is under `deploy/docker` and
+`deploy/kubernetes`; their READMEs are the operational source of truth.
+
+- API, worker, and standalone Next.js images are multi-stage, digest-pinned,
+  non-root, health-checked, and labeled with build version/revision/time.
+- Root Compose runs PostgreSQL, a one-shot migration container, API, worker,
+  and web in dependency-safe order with fake/disabled provider defaults.
+- The API image accepts `--migrate`; regular replicas never apply migrations.
+- API and worker expose separate live and database-ready checks.
+- Kustomize provides reusable foundation/workload bases, separate migration
+  bases, and local/staging/production overlays.
+- Workloads use read-only roots, dropped capabilities, no privilege escalation,
+  dedicated tokenless ServiceAccounts, probes, resources, and restricted pod
+  security. Ingress and NetworkPolicies limit inbound application paths.
+- Local/staging use one API replica and portable RWO key storage. Production
+  uses two API/web replicas, PDBs, API HPA, and requires an environment-provided
+  RWX `shared-rwx` StorageClass for shared cookie keys.
+- PostgreSQL and all secrets remain external. The manifests contain only
+  ConfigMap values and Secret key references.
+
+On 2026-07-28 the Compose stack and an isolated Kubernetes 1.28 cluster passed
+migration, readiness, pod-restart, and rolling-update validation. All environment
+and migration overlays also passed server-side schema validation. The image
+scan is a documented LR-0901 exception because the installed Docker Scout
+client required a separate account login; LR-0903 must complete an authenticated
+High/Critical image gate before any production release.

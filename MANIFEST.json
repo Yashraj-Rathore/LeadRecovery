@@ -9,15 +9,15 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  17460
+        "bytes":  18549
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  257885
+        "bytes":  266418
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  4732
+        "bytes":  5024
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -69,7 +69,7 @@
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
-        "bytes":  6713
+        "bytes":  8470
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
@@ -77,11 +77,11 @@
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  11420
+        "bytes":  12008
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  19712
+        "bytes":  20837
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -97,7 +97,7 @@
     },
     {
         "path":  "docs/decisions/0002-pinned-technology-baseline.md",
-        "bytes":  1818
+        "bytes":  2021
     },
     {
         "path":  "docs/decisions/0003-tenant-isolation.md",
@@ -180,16 +180,20 @@
         "bytes":  1829
     },
     {
+        "path":  "docs/decisions/0023-production-images-and-kubernetes-rollout.md",
+        "bytes":  3419
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  2754
+        "bytes":  2869
     },
     {
         "path":  "README.md",
-        "bytes":  16917
+        "bytes":  17863
     },
     {
         "path":  "templates/.env.example",
-        "bytes":  2513
+        "bytes":  2739
     },
     {
         "path":  "templates/appsettings.Development.example.json",

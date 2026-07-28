@@ -61,6 +61,11 @@ limits while containerizing the existing modular monolith.
 
 Implement LR-0901 and LR-0902. First prove Docker Compose works, then add Kubernetes base/overlays, probes, resources, migration job, ingress, and secret references. Demonstrate a rolling update and pod restart recovery.
 
+Implementation status (2026-07-28): complete for LR-0901 and LR-0902.
+Continue with Prompt 11 and LR-0903. Preserve immutable base/image intent,
+migration-before-workload ordering, external secret management, safe provider
+defaults, and the documented authenticated image-scan release gate.
+
 ## Prompt 11 - CI/CD
 
 Implement LR-0903. Add PR gates, image build/scan, staging deployment, smoke test, approval gate, production deployment, and rollback documentation. Never place credentials in workflow files.

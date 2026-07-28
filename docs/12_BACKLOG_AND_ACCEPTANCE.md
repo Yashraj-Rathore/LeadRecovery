@@ -519,6 +519,14 @@ and a 25-request valid signed retry burst.
 - image metadata/version;
 - scan passes or exceptions documented.
 
+Implementation status (2026-07-28): complete. API, worker, and standalone web
+images use multi-stage Dockerfiles, verified immutable base digests, non-root
+runtime users, OCI release labels, and health checks. Compose proves the
+migration-first five-service stack. Docker Scout required an unavailable
+separate account login, so the authenticated runtime-image scan remains an
+explicit documented pre-release exception owned by LR-0903; locked .NET and
+pnpm dependency audits remain mandatory compensating gates.
+
 ### LR-0902 Kubernetes base
 
 **Acceptance:**
@@ -529,6 +537,15 @@ and a 25-request valid signed retry burst.
 - probes and resources;
 - migration job;
 - deployment works in local/staging cluster.
+
+Implementation status (2026-07-28): complete. Kustomize base plus local,
+staging, and production overlays define all three Deployments/Services,
+ingress/TLS references, ConfigMap/Secret references, dedicated ServiceAccounts,
+restricted security contexts, probes, resources, persisted data-protection
+keys, NetworkPolicies, a production HPA/PDBs, and separate migration overlays.
+All overlays passed Kubernetes 1.28 server-side validation. An isolated kind
+cluster completed migrations first, reached Ready for all workloads, recovered
+a deleted worker pod, and completed a zero-unavailable API rolling update.
 
 ### LR-0903 CI/CD
 

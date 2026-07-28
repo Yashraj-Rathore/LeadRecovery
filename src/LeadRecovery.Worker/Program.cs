@@ -11,9 +11,14 @@ using LeadRecovery.Infrastructure.Analysis;
 using LeadRecovery.Infrastructure.BackgroundJobs;
 using LeadRecovery.Infrastructure.Messaging;
 using LeadRecovery.Infrastructure.Observability;
+using LeadRecovery.Infrastructure.Persistence;
 using LeadRecovery.Worker;
 
-var builder = Host.CreateApplicationBuilder(args);
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+
+var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.Configure(options =>
     options.ActivityTrackingOptions =
@@ -90,7 +95,7 @@ builder.Services.AddLeadRecoveryObservability(
     builder.Configuration,
     "LeadRecovery.Worker",
     builder.Environment.EnvironmentName,
-    instrumentAspNetCore: false);
+    instrumentAspNetCore: true);
 builder.Services.AddLeadRecoveryHangfire(databaseConnectionString);
 builder.Services.AddSmsProvider(new SmsProviderOptions(
     builder.Configuration["SMS_PROVIDER"] ?? "fake",
@@ -134,12 +139,18 @@ builder.Services.AddHangfireServer(options =>
         builder.Configuration.GetValue("SMS_WORKER_COUNT", 2);
 });
 builder.Services.AddHostedService<ScheduledActionDispatcher>();
+builder.Services
+    .AddHealthChecks()
+    .AddDbContextCheck<LeadRecoveryDbContext>(
+        "database",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: ["ready"]);
 
-var host = builder.Build();
+var app = builder.Build();
 if (retentionOptions.Enabled)
 {
     IRecurringJobManager recurringJobs =
-        host.Services.GetRequiredService<IRecurringJobManager>();
+        app.Services.GetRequiredService<IRecurringJobManager>();
     recurringJobs.AddOrUpdate<TenantRetentionJob>(
         "tenant-operational-data-retention",
         job => job.ExecuteAsync(CancellationToken.None),
@@ -150,4 +161,12 @@ if (retentionOptions.Enabled)
         });
 }
 
-await host.RunAsync();
+app.MapHealthChecks(
+    "/health/live",
+    new HealthCheckOptions
+    {
+        Predicate = static _ => false,
+    });
+app.MapHealthChecks("/health/ready");
+
+await app.RunAsync();

@@ -152,9 +152,11 @@ export async function securePost<TSuccess = LeadDetail>(
 }
 
 export function getApiBaseUrl(): string {
-  const apiBaseUrl = process.env.API_BASE_URL;
+  const apiBaseUrl = process.env.SERVER_API_BASE_URL ?? process.env.API_BASE_URL;
   if (!apiBaseUrl) {
-    throw new Error("API_BASE_URL is required for server-side API requests.");
+    throw new Error(
+      "SERVER_API_BASE_URL or API_BASE_URL is required for server-side API requests.",
+    );
   }
 
   return apiBaseUrl;

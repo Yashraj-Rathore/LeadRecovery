@@ -23,7 +23,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 7 are complete. LR-0101 through LR-0804 are implemented.
+Milestones 0 through 8 are complete. LR-0101 through LR-0902 are implemented;
+LR-0903 CI/CD is the remaining Milestone 9 issue.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -57,6 +58,16 @@ terminal Leads older than the tenant cutoff, records PII-free count manifests,
 and requires an explicit backup acknowledgement before destructive mode.
 LR-0804 adds independently partitioned login, manual-message, and provider-
 webhook limits plus restrictive security headers on every API response.
+
+LR-0901 adds multi-stage, digest-pinned, non-root production images for the
+API, worker, and standalone Next.js dashboard, with OCI metadata and health
+checks. Compose now runs PostgreSQL, a one-shot migration container, API,
+worker, and web with dependency health gates and safe provider defaults.
+LR-0902 adds migration-first Kustomize overlays for local, staging, and
+production; probes, resources, secret references, ingress, network policies,
+dedicated ServiceAccounts, persisted data-protection keys, disruption budgets,
+and production API autoscaling. A real local cluster validated migration,
+readiness, restart recovery, and rolling replacement.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -126,7 +137,7 @@ The currently implemented browser and health contract is:
 | Hangfire PostgreSQL | 1.21.1 | Durable background-job storage |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
-| Node.js | 24.17.0 | Frontend and Playwright runtime |
+| Node.js | 24.18.0 | Frontend, container, and Playwright runtime |
 | pnpm | 11.10.0 | Locked frontend workspace package manager |
 | Next.js | 16.2.11 | Same-origin browser shell |
 | React | 19.2.7 | Browser UI runtime |
@@ -165,6 +176,10 @@ dotnet build LeadRecovery.sln --configuration Release --no-restore
 dotnet test LeadRecovery.sln --configuration Release --no-build
 dotnet run --project src/LeadRecovery.Api
 ```
+
+To build and run the complete production-shaped local container stack instead,
+follow `deploy/docker/README.md`. Kubernetes prerequisites and the mandatory
+migration-first order are documented in `deploy/kubernetes/README.md`.
 
 For the authenticated demo, fill the `DemoSeed__*` values documented in
 `templates/.env.example`, enable the demo seed only in a disposable local
@@ -3789,6 +3804,35 @@ The portfolio demo should show:
 
 Do not claim production scale without load-test evidence.
 
+## 16. Implemented LR-0901/LR-0902 baseline
+
+The committed implementation is under `deploy/docker` and
+`deploy/kubernetes`; their READMEs are the operational source of truth.
+
+- API, worker, and standalone Next.js images are multi-stage, digest-pinned,
+  non-root, health-checked, and labeled with build version/revision/time.
+- Root Compose runs PostgreSQL, a one-shot migration container, API, worker,
+  and web in dependency-safe order with fake/disabled provider defaults.
+- The API image accepts `--migrate`; regular replicas never apply migrations.
+- API and worker expose separate live and database-ready checks.
+- Kustomize provides reusable foundation/workload bases, separate migration
+  bases, and local/staging/production overlays.
+- Workloads use read-only roots, dropped capabilities, no privilege escalation,
+  dedicated tokenless ServiceAccounts, probes, resources, and restricted pod
+  security. Ingress and NetworkPolicies limit inbound application paths.
+- Local/staging use one API replica and portable RWO key storage. Production
+  uses two API/web replicas, PDBs, API HPA, and requires an environment-provided
+  RWX `shared-rwx` StorageClass for shared cookie keys.
+- PostgreSQL and all secrets remain external. The manifests contain only
+  ConfigMap values and Secret key references.
+
+On 2026-07-28 the Compose stack and an isolated Kubernetes 1.28 cluster passed
+migration, readiness, pod-restart, and rolling-update validation. All environment
+and migration overlays also passed server-side schema validation. The image
+scan is a documented LR-0901 exception because the installed Docker Scout
+client required a separate account login; LR-0903 must complete an authenticated
+High/Critical image gate before any production release.
+
 ---
 
 <!-- SOURCE: docs/10_OBSERVABILITY_OPERATIONS.md -->
@@ -4398,6 +4442,15 @@ Exit criteria:
 - pod restart does not lose workflow state;
 - secrets absent from repository;
 - previous version can be restored.
+
+Implementation status (2026-07-28): LR-0901 and LR-0902 are complete.
+Production-shaped Compose images and a migration-first five-service stack were
+validated end to end. Kubernetes local/staging/production and migration
+overlays passed server-side schema validation; a local cluster demonstrated
+successful migration, workload readiness, worker pod restart recovery, and an
+API rolling replacement. LR-0903 remains open for authenticated image scanning,
+immutable registry publishing, staged delivery, approval, and rollback
+automation; therefore Milestone 9 is not yet fully complete.
 
 ### Milestone 10 - Pilot package and sales demo (Week 10)
 
@@ -5062,6 +5115,14 @@ and a 25-request valid signed retry burst.
 - image metadata/version;
 - scan passes or exceptions documented.
 
+Implementation status (2026-07-28): complete. API, worker, and standalone web
+images use multi-stage Dockerfiles, verified immutable base digests, non-root
+runtime users, OCI release labels, and health checks. Compose proves the
+migration-first five-service stack. Docker Scout required an unavailable
+separate account login, so the authenticated runtime-image scan remains an
+explicit documented pre-release exception owned by LR-0903; locked .NET and
+pnpm dependency audits remain mandatory compensating gates.
+
 ### LR-0902 Kubernetes base
 
 **Acceptance:**
@@ -5072,6 +5133,15 @@ and a 25-request valid signed retry burst.
 - probes and resources;
 - migration job;
 - deployment works in local/staging cluster.
+
+Implementation status (2026-07-28): complete. Kustomize base plus local,
+staging, and production overlays define all three Deployments/Services,
+ingress/TLS references, ConfigMap/Secret references, dedicated ServiceAccounts,
+restricted security contexts, probes, resources, persisted data-protection
+keys, NetworkPolicies, a production HPA/PDBs, and separate migration overlays.
+All overlays passed Kubernetes 1.28 server-side validation. An isolated kind
+cluster completed migrations first, reached Ready for all workloads, recovered
+a deleted worker pod, and completed a zero-unavailable API rolling update.
 
 ### LR-0903 CI/CD
 
@@ -5482,6 +5552,7 @@ updated in the same change so they remain aligned.
 | [0020](0020-automation-kill-switch.md) | Automation kill-switch scope and recovery | Accepted |
 | [0021](0021-tenant-operational-data-retention.md) | Tenant operational-data retention | Accepted |
 | [0022](0022-api-rate-limits-and-security-headers.md) | API rate limits and security headers | Accepted |
+| [0023](0023-production-images-and-kubernetes-rollout.md) | Production images and Kubernetes rollout | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -5564,7 +5635,7 @@ Use this foundation baseline:
 | libphonenumber-csharp | 9.0.34 |
 | Testcontainers.PostgreSql | 4.13.0 |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 |
-| Node.js | 24.17.0 |
+| Node.js | 24.18.0 |
 | pnpm | 11.10.0 |
 | Next.js | 16.2.11 |
 | React and React DOM | 19.2.7 |
@@ -5588,6 +5659,10 @@ packages.
 Local development and CI use the same SDK and package graph. Changing a major
 runtime, database, or framework version requires an ADR and full validation.
 Patch updates may use a normal dependency change with passing quality gates.
+
+Node.js was updated from the reserved but unpublished 24.17.0 image to the
+published 24.18.0 patch during LR-0901. ADR-0023 records the container-specific
+SDK/runtime images and immutable base digests.
 
 ---
 
@@ -6709,6 +6784,75 @@ responses. Production HSTS and HTTPS redirection remain environment-gated.
 
 ---
 
+<!-- SOURCE: docs/decisions/0023-production-images-and-kubernetes-rollout.md -->
+
+# ADR-0023: Production images and Kubernetes rollout
+
+- Status: Accepted
+- Date: 2026-07-28
+
+## Context
+
+LR-0901 and LR-0902 require one reproducible deployment model for the existing
+API, worker, web dashboard, and PostgreSQL schema. The model must preserve the
+modular monolith, keep credentials out of Git, avoid replica startup races with
+database migrations, and work on a small local/staging cluster before CI/CD is
+implemented in LR-0903.
+
+The originally reserved Node.js 24.17.0 image is not published. The current
+supported Node.js 24.18.0 Bookworm image and current .NET 10 SDK/runtime patch
+images are published and were verified through their immutable registry
+digests.
+
+## Decision
+
+1. Build separate API, worker, and web runtime images with multi-stage
+   Dockerfiles. Pin every base by exact version and multi-platform digest.
+2. Run .NET workloads as the image `app` user and the dashboard as `node`.
+   Include OCI version/revision/creation labels and an OCI health check.
+3. Reuse the API image for an explicit `--migrate` command. Normal API replicas
+   never migrate at startup.
+4. Host internal liveness and database readiness endpoints in the worker so
+   both Docker and Kubernetes can distinguish a live process from usable job
+   storage.
+5. Use Docker Compose for the complete local stack. PostgreSQL health gates the
+   one-shot migration service; successful migration gates API/worker startup;
+   API health gates dashboard startup.
+6. Use plain Kustomize bases and local, staging, and production overlays.
+   Migration overlays remain separate and must complete before workload
+   overlays are applied.
+7. Keep PostgreSQL external to Kubernetes. Workloads receive the database
+   connection and optional provider credentials only through Secret references.
+8. Run all workloads with non-root, read-only, no-privilege-escalation, dropped-
+   capability, resource, probe, and dedicated ServiceAccount controls. Restrict
+   inbound pod traffic to the web/API paths required by ingress and the
+   same-namespace dashboard proxy.
+9. Persist ASP.NET Core data-protection keys. The one-replica local/staging base
+   uses broadly available RWO storage. The two-replica production overlay
+   requires an operator-supplied RWX `shared-rwx` StorageClass.
+10. Keep automation, real SMS, AI, retention, and demo seeding disabled in the
+    deployment baseline. Environment operators enable each only after its
+    independent safety gate.
+11. Update the repository Node.js pin from unavailable 24.17.0 to published
+    24.18.0. Application .NET package locks remain at 10.0.9 while images use
+    the compatible current .NET 10 SDK 10.0.302 and runtime 10.0.10 patches.
+
+## Consequences
+
+Compose and Kubernetes execute the same application artifacts and migration
+path. A failed migration prevents the documented workload rollout rather than
+racing API/worker replicas. Deployments can roll or restart without losing
+database-backed workflow state, and browser cookies share protected key
+material across API replicas.
+
+The Kubernetes deployment requires environment-specific ingress, TLS, external
+secret management, database connectivity, and production RWX storage. The
+committed production image tag and host values are placeholders and are not a
+release. LR-0903 must replace them with immutable release values, add an
+authenticated image scan/SBOM gate, and automate staged rollout and rollback.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -6773,6 +6917,11 @@ limits while containerizing the existing modular monolith.
 ## Prompt 10 - Containers and Kubernetes
 
 Implement LR-0901 and LR-0902. First prove Docker Compose works, then add Kubernetes base/overlays, probes, resources, migration job, ingress, and secret references. Demonstrate a rolling update and pod restart recovery.
+
+Implementation status (2026-07-28): complete for LR-0901 and LR-0902.
+Continue with Prompt 11 and LR-0903. Preserve immutable base/image intent,
+migration-before-workload ordering, external secret management, safe provider
+defaults, and the documented authenticated image-scan release gate.
 
 ## Prompt 11 - CI/CD
 

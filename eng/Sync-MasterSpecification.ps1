@@ -45,6 +45,7 @@ $sourcePaths = @(
     'docs/decisions/0020-automation-kill-switch.md'
     'docs/decisions/0021-tenant-operational-data-retention.md'
     'docs/decisions/0022-api-rate-limits-and-security-headers.md'
+    'docs/decisions/0023-production-images-and-kubernetes-rollout.md'
     'CODEX_PROMPT_SEQUENCE.md'
     'templates/definition-of-done.md'
 )

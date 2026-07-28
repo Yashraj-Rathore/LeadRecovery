@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: leadrecovery
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 32k
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - leadrecovery.example.com
+      secretName: leadrecovery-tls
+  rules:
+    - host: leadrecovery.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: leadrecovery-api
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: leadrecovery-web
+                port:
+                  name: http
