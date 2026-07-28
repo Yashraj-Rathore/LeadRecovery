@@ -311,7 +311,7 @@ The portfolio demo should show:
 
 Do not claim production scale without load-test evidence.
 
-## 16. Implemented LR-0901/LR-0902 baseline
+## 16. Implemented Milestone 9 baseline
 
 The committed implementation is under `deploy/docker` and
 `deploy/kubernetes`; their READMEs are the operational source of truth.
@@ -335,7 +335,32 @@ The committed implementation is under `deploy/docker` and
 
 On 2026-07-28 the Compose stack and an isolated Kubernetes 1.28 cluster passed
 migration, readiness, pod-restart, and rolling-update validation. All environment
-and migration overlays also passed server-side schema validation. The image
-scan is a documented LR-0901 exception because the installed Docker Scout
-client required a separate account login; LR-0903 must complete an authenticated
-High/Critical image gate before any production release.
+and migration overlays also passed server-side schema validation.
+
+LR-0903 completes the release path:
+
+- PR CI runs formatting, warning-as-error analyzers/build, unit/integration/E2E,
+  frontend, OpenAPI, dependency, secret, deployment-policy, no-push container,
+  and High/Critical image gates.
+- External Actions use full commit SHAs. Dependabot covers Actions, NuGet, pnpm,
+  Dockerfiles, and Compose.
+- Semantic version tags reachable from `main` publish GHCR commit/version tags,
+  SBOM/provenance attestations, and immutable digest outputs.
+- A package-read-only job scans the published digests before any cluster
+  environment is entered. The former LR-0901 Docker Scout exception is closed
+  by this release gate.
+- The same digest set deploys migration-first to staging, passes rollout, exact-
+  image, web, and API smoke checks, then stops. A separate manually dispatched
+  workflow validates that successful Release run and staging record before the
+  digests can enter the protected `production` GitHub environment.
+- Environment kubeconfigs are base64 GitHub secrets; public origins are GitHub
+  variables. Cluster/database/TLS/application secrets remain external.
+- Manual rollback accepts only prior digests plus a commit reachable from
+  `main`, reuses the protected environment, requires schema-compatibility
+  confirmation, and never reverses migrations automatically.
+
+`eng/Test-CiCdArtifacts.ps1` enforces the workflow contract and proves that
+rendering release A, release B, and A again restores the exact A manifest.
+`deploy/kubernetes/README.md` is the operational release/rollback source of
+truth. Repository administrators must still configure required CI checks,
+environment values, and production reviewers before the first hosted release.

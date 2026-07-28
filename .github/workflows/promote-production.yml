@@ -1,0 +1,149 @@
+name: Promote Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Successful Release workflow run ID whose staging artifact will be promoted
+        required: true
+        type: string
+      confirm_staging_smoke:
+        description: Confirm the selected release completed its staging smoke test
+        required: true
+        default: false
+        type: boolean
+      confirm_database_recovery_point:
+        description: Confirm a current production database recovery point
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Approve and deploy production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_BASE_URL }}
+
+    steps:
+      - name: Check out current trusted deployment tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Validate successful staged release
+        shell: bash
+        env:
+          CONFIRM_DATABASE_RECOVERY_POINT: ${{ inputs.confirm_database_recovery_point }}
+          CONFIRM_STAGING_SMOKE: ${{ inputs.confirm_staging_smoke }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$CONFIRM_STAGING_SMOKE" == "true" ]]
+          [[ "$CONFIRM_DATABASE_RECOVERY_POINT" == "true" ]]
+
+          run_json=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID")
+          [[ "$(jq -r .path <<< "$run_json")" == ".github/workflows/release.yml" ]]
+          [[ "$(jq -r .event <<< "$run_json")" == "push" ]]
+          [[ "$(jq -r .conclusion <<< "$run_json")" == "success" ]]
+          release_revision=$(jq -r .head_sha <<< "$run_json")
+          [[ "$release_revision" =~ ^[a-f0-9]{40}$ ]]
+          git merge-base --is-ancestor "$release_revision" origin/main
+          echo "RELEASE_REVISION=$release_revision" >> "$GITHUB_ENV"
+
+      - name: Download successful staging record
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: staging-*
+          path: ${{ runner.temp }}/approved-staging
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.release_run_id }}
+
+      - name: Validate immutable staging record
+        shell: pwsh
+        run: |
+          $metadataFiles = @(Get-ChildItem $env:RUNNER_TEMP/approved-staging -Recurse -Filter release-metadata.json)
+          $recordFiles = @(Get-ChildItem $env:RUNNER_TEMP/approved-staging -Recurse -Filter deployment-record.json)
+          if ($metadataFiles.Count -ne 1 -or $recordFiles.Count -ne 1) {
+            throw 'The selected release must contain exactly one staging metadata and deployment record.'
+          }
+
+          $metadata = Get-Content $metadataFiles[0].FullName -Raw | ConvertFrom-Json
+          $record = Get-Content $recordFiles[0].FullName -Raw | ConvertFrom-Json
+          if ($metadata.environment -ne 'staging' -or
+              $record.environment -ne 'staging' -or
+              $record.operation -ne 'Deploy' -or
+              $record.releaseRevision -ne $env:RELEASE_REVISION -or
+              $metadata.releaseRevision -ne $env:RELEASE_REVISION) {
+            throw 'The staging record does not match the successful Release workflow revision.'
+          }
+
+          foreach ($property in @('api', 'worker', 'web')) {
+            $image = $metadata.images.$property
+            if ($image -notmatch '^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$' -or
+                $record.images.$property -ne $image) {
+              throw "The $property staging image is not one consistent immutable GHCR digest."
+            }
+          }
+
+          "API_IMAGE=$($metadata.images.api)" >> $env:GITHUB_ENV
+          "WORKER_IMAGE=$($metadata.images.worker)" >> $env:GITHUB_ENV
+          "WEB_IMAGE=$($metadata.images.web)" >> $env:GITHUB_ENV
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+        with:
+          version: v1.36.2
+
+      - name: Configure production cluster access
+        shell: bash
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$KUBE_CONFIG_B64"
+          kubeconfig="$RUNNER_TEMP/kubeconfig"
+          printf '%s' "$KUBE_CONFIG_B64" | base64 --decode > "$kubeconfig"
+          chmod 600 "$kubeconfig"
+          echo "KUBECONFIG=$kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Deploy manually approved immutable release to production
+        shell: pwsh
+        env:
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+        run: |
+          $parameters = @{
+            Environment = 'production'
+            ApiImage = $env:API_IMAGE
+            WorkerImage = $env:WORKER_IMAGE
+            WebImage = $env:WEB_IMAGE
+            PublicBaseUrl = $env:PUBLIC_BASE_URL
+            ReleaseRevision = $env:RELEASE_REVISION
+            Operation = 'Deploy'
+            OutputDirectory = Join-Path $env:RUNNER_TEMP 'production-release'
+          }
+          ./eng/Deploy-KubernetesRelease.ps1 @parameters
+
+      - name: Upload production deployment record
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: production-${{ inputs.release_run_id }}
+          path: ${{ runner.temp }}/production-release
+          if-no-files-found: warn
+          retention-days: 90

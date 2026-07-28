@@ -1,0 +1,261 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOCKER_API_VERSION: "1.43"
+
+jobs:
+  verify-source:
+    name: Verify release source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Require a semantic version tag on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must use vMAJOR.MINOR.PATCH." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+  build-images:
+    name: Publish immutable images
+    needs: verify-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    outputs:
+      api-image: ${{ steps.registry.outputs.prefix }}-api@${{ steps.api.outputs.digest }}
+      worker-image: ${{ steps.registry.outputs.prefix }}-worker@${{ steps.worker.outputs.digest }}
+      web-image: ${{ steps.registry.outputs.prefix }}-web@${{ steps.web.outputs.digest }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize registry coordinates
+        id: registry
+        shell: bash
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Derive reproducible image metadata
+        id: metadata
+        shell: bash
+        run: echo "created=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish API
+        id: api
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: deploy/docker/api.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.registry.outputs.prefix }}-api:sha-${{ github.sha }}
+            ${{ steps.registry.outputs.prefix }}-api:${{ github.ref_name }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.metadata.outputs.created }}
+          cache-from: type=gha,scope=release-api
+          cache-to: type=gha,mode=max,scope=release-api
+          provenance: mode=max
+          sbom: true
+
+      - name: Build and publish Worker
+        id: worker
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: deploy/docker/worker.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.registry.outputs.prefix }}-worker:sha-${{ github.sha }}
+            ${{ steps.registry.outputs.prefix }}-worker:${{ github.ref_name }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.metadata.outputs.created }}
+          cache-from: type=gha,scope=release-worker
+          cache-to: type=gha,mode=max,scope=release-worker
+          provenance: mode=max
+          sbom: true
+
+      - name: Build and publish Web
+        id: web
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: deploy/docker/web.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.registry.outputs.prefix }}-web:sha-${{ github.sha }}
+            ${{ steps.registry.outputs.prefix }}-web:${{ github.ref_name }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.metadata.outputs.created }}
+          cache-from: type=gha,scope=release-web
+          cache-to: type=gha,mode=max,scope=release-web
+          provenance: mode=max
+          sbom: true
+
+      - name: Record immutable release coordinates
+        shell: bash
+        run: |
+          {
+            echo "## Immutable release images"
+            echo
+            echo "- API: \`${{ steps.registry.outputs.prefix }}-api@${{ steps.api.outputs.digest }}\`"
+            echo "- Worker: \`${{ steps.registry.outputs.prefix }}-worker@${{ steps.worker.outputs.digest }}\`"
+            echo "- Web: \`${{ steps.registry.outputs.prefix }}-web@${{ steps.web.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  scan-images:
+    name: Scan published images
+    needs: build-images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Authenticate read-only registry access
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          image-ref: ${{ needs.build-images.outputs.api-image }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Scan Worker image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          image-ref: ${{ needs.build-images.outputs.worker-image }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Scan Web image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          image-ref: ${{ needs.build-images.outputs.web-image }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+  deploy-staging:
+    name: Deploy and smoke-test staging
+    needs:
+      - build-images
+      - scan-images
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    environment:
+      name: staging
+      url: ${{ vars.PUBLIC_BASE_URL }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+        with:
+          version: v1.36.2
+
+      - name: Configure staging cluster access
+        shell: bash
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$KUBE_CONFIG_B64"
+          kubeconfig="$RUNNER_TEMP/kubeconfig"
+          printf '%s' "$KUBE_CONFIG_B64" | base64 --decode > "$kubeconfig"
+          chmod 600 "$kubeconfig"
+          echo "KUBECONFIG=$kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Deploy immutable release to staging
+        shell: pwsh
+        env:
+          API_IMAGE: ${{ needs.build-images.outputs.api-image }}
+          WORKER_IMAGE: ${{ needs.build-images.outputs.worker-image }}
+          WEB_IMAGE: ${{ needs.build-images.outputs.web-image }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+        run: |
+          $parameters = @{
+            Environment = 'staging'
+            ApiImage = $env:API_IMAGE
+            WorkerImage = $env:WORKER_IMAGE
+            WebImage = $env:WEB_IMAGE
+            PublicBaseUrl = $env:PUBLIC_BASE_URL
+            ReleaseRevision = '${{ github.sha }}'
+            Operation = 'Deploy'
+            OutputDirectory = Join-Path $env:RUNNER_TEMP 'staging-release'
+          }
+          ./eng/Deploy-KubernetesRelease.ps1 @parameters
+
+      - name: Upload staging deployment record
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: staging-${{ github.sha }}
+          path: ${{ runner.temp }}/staging-release
+          if-no-files-found: warn
+          retention-days: 30

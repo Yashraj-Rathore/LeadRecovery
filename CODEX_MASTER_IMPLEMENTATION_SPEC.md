@@ -23,8 +23,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 8 are complete. LR-0101 through LR-0902 are implemented;
-LR-0903 CI/CD is the remaining Milestone 9 issue.
+Milestones 0 through 9 are complete. LR-0101 through LR-0903 are implemented;
+Milestone 10 pilot readiness is the next delivery scope.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -68,6 +68,13 @@ production; probes, resources, secret references, ingress, network policies,
 dedicated ServiceAccounts, persisted data-protection keys, disruption budgets,
 and production API autoscaling. A real local cluster validated migration,
 readiness, restart recovery, and rolling replacement.
+LR-0903 adds SHA-pinned GitHub Actions PR gates for application, OpenAPI,
+dependency, secret, deployment, browser, and container-image quality. Semantic
+release tags publish GHCR images with SBOM/provenance attestations, reject High
+or Critical findings, promote the same immutable digests through staging and a
+separately dispatched protected production workflow, and retain a manual
+compatibility-gated rollback path that never reverses database migrations
+automatically.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -143,6 +150,10 @@ The currently implemented browser and health contract is:
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
+| Redocly CLI | 2.40.0 | OpenAPI pull-request validation |
+| actionlint | 1.7.12 | Checksum-verified workflow syntax validation |
+| Trivy / Trivy Action | 0.70.0 / 0.36.0 | Secret and High/Critical release-image gates |
+| CI kubectl | 1.36.2 | Kustomize render and deployment automation |
 | Default OpenAI analysis model | gpt-5.6-sol | Operator-overridable structured analysis default |
 
 ## Local development
@@ -3804,7 +3815,7 @@ The portfolio demo should show:
 
 Do not claim production scale without load-test evidence.
 
-## 16. Implemented LR-0901/LR-0902 baseline
+## 16. Implemented Milestone 9 baseline
 
 The committed implementation is under `deploy/docker` and
 `deploy/kubernetes`; their READMEs are the operational source of truth.
@@ -3828,10 +3839,35 @@ The committed implementation is under `deploy/docker` and
 
 On 2026-07-28 the Compose stack and an isolated Kubernetes 1.28 cluster passed
 migration, readiness, pod-restart, and rolling-update validation. All environment
-and migration overlays also passed server-side schema validation. The image
-scan is a documented LR-0901 exception because the installed Docker Scout
-client required a separate account login; LR-0903 must complete an authenticated
-High/Critical image gate before any production release.
+and migration overlays also passed server-side schema validation.
+
+LR-0903 completes the release path:
+
+- PR CI runs formatting, warning-as-error analyzers/build, unit/integration/E2E,
+  frontend, OpenAPI, dependency, secret, deployment-policy, no-push container,
+  and High/Critical image gates.
+- External Actions use full commit SHAs. Dependabot covers Actions, NuGet, pnpm,
+  Dockerfiles, and Compose.
+- Semantic version tags reachable from `main` publish GHCR commit/version tags,
+  SBOM/provenance attestations, and immutable digest outputs.
+- A package-read-only job scans the published digests before any cluster
+  environment is entered. The former LR-0901 Docker Scout exception is closed
+  by this release gate.
+- The same digest set deploys migration-first to staging, passes rollout, exact-
+  image, web, and API smoke checks, then stops. A separate manually dispatched
+  workflow validates that successful Release run and staging record before the
+  digests can enter the protected `production` GitHub environment.
+- Environment kubeconfigs are base64 GitHub secrets; public origins are GitHub
+  variables. Cluster/database/TLS/application secrets remain external.
+- Manual rollback accepts only prior digests plus a commit reachable from
+  `main`, reuses the protected environment, requires schema-compatibility
+  confirmation, and never reverses migrations automatically.
+
+`eng/Test-CiCdArtifacts.ps1` enforces the workflow contract and proves that
+rendering release A, release B, and A again restores the exact A manifest.
+`deploy/kubernetes/README.md` is the operational release/rollback source of
+truth. Repository administrators must still configure required CI checks,
+environment values, and production reviewers before the first hosted release.
 
 ---
 
@@ -4443,14 +4479,20 @@ Exit criteria:
 - secrets absent from repository;
 - previous version can be restored.
 
-Implementation status (2026-07-28): LR-0901 and LR-0902 are complete.
+Implementation status (2026-07-28): complete for LR-0901 through LR-0903.
 Production-shaped Compose images and a migration-first five-service stack were
 validated end to end. Kubernetes local/staging/production and migration
 overlays passed server-side schema validation; a local cluster demonstrated
 successful migration, workload readiness, worker pod restart recovery, and an
-API rolling replacement. LR-0903 remains open for authenticated image scanning,
-immutable registry publishing, staged delivery, approval, and rollback
-automation; therefore Milestone 9 is not yet fully complete.
+API rolling replacement. SHA-pinned GitHub Actions now enforce application,
+OpenAPI, dependency, secret, deployment-policy, and High/Critical image gates;
+publish GHCR digests with SBOM/provenance; promote one immutable digest set
+through scanned staging and a separately dispatched protected production
+workflow; and provide a manual non-migrating, schema-confirmed rollback. An
+isolated cluster verified digest-pinned A -> B -> A restoration, retained the
+migration Job during rollback, and returned HTTP 200 from the API and web.
+Hosted environments still require their documented external cluster, secret,
+URL, recovery-point, and reviewer configuration.
 
 ### Milestone 10 - Pilot package and sales demo (Week 10)
 
@@ -5153,6 +5195,25 @@ a deleted worker pod, and completed a zero-unavailable API rolling update.
 - production approval gate;
 - rollback documented and tested.
 
+Implementation status (2026-07-28): complete. PR CI now runs locked backend,
+frontend, PostgreSQL browser, OpenAPI, dependency, secret, deployment-policy,
+workflow-lint, no-push image-build, and High/Critical image-scan gates. External
+Actions use full commit SHAs and Dependabot covers every dependency ecosystem.
+Semantic release tags reachable from `main` publish GHCR version/SHA tags plus
+SBOM/provenance, then scan and deploy the returned immutable digests to staging
+and stop after its smoke test. A separate manual production promotion validates
+the successful Release run and staging record, requires recovery-point/staging
+confirmations, and derives the same digests from the retained artifact before
+entering the production environment. Both environments use external kubeconfig
+secrets and public-URL variables, apply migrations before workloads, verify
+exact digests/rollouts, and smoke-test web/API paths. The manual protected
+rollback accepts prior digests only, requires database
+compatibility confirmation, skips migrations, and is covered by deterministic
+A -> B -> A manifest restoration tests and the documented operator procedure.
+An isolated cluster also deployed A migration-first, promoted B, restored all
+three A digests without replacing the migration Job, and returned HTTP 200 from
+the restored API and web.
+
 ## Epic E10 - Pilot readiness
 
 ### LR-1001 Tenant onboarding flow
@@ -5553,6 +5614,7 @@ updated in the same change so they remain aligned.
 | [0021](0021-tenant-operational-data-retention.md) | Tenant operational-data retention | Accepted |
 | [0022](0022-api-rate-limits-and-security-headers.md) | API rate limits and security headers | Accepted |
 | [0023](0023-production-images-and-kubernetes-rollout.md) | Production images and Kubernetes rollout | Accepted |
+| [0024](0024-immutable-cicd-promotion-and-rollback.md) | Immutable CI/CD promotion and rollback | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -6853,6 +6915,90 @@ authenticated image scan/SBOM gate, and automate staged rollout and rollback.
 
 ---
 
+<!-- SOURCE: docs/decisions/0024-immutable-cicd-promotion-and-rollback.md -->
+
+# ADR-0024: Immutable CI/CD promotion and rollback
+
+- Status: Accepted
+- Date: 2026-07-28
+
+## Context
+
+LR-0903 must turn the LR-0901/LR-0902 container and Kubernetes baseline into a
+release path with pull-request gates, authenticated image scanning, staging
+verification, explicit production approval, and a tested rollback. The path
+must not commit registry, cluster, database, TLS, or provider credentials. A
+failed release must not silently reverse a PostgreSQL migration because a
+destructive schema rollback can make recovery worse.
+
+GitHub-hosted workflows also execute third-party automation. The Trivy project
+reported a 2026 action-tag compromise, so mutable action references are not an
+acceptable supply-chain boundary even when the action's release tag is called
+immutable.
+
+## Decision
+
+1. Run backend formatting/build/analyzers/tests, frontend type-check/build/E2E,
+   OpenAPI validation, dependency audits, repository secret scanning, deployment
+   policy tests, and three no-push image builds/scans on pull requests.
+2. Pin every external GitHub Action by its full commit SHA. Dependabot proposes
+   reviewed updates for Actions, NuGet, pnpm, Dockerfiles, and Compose.
+3. Use Redocly CLI 2.40.0 for OpenAPI validation and the SHA-pinned Trivy action
+   v0.36.0 with Trivy v0.70.0 for secret and High/Critical image gates. The
+   scanner job never receives Kubernetes environment secrets; release scans
+   receive read-only package access.
+4. Start a release only from a `vMAJOR.MINOR.PATCH` tag whose commit is reachable
+   from `main`. Publish API, worker, and web images to GHCR with version and full
+   commit-SHA tags, OCI provenance, and SBOM attestations.
+5. Treat the registry digest returned by BuildKit as the release identity.
+   Staging and production render and deploy the exact same three digest
+   references; neither environment deploys a tag.
+6. Keep `KUBE_CONFIG_B64` in each GitHub environment's secrets and the root HTTPS
+   `PUBLIC_BASE_URL` in its variables. The workflow contains only references.
+   Namespace, application/TLS secrets, database recovery points, and other
+   environment prerequisites remain externally managed.
+7. Apply and wait for the one-shot migration Job before changing workloads.
+   Rollout completion, exact deployed-image verification, and public web/API
+   smoke checks gate promotion.
+8. Stop the Release workflow after successful staging. Production requires a
+   separate manual `Promote Production` dispatch with the successful Release run
+   ID plus explicit staging-smoke and database-recovery-point confirmations. The
+   workflow verifies the run, downloads its staging record, and derives image
+   digests from that evidence instead of accepting operator-supplied images.
+   Promotion and rollback jobs refuse dispatches from refs other than `main`.
+9. Also use the GitHub `production` environment as an independent approval
+   boundary. Repository administrators must configure required reviewers and
+   prevent self-review; workflow YAML cannot create or enforce those repository
+   rules. The separate manual dispatch remains fail-closed when reviewers have
+   not yet been configured.
+10. Record rendered manifests, current/previous image coordinates, revision, and
+   smoke result as release artifacts. Do not put Secret objects or values in the
+   record.
+11. Implement rollback as a separate manual workflow using current trusted
+    deployment tooling from `main`. It accepts only a prior commit reachable from
+    `main` and three SHA-256 image digests, reuses the selected protected
+    environment, and requires an explicit database-compatibility confirmation.
+12. Rollback changes application images only. It never runs or reverses a
+    migration. Incompatible schema changes require the rehearsed database restore
+    or a forward fix before the prior application can be selected.
+
+## Consequences
+
+A release artifact can be promoted and restored without rebuilding or resolving
+a mutable tag. A staging failure blocks production, and production cannot start
+without a separate manual dispatch tied to that successful run. A configured
+production reviewer sees the exact release after it has passed the authenticated
+image gate and staging smoke test. Registry publication precedes the scan, but
+an unscanned or failed digest cannot reach either deployment job.
+
+The repository owner must still configure branch protection, GitHub environments,
+reviewers, cluster access, URLs, external Secrets, ingress/TLS, storage, and a
+database recovery point. The first hosted release will fail closed until those
+prerequisites exist. Application rollback is deliberately unavailable when
+database compatibility has not been confirmed.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -6926,6 +7072,11 @@ defaults, and the documented authenticated image-scan release gate.
 ## Prompt 11 - CI/CD
 
 Implement LR-0903. Add PR gates, image build/scan, staging deployment, smoke test, approval gate, production deployment, and rollback documentation. Never place credentials in workflow files.
+
+Implementation status (2026-07-28): complete. Continue with Prompt 12 and
+LR-1001 while preserving PR/release gates, digest-only promotion, external
+environment secrets, migration-first releases, protected production approval,
+and compatibility-confirmed non-migrating rollback.
 
 ## Prompt 12 - Pilot readiness
 

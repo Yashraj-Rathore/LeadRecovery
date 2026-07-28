@@ -9,15 +9,15 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  18549
+        "bytes":  19686
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  266418
+        "bytes":  275640
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  5024
+        "bytes":  5304
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -69,7 +69,7 @@
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
-        "bytes":  8470
+        "bytes":  9947
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
@@ -77,11 +77,11 @@
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  12008
+        "bytes":  12459
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  20837
+        "bytes":  22174
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -184,12 +184,16 @@
         "bytes":  3419
     },
     {
+        "path":  "docs/decisions/0024-immutable-cicd-promotion-and-rollback.md",
+        "bytes":  4712
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  2869
+        "bytes":  2979
     },
     {
         "path":  "README.md",
-        "bytes":  17863
+        "bytes":  18633
     },
     {
         "path":  "templates/.env.example",

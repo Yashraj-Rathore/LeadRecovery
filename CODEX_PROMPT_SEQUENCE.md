@@ -70,6 +70,11 @@ defaults, and the documented authenticated image-scan release gate.
 
 Implement LR-0903. Add PR gates, image build/scan, staging deployment, smoke test, approval gate, production deployment, and rollback documentation. Never place credentials in workflow files.
 
+Implementation status (2026-07-28): complete. Continue with Prompt 12 and
+LR-1001 while preserving PR/release gates, digest-only promotion, external
+environment secrets, migration-first releases, protected production approval,
+and compatibility-confirmed non-migrating rollback.
+
 ## Prompt 12 - Pilot readiness
 
 Implement LR-1001 through LR-1003. Create fictional demo seed data, onboarding checklist, demo instructions, operational metrics, case-study README, and a two-minute demo flow.

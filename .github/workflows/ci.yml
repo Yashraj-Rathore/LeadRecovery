@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CI: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -16,6 +20,8 @@ env:
   DOCKER_API_VERSION: "1.43"
   NUGET_XMLDOC_MODE: skip
   NEXT_TELEMETRY_DISABLED: 1
+  REDOCLY_SUPPRESS_UPDATE_NOTICE: "true"
+  REDOCLY_TELEMETRY: off
   TESTINGPLATFORM_TELEMETRY_OPTOUT: 1
 
 jobs:
@@ -26,10 +32,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up .NET from global.json
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
           cache: true
@@ -44,7 +50,7 @@ jobs:
       - name: Verify formatting
         run: dotnet format LeadRecovery.sln --no-restore --verify-no-changes
 
-      - name: Build
+      - name: Build with static analyzers
         run: dotnet build LeadRecovery.sln --configuration Release --no-restore --warnaserror
 
       - name: Test
@@ -61,7 +67,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18.4-bookworm
+        image: postgres:18.4-bookworm@sha256:d9c83446333daec3f0588cc709adb80c26090b7f9f0f7ec8d43c243385d79818
         env:
           POSTGRES_DB: leadrecovery_e2e
           POSTGRES_USER: leadrecovery_e2e
@@ -83,17 +89,17 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up .NET from global.json
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
           cache: true
           cache-dependency-path: "**/packages.lock.json"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.18.0
 
@@ -145,3 +151,121 @@ jobs:
 
       - name: Run browser acceptance tests
         run: pnpm e2e
+
+  repository-policy:
+    name: API and repository policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.18.0
+
+      - name: Activate pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.10.0 --activate
+
+      - name: Restore frontend tooling
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate OpenAPI
+        run: pnpm openapi:lint
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+        with:
+          version: v1.36.2
+
+      - name: Validate deployment and CI/CD artifacts
+        shell: pwsh
+        run: |
+          ./eng/Test-DeploymentArtifacts.ps1
+          ./eng/Test-CiCdArtifacts.ps1
+
+      - name: Lint GitHub Actions workflows
+        shell: bash
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_ARCHIVE_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --location --show-error --silent \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          echo "${ACTIONLINT_ARCHIVE_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+
+      - name: Scan repository for committed secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          format: table
+          exit-code: "1"
+
+  container-images:
+    name: Container image scan (${{ matrix.component }})
+    needs:
+      - backend
+      - frontend-e2e
+      - repository-policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: api
+            dockerfile: deploy/docker/api.Dockerfile
+            image: leadrecovery-api
+          - component: worker
+            dockerfile: deploy/docker/worker.Dockerfile
+            image: leadrecovery-worker
+          - component: web
+            dockerfile: deploy/docker/web.Dockerfile
+            image: leadrecovery-web
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Build without pushing
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: ${{ matrix.image }}:ci-${{ github.sha }}
+          build-args: |
+            VERSION=ci-${{ github.sha }}
+            REVISION=${{ github.sha }}
+            CREATED=1970-01-01T00:00:00Z
+          cache-from: type=gha,scope=ci-${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=ci-${{ matrix.component }}
+
+      - name: Reject High or Critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          image-ref: ${{ matrix.image }}:ci-${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL

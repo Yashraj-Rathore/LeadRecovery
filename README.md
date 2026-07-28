@@ -16,8 +16,8 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 8 are complete. LR-0101 through LR-0902 are implemented;
-LR-0903 CI/CD is the remaining Milestone 9 issue.
+Milestones 0 through 9 are complete. LR-0101 through LR-0903 are implemented;
+Milestone 10 pilot readiness is the next delivery scope.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -61,6 +61,13 @@ production; probes, resources, secret references, ingress, network policies,
 dedicated ServiceAccounts, persisted data-protection keys, disruption budgets,
 and production API autoscaling. A real local cluster validated migration,
 readiness, restart recovery, and rolling replacement.
+LR-0903 adds SHA-pinned GitHub Actions PR gates for application, OpenAPI,
+dependency, secret, deployment, browser, and container-image quality. Semantic
+release tags publish GHCR images with SBOM/provenance attestations, reject High
+or Critical findings, promote the same immutable digests through staging and a
+separately dispatched protected production workflow, and retain a manual
+compatibility-gated rollback path that never reverses database migrations
+automatically.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -136,6 +143,10 @@ The currently implemented browser and health contract is:
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
+| Redocly CLI | 2.40.0 | OpenAPI pull-request validation |
+| actionlint | 1.7.12 | Checksum-verified workflow syntax validation |
+| Trivy / Trivy Action | 0.70.0 / 0.36.0 | Secret and High/Critical release-image gates |
+| CI kubectl | 1.36.2 | Kustomize render and deployment automation |
 | Default OpenAI analysis model | gpt-5.6-sol | Operator-overridable structured analysis default |
 
 ## Local development

@@ -62,26 +62,37 @@ state.
 - Build arguments populate OCI version, revision, and creation labels. Release
   automation must use an immutable image tag and commit SHA.
 
-## Vulnerability gate and recorded exception
+## Vulnerability gate
 
-For a release, scan all runtime images and fail on fixable High or Critical
-findings, for example with an authenticated Docker Scout installation:
+LR-0903 closes the LR-0901 local Docker Scout exception with an authenticated
+CI gate. Pull requests build all three images without publishing them and fail
+on any detected High or Critical OS/library vulnerability. Release tags publish
+the images to GHCR, then a separate package-read-only job scans the exact
+registry digests before staging receives Kubernetes credentials. Production
+cannot run automatically: the manual promotion workflow validates the selected
+Release run and its successful staging deployment record before it receives
+production credentials.
+
+The release build also publishes BuildKit SBOM and provenance attestations.
+Trivy action v0.36.0 and Trivy v0.70.0 are pinned; the action uses its full
+verified commit SHA rather than a mutable tag. This addresses the upstream
+2026 Trivy action-tag incident documented in
+`https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23`.
+
+Docker Scout remains an optional equivalent local check:
 
 ```powershell
-docker scout cves --only-severity critical,high --only-fixed --exit-code leadrecovery-api:<immutable-tag>
-docker scout cves --only-severity critical,high --only-fixed --exit-code leadrecovery-worker:<immutable-tag>
-docker scout cves --only-severity critical,high --only-fixed --exit-code leadrecovery-web:<immutable-tag>
+docker scout cves --only-severity critical,high --exit-code leadrecovery-api:<immutable-tag>
+docker scout cves --only-severity critical,high --exit-code leadrecovery-worker:<immutable-tag>
+docker scout cves --only-severity critical,high --exit-code leadrecovery-web:<immutable-tag>
 ```
 
-LR-0901 validation on 2026-07-28 could not execute Docker Scout because the
-installed Scout 1.0.9 client required a separate Docker account login. Running
-an unapproved third-party scanner against private built-image contents was not
-permitted. This is the documented scan exception: the images use current,
-verified vendor digests and the application dependency audits pass, but the
-images are not approved for a production release until the authenticated image
-gate is completed. LR-0903 owns adding that authenticated CI gate and retaining
-its report/SBOM.
+An image is not approved merely because it was pushed. Only the immutable
+digest recorded by a successful `Scan published images` release job may be
+promoted. Any exception must be documented in a new security decision; the
+workflow contains no severity bypass or committed allowlist.
 
-Run `eng/Test-DeploymentArtifacts.ps1` to revalidate the Dockerfile, Compose,
-Kustomize, migration-order, security-context, and no-committed-Secret
-invariants before submitting a deployment change.
+Run `eng/Test-DeploymentArtifacts.ps1` and `eng/Test-CiCdArtifacts.ps1` to
+revalidate the Dockerfile, Compose, Kustomize, migration-order, rollback,
+security-context, and no-committed-Secret invariants before submitting a
+deployment change.

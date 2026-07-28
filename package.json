@@ -11,6 +11,10 @@
     "frontend:dev": "pnpm --dir src/LeadRecovery.Web dev",
     "frontend:start": "pnpm --dir src/LeadRecovery.Web start",
     "frontend:typecheck": "pnpm --dir src/LeadRecovery.Web typecheck",
+    "openapi:lint": "redocly lint api/openapi.yaml --extends=minimal",
     "e2e": "pnpm --dir tests/LeadRecovery.E2E test"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.40.0"
   }
 }

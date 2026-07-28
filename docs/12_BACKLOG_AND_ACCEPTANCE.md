@@ -557,6 +557,25 @@ a deleted worker pod, and completed a zero-unavailable API rolling update.
 - production approval gate;
 - rollback documented and tested.
 
+Implementation status (2026-07-28): complete. PR CI now runs locked backend,
+frontend, PostgreSQL browser, OpenAPI, dependency, secret, deployment-policy,
+workflow-lint, no-push image-build, and High/Critical image-scan gates. External
+Actions use full commit SHAs and Dependabot covers every dependency ecosystem.
+Semantic release tags reachable from `main` publish GHCR version/SHA tags plus
+SBOM/provenance, then scan and deploy the returned immutable digests to staging
+and stop after its smoke test. A separate manual production promotion validates
+the successful Release run and staging record, requires recovery-point/staging
+confirmations, and derives the same digests from the retained artifact before
+entering the production environment. Both environments use external kubeconfig
+secrets and public-URL variables, apply migrations before workloads, verify
+exact digests/rollouts, and smoke-test web/API paths. The manual protected
+rollback accepts prior digests only, requires database
+compatibility confirmation, skips migrations, and is covered by deterministic
+A -> B -> A manifest restoration tests and the documented operator procedure.
+An isolated cluster also deployed A migration-first, promoted B, restored all
+three A digests without replacing the migration Job, and returned HTTP 200 from
+the restored API and web.
+
 ## Epic E10 - Pilot readiness
 
 ### LR-1001 Tenant onboarding flow

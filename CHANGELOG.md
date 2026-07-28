@@ -29,6 +29,21 @@ All notable repository and product-specification changes are recorded here.
 - ADR-0023 documenting immutable image construction, migration ordering,
   external database/secrets, storage modes, safe deployment defaults, and the
   LR-0903 image-scan/release boundary.
+- LR-0903 SHA-pinned GitHub Actions gates for backend/frontend/E2E, OpenAPI,
+  dependencies, repository secrets, deployment policy, workflow syntax, and
+  no-push High/Critical container scans, plus weekly multi-ecosystem Dependabot.
+- Semantic-tag GHCR publication with immutable digest outputs, commit/version
+  tags, SBOM/provenance attestations, read-only published-image scanning,
+  migration-first staging smoke tests, and a separately dispatched production
+  promotion that validates the successful Release run/staging artifact.
+- Digest-only Kubernetes release rendering, exact deployed-image checks,
+  PII-free deployment records, and a protected manual rollback that requires
+  schema compatibility and never reverses migrations automatically.
+- Deterministic A -> B -> A rollback rendering coverage and ADR-0024 documenting
+  release identity, environment secrets, promotion, approval, and recovery.
+- Isolated kind acceptance evidence that digest-pinned release A could migrate
+  and deploy, release B could roll out, and A could be restored with healthy
+  API/web responses without rerunning or replacing the migration Job.
 - Architecture decisions for project boundaries, technology versions, tenant
   isolation, background consistency, API concurrency, lead lifecycle, tenant
   context, and canonical customer phone identity.

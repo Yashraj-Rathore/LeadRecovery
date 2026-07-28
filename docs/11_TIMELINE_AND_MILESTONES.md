@@ -266,14 +266,20 @@ Exit criteria:
 - secrets absent from repository;
 - previous version can be restored.
 
-Implementation status (2026-07-28): LR-0901 and LR-0902 are complete.
+Implementation status (2026-07-28): complete for LR-0901 through LR-0903.
 Production-shaped Compose images and a migration-first five-service stack were
 validated end to end. Kubernetes local/staging/production and migration
 overlays passed server-side schema validation; a local cluster demonstrated
 successful migration, workload readiness, worker pod restart recovery, and an
-API rolling replacement. LR-0903 remains open for authenticated image scanning,
-immutable registry publishing, staged delivery, approval, and rollback
-automation; therefore Milestone 9 is not yet fully complete.
+API rolling replacement. SHA-pinned GitHub Actions now enforce application,
+OpenAPI, dependency, secret, deployment-policy, and High/Critical image gates;
+publish GHCR digests with SBOM/provenance; promote one immutable digest set
+through scanned staging and a separately dispatched protected production
+workflow; and provide a manual non-migrating, schema-confirmed rollback. An
+isolated cluster verified digest-pinned A -> B -> A restoration, retained the
+migration Job during rollback, and returned HTTP 200 from the API and web.
+Hosted environments still require their documented external cluster, secret,
+URL, recovery-point, and reviewer configuration.
 
 ### Milestone 10 - Pilot package and sales demo (Week 10)
 
