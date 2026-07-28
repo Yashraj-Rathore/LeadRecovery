@@ -16,8 +16,7 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 7 are complete. LR-0101 through LR-0703, LR-0801, and LR-0802 are
-implemented.
+Milestones 0 through 7 are complete. LR-0101 through LR-0804 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -44,6 +43,13 @@ delivery callbacks, authentication, and the Lead dashboard. Owner and Manager
 members can pause or resume their tenant from the workspace header; every
 change uses CSRF, optimistic concurrency, a fixed reason code, and redacted
 audit data.
+
+LR-0803 adds an opt-in per-tenant operational-data policy and a PostgreSQL/
+Hangfire retention job. It defaults to disabled dry-run mode, processes only
+terminal Leads older than the tenant cutoff, records PII-free count manifests,
+and requires an explicit backup acknowledgement before destructive mode.
+LR-0804 adds independently partitioned login, manual-message, and provider-
+webhook limits plus restrictive security headers on every API response.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -91,8 +97,8 @@ The currently implemented browser and health contract is:
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
 - the worker executes due recovery, qualification, booking, follow-up,
-  manual-message, and optional lead-analysis actions through
-  PostgreSQL-backed Hangfire,
+  manual-message, optional lead-analysis, and enabled tenant-retention work
+  through PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
 
@@ -195,6 +201,16 @@ Setting it to `false` in both processes and restarting them activates the
 platform kill switch and cancels queued automated actions; manual staff SMS,
 inbound capture, delivery callbacks, and dashboard access remain available.
 Tenant Owner/Manager controls are dynamic and do not require a restart.
+
+Retention is independently disabled by default. First configure an opt-in
+tenant policy, then set `RETENTION_ENABLED=true`, keep
+`RETENTION_MODE=dry-run`, and review `Retention.DryRun` audit manifests. Before
+changing the Worker to `RETENTION_MODE=delete`, verify a current PostgreSQL
+backup or PITR recovery point, rehearse restore as required by the environment,
+and set `RETENTION_BACKUP_CONFIRMED=true`. That flag records operator intent; it
+does not create or validate a backup. Deletion has no application-level undo.
+`RETENTION_BATCH_SIZE` defaults to 100 and `RETENTION_CRON` defaults to 02:00
+UTC daily. See Runbook F in `docs/10_OBSERVABILITY_OPERATIONS.md`.
 
 The fictional demo seed includes one pending low-confidence analysis so the
 LR-0702 review workflow can be demonstrated without enabling AI or providing an

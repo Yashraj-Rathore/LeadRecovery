@@ -157,6 +157,17 @@ validated analysis without applying it, while consecutive inbound replies
 cancel older Pending analysis work. Tests use an unavailable or in-process fake
 provider and never call a live AI service.
 
+LR-0803 adds domain bounds and Application orchestration coverage plus real
+PostgreSQL proof that dry-run preserves data, delete mode removes only eligible
+terminal Leads for the active policy tenant, recent and cross-tenant Leads
+remain, and both modes append PII-free audit manifests. Runtime-option tests
+require an explicit backup acknowledgement for destructive mode.
+
+LR-0804 adds configured low-quota API hosts that prove login IP and authenticated
+manual-send limits return `429`/`Retry-After`, verifies the API security-header
+set, and submits 25 valid signed duplicate provider callbacks without a rate-
+limit rejection or duplicate business effect.
+
 ## 3. Test environments
 
 ### Local

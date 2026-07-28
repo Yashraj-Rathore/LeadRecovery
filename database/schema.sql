@@ -7,6 +7,9 @@ create table tenants (
     timezone_id text not null,
     status text not null,
     automation_enabled boolean not null default false,
+    data_retention_enabled boolean not null default false,
+    data_retention_days integer not null default 365
+        check (data_retention_days between 30 and 3650),
     version bigint not null default 0,
     created_at_utc timestamptz not null,
     updated_at_utc timestamptz not null

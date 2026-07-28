@@ -5,6 +5,7 @@ using LeadRecovery.Application.Integrations;
 using LeadRecovery.Application.Leads;
 using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.PhoneNumbers;
+using LeadRecovery.Application.Retention;
 using LeadRecovery.Infrastructure.Analysis;
 using LeadRecovery.Infrastructure.Identity;
 using LeadRecovery.Infrastructure.Integrations.Twilio;
@@ -16,6 +17,7 @@ using LeadRecovery.Infrastructure.Persistence.Integrations;
 using LeadRecovery.Infrastructure.Persistence.Messaging;
 using LeadRecovery.Infrastructure.Persistence.Queries;
 using LeadRecovery.Infrastructure.Persistence.Repositories;
+using LeadRecovery.Infrastructure.Persistence.Retention;
 using LeadRecovery.Infrastructure.PhoneNumbers;
 
 using Microsoft.AspNetCore.Identity;
@@ -92,6 +94,7 @@ public static class DependencyInjection
         services.AddScoped<ListLeadsUseCase>();
         services.AddScoped<GetLeadUseCase>();
         services.AddScoped<LeadDashboardUseCase>();
+        services.AddScoped<IRetentionStore, TenantRetentionStore>();
 
         return services;
     }

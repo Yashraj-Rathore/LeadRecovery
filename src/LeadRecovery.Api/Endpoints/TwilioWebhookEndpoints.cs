@@ -17,18 +17,21 @@ internal static class TwilioWebhookEndpoints
                 HandleCallStatusAsync)
             .AllowAnonymous()
             .DisableAntiforgery()
+            .RequireRateLimiting("provider-webhook")
             .WithMetadata(new RequestSizeLimitAttribute(16_384));
         endpoints.MapPost(
                 "/api/v1/webhooks/twilio/sms/inbound",
                 HandleInboundSmsAsync)
             .AllowAnonymous()
             .DisableAntiforgery()
+            .RequireRateLimiting("provider-webhook")
             .WithMetadata(new RequestSizeLimitAttribute(32_768));
         endpoints.MapPost(
                 "/api/v1/webhooks/twilio/sms/status",
                 HandleSmsStatusAsync)
             .AllowAnonymous()
             .DisableAntiforgery()
+            .RequireRateLimiting("provider-webhook")
             .WithMetadata(new RequestSizeLimitAttribute(16_384));
         return endpoints;
     }

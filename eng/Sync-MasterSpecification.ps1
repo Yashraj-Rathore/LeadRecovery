@@ -43,6 +43,8 @@ $sourcePaths = @(
     'docs/decisions/0018-ai-workflow-invocation-and-fallback.md'
     'docs/decisions/0019-observability-and-trace-propagation.md'
     'docs/decisions/0020-automation-kill-switch.md'
+    'docs/decisions/0021-tenant-operational-data-retention.md'
+    'docs/decisions/0022-api-rate-limits-and-security-headers.md'
     'CODEX_PROMPT_SEQUENCE.md'
     'templates/definition-of-done.md'
 )

@@ -121,6 +121,20 @@ Manual SMS uses a per-user fixed-window rate limit and enforces opt-out both
 when queued and immediately before provider execution. ReadOnly users receive
 `403`; cross-tenant identifiers remain indistinguishable from missing records.
 
+LR-0803 retention runs use an explicit trusted tenant scope plus filtered and
+explicitly tenant-predicated queries. A tenant's retention days cannot select
+another tenant's records. The redacted audit manifest contains only policy,
+cutoff, mode, and aggregate counts; it contains no phone number, message body,
+name, email, or provider payload.
+
+LR-0804 keeps independent quotas for login (IP fixed window), manual SMS
+(tenant plus authenticated user fixed window), and each provider webhook path
+(source-address token bucket). Defaults are five logins/minute, ten manual
+messages/minute, and a webhook capacity/refill of 200/40 per second. Rejections
+return `429` and `Retry-After` when available. Authentication precedes the
+manual-message partition so unrelated signed-in staff do not share an IP-only
+quota.
+
 ## 6. Webhook security
 
 - validate Twilio signatures;
@@ -145,6 +159,11 @@ and delivery callbacks. Message bodies are stored as required product data but
 never included in structured logs or audit JSON. A live outbound provider is
 disabled unless both the explicit provider selection and `ALLOW_REAL_SMS`
 safety gate are enabled; automated tests always use the in-process fake.
+
+The webhook token bucket permits a 200-request retry burst and replenishes 40
+requests per second independently for each path/source partition. It supplies
+availability backpressure without replacing signature verification, request
+size limits, durable idempotency, or fail-closed provider configuration.
 
 ## 7. Input and output security
 
@@ -209,6 +228,12 @@ Staging/production:
 - encrypted backups;
 - optional application-level encryption for especially sensitive configuration values;
 - do not create custom cryptography.
+
+The API applies a strict JSON-service Content Security Policy, frame denial,
+MIME-sniffing prevention, no-referrer policy, restrictive Permissions Policy,
+and cross-domain-policy denial to every response. Production additionally uses
+HSTS and HTTPS redirection. The separately deployed Next.js document response
+must maintain its own frontend-appropriate CSP.
 
 ## 10. Logging and privacy
 

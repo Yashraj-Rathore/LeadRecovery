@@ -13,9 +13,17 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 
         builder.ToTable(
             "tenants",
-            tableBuilder => tableBuilder.HasCheckConstraint(
-                "ck_tenants_status",
-                "status in ('Trial', 'Active', 'Suspended', 'Closed')"));
+            tableBuilder =>
+            {
+                tableBuilder.HasCheckConstraint(
+                    "ck_tenants_status",
+                    "status in ('Trial', 'Active', 'Suspended', 'Closed')");
+                tableBuilder.HasCheckConstraint(
+                    "ck_tenants_data_retention_days",
+                    $"data_retention_days between " +
+                    $"{TenantFieldLimits.DataRetentionDaysMinimum} and " +
+                    $"{TenantFieldLimits.DataRetentionDaysMaximum}");
+            });
 
         builder.HasKey(tenant => tenant.Id).HasName("pk_tenants");
 
@@ -51,6 +59,16 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(tenant => tenant.AutomationEnabled)
             .HasColumnName("automation_enabled")
             .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(tenant => tenant.DataRetentionEnabled)
+            .HasColumnName("data_retention_enabled")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(tenant => tenant.DataRetentionDays)
+            .HasColumnName("data_retention_days")
+            .HasDefaultValue(TenantFieldLimits.DataRetentionDaysDefault)
             .IsRequired();
 
         builder.Property(tenant => tenant.Version)

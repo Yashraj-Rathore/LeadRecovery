@@ -42,6 +42,11 @@ public sealed class Tenant
 
     public bool AutomationEnabled { get; private set; }
 
+    public bool DataRetentionEnabled { get; private set; }
+
+    public int DataRetentionDays { get; private set; } =
+        TenantFieldLimits.DataRetentionDaysDefault;
+
     public long Version { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -82,6 +87,31 @@ public sealed class Tenant
         }
 
         AutomationEnabled = enabled;
+        UpdatedAtUtc = RequireCurrentOrLaterUtc(updatedAtUtc);
+    }
+
+    public void ConfigureDataRetention(
+        bool enabled,
+        int retentionDays,
+        DateTimeOffset updatedAtUtc)
+    {
+        if (retentionDays is < TenantFieldLimits.DataRetentionDaysMinimum or
+            > TenantFieldLimits.DataRetentionDaysMaximum)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(retentionDays),
+                $"Data retention must be between " +
+                $"{TenantFieldLimits.DataRetentionDaysMinimum} and " +
+                $"{TenantFieldLimits.DataRetentionDaysMaximum} days.");
+        }
+
+        if (DataRetentionEnabled == enabled && DataRetentionDays == retentionDays)
+        {
+            return;
+        }
+
+        DataRetentionEnabled = enabled;
+        DataRetentionDays = retentionDays;
         UpdatedAtUtc = RequireCurrentOrLaterUtc(updatedAtUtc);
     }
 

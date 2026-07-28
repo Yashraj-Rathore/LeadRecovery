@@ -145,6 +145,14 @@ failure audit. Pending analysis for older inbound context is coalesced. A
 provider or validation failure may move an active Lead to `NeedsHuman`, creates
 no customer Message, and cannot roll back the inbound or qualification work.
 
+LR-0804 hardens the API boundary with three independent rate-limit policies:
+IP login, authenticated tenant/user manual SMS, and path/source Twilio token
+buckets. Authentication runs before rate partitioning for staff sends. A
+response middleware supplies strict JSON-API security headers on health,
+browser, webhook, error, and throttled responses; production retains HSTS and
+HTTPS redirection. Rate limiting does not replace webhook signatures, request
+size limits, CSRF, authorization, or durable idempotency.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -451,6 +459,14 @@ also cancel queued automated action types. Manual staff SMS is deliberately
 outside this switch, while inbound callbacks and tenant dashboard reads remain
 available. Global state is process configuration and requires coordinated API
 and Worker restart; tenant state is transactional PostgreSQL data.
+
+LR-0803 uses the Worker/Hangfire maintenance queue for one recurring retention
+job. It enumerates opt-in tenant policies, begins exactly one trusted tenant
+scope per batch, and selects bounded old terminal-Lead graphs under the EF
+filter plus explicit TenantId predicates. Dry-run and delete both append a
+PII-free count manifest; deletion and that manifest commit together. Customer
+consent/opt-out state, audit evidence, and external idempotency receipts are
+outside this operational-data deletion boundary.
 
 ## 13. Caching
 

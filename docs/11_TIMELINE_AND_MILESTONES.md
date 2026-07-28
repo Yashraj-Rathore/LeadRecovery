@@ -236,6 +236,16 @@ Exit criteria:
 - critical alerts configured in staging;
 - security test suite passes.
 
+Implementation status (2026-07-28): complete for LR-0801 through LR-0804.
+API and Worker emit PII-safe JSON logs, W3C workflow traces, opt-in OTLP
+telemetry, and bounded operational metrics. Global/tenant automation controls
+fail closed while preserving staff and inbound work. Tenant retention is
+preview-first, scoped, audited, backup-gated, and covered by a restore-warning
+runbook. Independent login/manual/webhook limits and API security headers have
+PostgreSQL/API retry-burst acceptance coverage. Container image scanning and
+staging alert configuration remain Milestone 9 deployment work, not an
+unimplemented Milestone 8 application behavior.
+
 ### Milestone 9 - Docker, Kubernetes, and CI/CD (Week 9)
 
 Deliverables:

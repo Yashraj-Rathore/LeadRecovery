@@ -23,8 +23,7 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 7 are complete. LR-0101 through LR-0703, LR-0801, and LR-0802 are
-implemented.
+Milestones 0 through 7 are complete. LR-0101 through LR-0804 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -51,6 +50,13 @@ delivery callbacks, authentication, and the Lead dashboard. Owner and Manager
 members can pause or resume their tenant from the workspace header; every
 change uses CSRF, optimistic concurrency, a fixed reason code, and redacted
 audit data.
+
+LR-0803 adds an opt-in per-tenant operational-data policy and a PostgreSQL/
+Hangfire retention job. It defaults to disabled dry-run mode, processes only
+terminal Leads older than the tenant cutoff, records PII-free count manifests,
+and requires an explicit backup acknowledgement before destructive mode.
+LR-0804 adds independently partitioned login, manual-message, and provider-
+webhook limits plus restrictive security headers on every API response.
 
 The implemented dashboard now uses one responsive, high-contrast workspace
 system across login, inbox, and Lead detail. Human-readable workflow labels,
@@ -98,8 +104,8 @@ The currently implemented browser and health contract is:
   `POST /api/v1/webhooks/twilio/sms/status` validate signed callbacks, persist
   inbound activity once, apply opt-out suppression, and update delivery state;
 - the worker executes due recovery, qualification, booking, follow-up,
-  manual-message, and optional lead-analysis actions through
-  PostgreSQL-backed Hangfire,
+  manual-message, optional lead-analysis, and enabled tenant-retention work
+  through PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
 
@@ -202,6 +208,16 @@ Setting it to `false` in both processes and restarting them activates the
 platform kill switch and cancels queued automated actions; manual staff SMS,
 inbound capture, delivery callbacks, and dashboard access remain available.
 Tenant Owner/Manager controls are dynamic and do not require a restart.
+
+Retention is independently disabled by default. First configure an opt-in
+tenant policy, then set `RETENTION_ENABLED=true`, keep
+`RETENTION_MODE=dry-run`, and review `Retention.DryRun` audit manifests. Before
+changing the Worker to `RETENTION_MODE=delete`, verify a current PostgreSQL
+backup or PITR recovery point, rehearse restore as required by the environment,
+and set `RETENTION_BACKUP_CONFIRMED=true`. That flag records operator intent; it
+does not create or validate a backup. Deletion has no application-level undo.
+`RETENTION_BATCH_SIZE` defaults to 100 and `RETENTION_CRON` defaults to 02:00
+UTC daily. See Runbook F in `docs/10_OBSERVABILITY_OPERATIONS.md`.
 
 The fictional demo seed includes one pending low-confidence analysis so the
 LR-0702 review workflow can be demonstrated without enabling AI or providing an
@@ -1008,6 +1024,14 @@ failure audit. Pending analysis for older inbound context is coalesced. A
 provider or validation failure may move an active Lead to `NeedsHuman`, creates
 no customer Message, and cannot roll back the inbound or qualification work.
 
+LR-0804 hardens the API boundary with three independent rate-limit policies:
+IP login, authenticated tenant/user manual SMS, and path/source Twilio token
+buckets. Authentication runs before rate partitioning for staff sends. A
+response middleware supplies strict JSON-API security headers on health,
+browser, webhook, error, and throttled responses; production retains HSTS and
+HTTPS redirection. Rate limiting does not replace webhook signatures, request
+size limits, CSRF, authorization, or durable idempotency.
+
 ### 4.4 PostgreSQL
 
 Primary system of record for:
@@ -1315,6 +1339,14 @@ outside this switch, while inbound callbacks and tenant dashboard reads remain
 available. Global state is process configuration and requires coordinated API
 and Worker restart; tenant state is transactional PostgreSQL data.
 
+LR-0803 uses the Worker/Hangfire maintenance queue for one recurring retention
+job. It enumerates opt-in tenant policies, begins exactly one trusted tenant
+scope per batch, and selects bounded old terminal-Lead graphs under the EF
+filter plus explicit TenantId predicates. Dry-run and delete both append a
+PII-free count manifest; deletion and that manifest commit together. Customer
+consent/opt-out state, audit evidence, and external idempotency receipts are
+outside this operational-data deletion boundary.
+
 ## 13. Caching
 
 Do not add distributed caching in MVP. Optimize indexed database queries first. Short-lived in-memory caching may be used only for non-sensitive, non-tenant-confusing reference data.
@@ -1371,6 +1403,8 @@ Key fields:
 - `TimezoneId`
 - `Status` - Trial, Active, Suspended, Closed
 - `AutomationEnabled`
+- `DataRetentionEnabled` opt-in, false by default
+- `DataRetentionDays` from 30 through 3,650, default 365
 - `Version` application-managed `bigint` concurrency token
 - `CreatedAtUtc`
 - `UpdatedAtUtc`
@@ -1873,6 +1907,22 @@ Suggested pilot defaults, configurable by contract:
 - application logs: 30-90 days depending on environment.
 
 Retention must be implemented through scheduled jobs with dry-run reporting before deletion.
+
+LR-0803 applies the operational Lead/message default through an opt-in tenant
+policy. The Worker defaults to disabled `dry-run`; enabled runs select only
+`Closed`/`ClosedWon` Leads whose `ClosedAtUtc` precedes the tenant cutoff, in
+batches of at most 1,000. A batch deletes the selected Leads and their
+conversations, messages, notes, qualification answers, scheduled actions, and
+AI analyses transactionally with a PII-free count manifest. Customer consent/
+opt-out state, AuditEvents, and ExternalEventReceipts remain because they have
+separate safety, compliance, and idempotency purposes. Their future expiry
+requires a separate accepted policy.
+
+Every batch begins a trusted scope for exactly the policy TenantId and retains
+both EF query filters and explicit TenantId predicates. Policy changes or a
+scope mismatch fail before mutation. `delete` mode additionally requires an
+operator backup acknowledgement; deleted content can be recovered only from a
+database backup or point-in-time restore.
 
 ## 8. Migration strategy
 
@@ -2871,6 +2921,20 @@ Manual SMS uses a per-user fixed-window rate limit and enforces opt-out both
 when queued and immediately before provider execution. ReadOnly users receive
 `403`; cross-tenant identifiers remain indistinguishable from missing records.
 
+LR-0803 retention runs use an explicit trusted tenant scope plus filtered and
+explicitly tenant-predicated queries. A tenant's retention days cannot select
+another tenant's records. The redacted audit manifest contains only policy,
+cutoff, mode, and aggregate counts; it contains no phone number, message body,
+name, email, or provider payload.
+
+LR-0804 keeps independent quotas for login (IP fixed window), manual SMS
+(tenant plus authenticated user fixed window), and each provider webhook path
+(source-address token bucket). Defaults are five logins/minute, ten manual
+messages/minute, and a webhook capacity/refill of 200/40 per second. Rejections
+return `429` and `Retry-After` when available. Authentication precedes the
+manual-message partition so unrelated signed-in staff do not share an IP-only
+quota.
+
 ## 6. Webhook security
 
 - validate Twilio signatures;
@@ -2895,6 +2959,11 @@ and delivery callbacks. Message bodies are stored as required product data but
 never included in structured logs or audit JSON. A live outbound provider is
 disabled unless both the explicit provider selection and `ALLOW_REAL_SMS`
 safety gate are enabled; automated tests always use the in-process fake.
+
+The webhook token bucket permits a 200-request retry burst and replenishes 40
+requests per second independently for each path/source partition. It supplies
+availability backpressure without replacing signature verification, request
+size limits, durable idempotency, or fail-closed provider configuration.
 
 ## 7. Input and output security
 
@@ -2959,6 +3028,12 @@ Staging/production:
 - encrypted backups;
 - optional application-level encryption for especially sensitive configuration values;
 - do not create custom cryptography.
+
+The API applies a strict JSON-service Content Security Policy, frame denial,
+MIME-sniffing prevention, no-referrer policy, restrictive Permissions Policy,
+and cross-domain-policy denial to every response. Production additionally uses
+HSTS and HTTPS redirection. The separately deployed Next.js document response
+must maintain its own frontend-appropriate CSP.
 
 ## 10. Logging and privacy
 
@@ -3222,6 +3297,17 @@ customer Message, and is ignored on duplicate execution. Success persists one
 validated analysis without applying it, while consecutive inbound replies
 cancel older Pending analysis work. Tests use an unavailable or in-process fake
 provider and never call a live AI service.
+
+LR-0803 adds domain bounds and Application orchestration coverage plus real
+PostgreSQL proof that dry-run preserves data, delete mode removes only eligible
+terminal Leads for the active policy tenant, recent and cross-tenant Leads
+remain, and both modes append PII-free audit manifests. Runtime-option tests
+require an explicit backup acknowledgement for destructive mode.
+
+LR-0804 adds configured low-quota API hosts that prove login IP and authenticated
+manual-send limits return `429`/`Retry-After`, verifies the API security-header
+set, and submits 25 valid signed duplicate provider callbacks without a rate-
+limit rejection or duplicate business effect.
 
 ## 3. Test environments
 
@@ -3590,6 +3676,8 @@ Non-secret ConfigMap values:
 - telemetry endpoint names;
 - public application URL.
 - AI enable/provider/model selection and bounded timeout/retry/output settings.
+- login/manual-message/provider-webhook rate-limit capacities;
+- retention enabled/mode/batch/UTC cron and explicit backup acknowledgement.
 
 Secrets:
 
@@ -3862,6 +3950,20 @@ scheduling and execution path rechecks global, tenant, Lead, and opt-out
 eligibility. Inbound SMS/delivery callbacks and dashboard reads do not depend
 on either automation switch.
 
+### LR-0803/LR-0804 hardening baseline
+
+Retention is a daily UTC Hangfire maintenance job, disabled by default. Each
+enabled tenant batch logs only TenantId, mode, aggregate candidate/deletion
+counts, and AuditEventId. The durable audit manifest records policy, cutoff,
+mode, batch size, and aggregate child counts with
+`containsPersonalData=false`; it never stores deleted contact or message data.
+
+API abuse controls are independently observable through standard ASP.NET `429`
+request telemetry. Defaults are five login attempts per IP/minute, ten manual
+messages per tenant/user/minute, and 200 webhook burst tokens refilled at 40/s
+per path/source. Limit changes require a load/retry test and must not remove
+signature validation, idempotency, or provider request-size limits.
+
 ## 5. Alerts
 
 Initial alerts:
@@ -3957,6 +4059,34 @@ available, and global disable preserves a pending manual action.
 4. Rotate credentials if needed.
 5. Escalate to incident owner and legal/privacy process.
 6. Do not delete evidence.
+
+### Runbook F - Retention preview, execution, and restore warning
+
+1. Confirm the target tenant policy is deliberately enabled and its retention
+   days (30-3,650) match the contract. LR-0803 has no browser settings endpoint;
+   use only the trusted provisioning/administration path.
+2. Set the Worker to `RETENTION_ENABLED=true`, `RETENTION_MODE=dry-run`, the
+   bounded `RETENTION_BATCH_SIZE`, and the intended UTC `RETENTION_CRON`. Leave
+   `RETENTION_BACKUP_CONFIRMED=false`.
+3. Review Worker counts and each tenant's `Retention.DryRun` AuditEvent. Confirm
+   the cutoff and expected terminal-Lead volume. Investigate an unexpected
+   count; do not proceed by raising the batch size.
+4. Verify a current encrypted PostgreSQL backup or PITR recovery point and the
+   environment restore procedure. Where the recovery policy requires it,
+   complete a restore rehearsal. `RETENTION_BACKUP_CONFIRMED` cannot verify or
+   create a backup.
+5. Change to `RETENTION_MODE=delete` and set
+   `RETENTION_BACKUP_CONFIRMED=true` only for the approved deployment. Confirm
+   `Retention.Deleted` manifests and that recent/non-terminal/cross-tenant Leads,
+   Customer opt-out state, AuditEvents, and ExternalEventReceipts remain.
+6. Return to dry-run or disable after the approved window if continuous delete
+   mode is not intended. Record the policy, reviewer, backup reference, counts,
+   and deployment version outside customer-content logs.
+7. There is no application-level undelete. If restoration is required, disable
+   retention and customer writes, preserve evidence, select the approved backup/
+   PITR point, and follow the database incident restore procedure. A database
+   restore can roll back unrelated Leads, inbound callbacks, and sends, so
+   reconcile provider events and idempotency state before resuming automation.
 
 ## 8. Backups and recovery
 
@@ -4238,6 +4368,16 @@ Exit criteria:
 - release checklist passes;
 - critical alerts configured in staging;
 - security test suite passes.
+
+Implementation status (2026-07-28): complete for LR-0801 through LR-0804.
+API and Worker emit PII-safe JSON logs, W3C workflow traces, opt-in OTLP
+telemetry, and bounded operational metrics. Global/tenant automation controls
+fail closed while preserving staff and inbound work. Tenant retention is
+preview-first, scoped, audited, backup-gated, and covered by a restore-warning
+runbook. Independent login/manual/webhook limits and API security headers have
+PostgreSQL/API retry-burst acceptance coverage. Container image scanning and
+staging alert configuration remain Milestone 9 deployment work, not an
+unimplemented Milestone 8 application behavior.
 
 ### Milestone 9 - Docker, Kubernetes, and CI/CD (Week 9)
 
@@ -4885,6 +5025,14 @@ Playwright acceptance coverage of the disable/recovery runbook.
 - no deletion across wrong tenant;
 - restore/backup warning documented.
 
+Implementation status (2026-07-28): complete. Tenant policies are opt-in and
+bounded, the Worker schedules disabled-by-default dry-run/delete maintenance,
+and destructive startup requires explicit backup acknowledgement. Terminal-
+Lead batches delete only the active policy tenant's operational graph in one
+transaction with a PII-free durable manifest. PostgreSQL tests cover preview,
+deletion, policy cutoffs, cross-tenant mismatch, recent-record preservation,
+and retained audit evidence; Runbook F documents backup/PITR recovery risk.
+
 ### LR-0804 Rate limiting/security headers
 
 **Acceptance:**
@@ -4893,6 +5041,14 @@ Playwright acceptance coverage of the disable/recovery runbook.
 - tests for login/manual send;
 - secure headers verified;
 - provider webhooks not accidentally blocked under normal retry burst.
+
+Implementation status (2026-07-28): complete. Login and manual sends use
+independent configurable fixed windows partitioned by IP and authenticated
+tenant/user respectively. Each Twilio path has a separate 200-token/40-per-
+second source bucket. Rejections return `429` and `Retry-After`; all API
+responses receive the documented CSP, frame, MIME, referrer, permissions, and
+cross-domain headers. Integration tests cover both browser quotas, headers,
+and a 25-request valid signed retry burst.
 
 ## Epic E9 - Deployment
 
@@ -5324,6 +5480,8 @@ updated in the same change so they remain aligned.
 | [0018](0018-ai-workflow-invocation-and-fallback.md) | AI workflow invocation and fallback | Accepted |
 | [0019](0019-observability-and-trace-propagation.md) | Observability and trace propagation | Accepted |
 | [0020](0020-automation-kill-switch.md) | Automation kill-switch scope and recovery | Accepted |
+| [0021](0021-tenant-operational-data-retention.md) | Tenant operational-data retention | Accepted |
+| [0022](0022-api-rate-limits-and-security-headers.md) | API rate limits and security headers | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -6457,6 +6615,100 @@ tenant identity, redacted audits, and a bounded cancellation metric.
 
 ---
 
+<!-- SOURCE: docs/decisions/0021-tenant-operational-data-retention.md -->
+
+# ADR-0021: Tenant operational-data retention
+
+- Status: Accepted
+- Date: 2026-07-28
+- Decision owners: LeadRecovery engineering and operations
+
+## Context
+
+LR-0803 requires dry-run reporting, tenant-specific retention, audited deletion,
+cross-tenant safety, and an explicit backup/restore warning. Operational Lead
+data contains contact and message content, while Customer opt-out state,
+append-oriented audit evidence, and the provider idempotency ledger have
+different compliance and safety purposes.
+
+## Decision
+
+Each Tenant stores an opt-in operational retention policy from 30 through 3,650
+days, defaulting to disabled and 365 days. A daily UTC Hangfire maintenance job
+runs only when `RETENTION_ENABLED=true`; its default mode is `dry-run`.
+`delete` mode fails startup unless `RETENTION_BACKUP_CONFIRMED=true` is also
+present. That flag is an operator acknowledgement, not proof that a usable
+backup exists.
+
+Only terminal `Closed` and `ClosedWon` Leads whose `ClosedAtUtc` is older than
+the tenant cutoff are eligible. Work is bounded by `RETENTION_BATCH_SIZE`.
+Deletion removes the selected Lead and its conversations, messages, notes,
+qualification answers, scheduled actions, and AI analyses in one database
+transaction. The same transaction appends a PII-free retention manifest with
+mode, cutoff, policy, and aggregate counts. Dry-run appends the same manifest
+without deleting data.
+
+Every tenant batch uses an explicit trusted tenant execution scope, EF query
+filters, and redundant TenantId predicates. A policy/scope mismatch fails
+before mutation. Customers are retained so opt-out and consent state are not
+lost; AuditEvents and ExternalEventReceipts are retained as compliance and
+idempotency evidence. Their separate expiry policies remain future work.
+
+## Consequences
+
+- Tenant provisioning must deliberately enable and choose the policy; there is
+  no tenant browser setting in LR-0803.
+- Destructive execution is irreversible at application level. Recovery
+  requires PostgreSQL backup/PITR restoration and may roll back unrelated work.
+- The redacted manifest proves what category/count was evaluated or deleted but
+  intentionally cannot reconstruct customer content.
+- Repeated batches are safe and progressively drain eligible terminal Leads.
+
+---
+
+<!-- SOURCE: docs/decisions/0022-api-rate-limits-and-security-headers.md -->
+
+# ADR-0022: API rate limits and security headers
+
+- Status: Accepted
+- Date: 2026-07-28
+- Decision owners: LeadRecovery engineering and security
+
+## Context
+
+LR-0804 requires tested limits for login and manual sends, consistent browser
+security headers, and webhook protection that does not reject an ordinary
+provider retry burst. Browser and provider traffic have different identities
+and burst characteristics, so one global quota would couple unrelated work.
+
+## Decision
+
+Login uses a configurable IP-partitioned fixed window, default five requests
+per minute. Manual SMS uses a tenant-and-authenticated-user fixed window,
+default ten requests per minute; rate limiting therefore runs after
+authentication. Twilio endpoints use a separate path-and-source token bucket
+with 200-token burst capacity and 40-token-per-second refill. No requests queue
+in-process. A rejected request returns `429` plus `Retry-After` when the limiter
+provides it.
+
+The API adds a response middleware that applies a JSON-API-compatible CSP
+(`default-src 'none'`), frame denial, MIME sniffing prevention, no-referrer
+policy, restrictive Permissions Policy, and cross-domain-policy denial to all
+responses. Production HSTS and HTTPS redirection remain environment-gated.
+
+## Consequences
+
+- Login, staff-send, and each webhook path cannot consume one another's quota.
+- Proxy/network configuration must supply the intended connection source
+  address without trusting arbitrary client forwarding headers.
+- Provider capacity permits short retries above the documented normal burst;
+  sustained excess receives explicit backpressure without bypassing signature
+  validation or idempotency.
+- The strict API CSP is appropriate because this process serves JSON and health
+  responses; the separately deployed Next.js application owns its document CSP.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -6513,9 +6765,10 @@ human-review, deterministic-fallback, and no-autonomous-send boundaries.
 
 Implement LR-0801 through LR-0804. Add telemetry, kill switch, retention dry-run, rate limiting, security headers, alerts/runbooks, and PII-safe logs.
 
-Implementation status (2026-07-28): LR-0801 and LR-0802 are complete. Continue
-with LR-0803; retain the PII-safe observability baseline and the global/tenant
-fail-closed automation controls while implementing retention dry-run behavior.
+Implementation status (2026-07-28): complete for LR-0801 through LR-0804.
+Continue with Prompt 10 and LR-0901; preserve PII-safe telemetry, fail-closed
+automation, preview-first tenant retention, and independently partitioned API
+limits while containerizing the existing modular monolith.
 
 ## Prompt 10 - Containers and Kubernetes
 

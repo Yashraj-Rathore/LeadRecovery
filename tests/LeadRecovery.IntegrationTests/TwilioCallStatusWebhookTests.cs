@@ -104,6 +104,25 @@ public sealed class TwilioCallStatusWebhookTests(LeadRecoveryApiFixture fixture)
     }
 
     [Fact]
+    public async Task SignedProviderRetryBurstIsNotRateLimited()
+    {
+        Dictionary<string, string> form = await LoadFixtureAsync();
+        form["CallSid"] = CreateCallSid();
+        form["To"] = "+14165550131";
+        form["From"] = "+14165550132";
+        Guid tenantId = await PersistRouteAsync(form["To"], TenantStatus.Active);
+
+        for (int attempt = 0; attempt < 25; attempt++)
+        {
+            using HttpResponseMessage response = await PostAsync(form);
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        }
+
+        Counts counts = await CountTenantDataAsync(tenantId);
+        Assert.Equal(new Counts(1, 1, 1), counts);
+    }
+
+    [Fact]
     public async Task CooldownPreventsSecondRecoveryAction()
     {
         Dictionary<string, string> firstForm = await LoadFixtureAsync();

@@ -482,6 +482,14 @@ Playwright acceptance coverage of the disable/recovery runbook.
 - no deletion across wrong tenant;
 - restore/backup warning documented.
 
+Implementation status (2026-07-28): complete. Tenant policies are opt-in and
+bounded, the Worker schedules disabled-by-default dry-run/delete maintenance,
+and destructive startup requires explicit backup acknowledgement. Terminal-
+Lead batches delete only the active policy tenant's operational graph in one
+transaction with a PII-free durable manifest. PostgreSQL tests cover preview,
+deletion, policy cutoffs, cross-tenant mismatch, recent-record preservation,
+and retained audit evidence; Runbook F documents backup/PITR recovery risk.
+
 ### LR-0804 Rate limiting/security headers
 
 **Acceptance:**
@@ -490,6 +498,14 @@ Playwright acceptance coverage of the disable/recovery runbook.
 - tests for login/manual send;
 - secure headers verified;
 - provider webhooks not accidentally blocked under normal retry burst.
+
+Implementation status (2026-07-28): complete. Login and manual sends use
+independent configurable fixed windows partitioned by IP and authenticated
+tenant/user respectively. Each Twilio path has a separate 200-token/40-per-
+second source bucket. Rejections return `429` and `Retry-After`; all API
+responses receive the documented CSP, frame, MIME, referrer, permissions, and
+cross-domain headers. Integration tests cover both browser quotas, headers,
+and a 25-request valid signed retry burst.
 
 ## Epic E9 - Deployment
 

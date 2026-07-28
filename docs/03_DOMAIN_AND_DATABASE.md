@@ -25,6 +25,8 @@ Key fields:
 - `TimezoneId`
 - `Status` - Trial, Active, Suspended, Closed
 - `AutomationEnabled`
+- `DataRetentionEnabled` opt-in, false by default
+- `DataRetentionDays` from 30 through 3,650, default 365
 - `Version` application-managed `bigint` concurrency token
 - `CreatedAtUtc`
 - `UpdatedAtUtc`
@@ -527,6 +529,22 @@ Suggested pilot defaults, configurable by contract:
 - application logs: 30-90 days depending on environment.
 
 Retention must be implemented through scheduled jobs with dry-run reporting before deletion.
+
+LR-0803 applies the operational Lead/message default through an opt-in tenant
+policy. The Worker defaults to disabled `dry-run`; enabled runs select only
+`Closed`/`ClosedWon` Leads whose `ClosedAtUtc` precedes the tenant cutoff, in
+batches of at most 1,000. A batch deletes the selected Leads and their
+conversations, messages, notes, qualification answers, scheduled actions, and
+AI analyses transactionally with a PII-free count manifest. Customer consent/
+opt-out state, AuditEvents, and ExternalEventReceipts remain because they have
+separate safety, compliance, and idempotency purposes. Their future expiry
+requires a separate accepted policy.
+
+Every batch begins a trusted scope for exactly the policy TenantId and retains
+both EF query filters and explicit TenantId predicates. Policy changes or a
+scope mismatch fail before mutation. `delete` mode additionally requires an
+operator backup acknowledgement; deleted content can be recovered only from a
+database backup or point-in-time restore.
 
 ## 8. Migration strategy
 

@@ -123,6 +123,109 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
     }
 
     [Fact]
+    public async Task LoginRateLimitRejectsRequestsAfterConfiguredIpQuota()
+    {
+        using WebApplicationFactory<Program> limitedApplication =
+            fixture.Application.WithWebHostBuilder(builder =>
+                builder.UseSetting("RateLimiting:LoginPermitLimit", "2"));
+        using HttpClient client = limitedApplication.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true,
+            });
+
+        using HttpResponseMessage first = await SendLogin(
+            client,
+            "unknown-one@example.test",
+            "Invalid-password-1!");
+        using HttpResponseMessage second = await SendLogin(
+            client,
+            "unknown-two@example.test",
+            "Invalid-password-2!");
+        using HttpResponseMessage limited = await SendLogin(
+            client,
+            "unknown-three@example.test",
+            "Invalid-password-3!");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, second.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.NotNull(limited.Headers.RetryAfter);
+    }
+
+    [Fact]
+    public async Task ManualMessageRateLimitUsesConfiguredAuthenticatedUserQuota()
+    {
+        TenantData tenant = await SeedTenant();
+        UserData owner = await SeedUser(tenant, TenantRole.Owner, createLead: true);
+        Guid leadId = Assert.IsType<Guid>(owner.LeadId);
+        await ConfigureTenantMessaging(tenant, leadId, addPendingRecovery: false);
+        using WebApplicationFactory<Program> limitedApplication =
+            fixture.Application.WithWebHostBuilder(builder =>
+                builder.UseSetting("RateLimiting:ManualMessagePermitLimit", "1"));
+        using HttpClient client = limitedApplication.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true,
+            });
+        _ = await Login(client, owner);
+
+        using HttpResponseMessage accepted = await PostWithCsrf(
+            client,
+            $"/api/v1/leads/{leadId}/messages",
+            new ManualMessageRequest(
+                "First bounded staff message.",
+                $"rate-first-{Guid.CreateVersion7():N}"));
+        using HttpResponseMessage limited = await PostWithCsrf(
+            client,
+            $"/api/v1/leads/{leadId}/messages",
+            new ManualMessageRequest(
+                "Second bounded staff message.",
+                $"rate-second-{Guid.CreateVersion7():N}"));
+
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.NotNull(limited.Headers.RetryAfter);
+    }
+
+    [Fact]
+    public async Task ApiResponsesIncludeDefenseInDepthSecurityHeaders()
+    {
+        using HttpClient client = CreateClient();
+
+        using HttpResponseMessage response = await client.GetAsync(
+            "/health/live",
+            TestContext.Current.CancellationToken);
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal(
+            "nosniff",
+            Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal(
+            "DENY",
+            Assert.Single(response.Headers.GetValues("X-Frame-Options")));
+        Assert.Equal(
+            "no-referrer",
+            Assert.Single(response.Headers.GetValues("Referrer-Policy")));
+        Assert.Contains(
+            "frame-ancestors 'none'",
+            Assert.Single(response.Headers.GetValues("Content-Security-Policy")),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "camera=()",
+            Assert.Single(response.Headers.GetValues("Permissions-Policy")),
+            StringComparison.Ordinal);
+        Assert.Equal(
+            "none",
+            Assert.Single(
+                response.Headers.GetValues("X-Permitted-Cross-Domain-Policies")));
+    }
+
+    [Fact]
     public async Task LeadEndpointsRequireAuthenticationAndDenyCrossTenantAccess()
     {
         TenantData alpha = await SeedTenant();

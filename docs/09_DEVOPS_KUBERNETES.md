@@ -198,6 +198,8 @@ Non-secret ConfigMap values:
 - telemetry endpoint names;
 - public application URL.
 - AI enable/provider/model selection and bounded timeout/retry/output settings.
+- login/manual-message/provider-webhook rate-limit capacities;
+- retention enabled/mode/batch/UTC cron and explicit backup acknowledgement.
 
 Secrets:
 

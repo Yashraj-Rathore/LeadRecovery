@@ -25,6 +25,8 @@ public sealed class TenantTests
         Assert.Equal("America/Toronto", tenant.TimezoneId);
         Assert.Equal(TenantStatus.Trial, tenant.Status);
         Assert.False(tenant.AutomationEnabled);
+        Assert.False(tenant.DataRetentionEnabled);
+        Assert.Equal(TenantFieldLimits.DataRetentionDaysDefault, tenant.DataRetentionDays);
         Assert.Equal(0, tenant.Version);
         Assert.Equal(CreatedAtUtc, tenant.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, tenant.UpdatedAtUtc);
@@ -102,5 +104,32 @@ public sealed class TenantTests
         Assert.Equal(CreatedAtUtc.AddMinutes(1), tenant.UpdatedAtUtc);
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             tenant.SetAutomationEnabled(false, CreatedAtUtc));
+    }
+
+    [Fact]
+    public void DataRetentionPolicyIsOptInBoundedAndMonotonic()
+    {
+        Tenant tenant = new(
+            Guid.CreateVersion7(),
+            "Alpha Plumbing",
+            "alpha-plumbing",
+            "America/Toronto",
+            CreatedAtUtc);
+
+        tenant.ConfigureDataRetention(true, 180, CreatedAtUtc.AddMinutes(1));
+        tenant.ConfigureDataRetention(true, 180, CreatedAtUtc);
+
+        Assert.True(tenant.DataRetentionEnabled);
+        Assert.Equal(180, tenant.DataRetentionDays);
+        Assert.Equal(CreatedAtUtc.AddMinutes(1), tenant.UpdatedAtUtc);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            tenant.ConfigureDataRetention(true, 29, CreatedAtUtc.AddMinutes(2)));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            tenant.ConfigureDataRetention(
+                true,
+                3_651,
+                CreatedAtUtc.AddMinutes(2)));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            tenant.ConfigureDataRetention(false, 365, CreatedAtUtc));
     }
 }

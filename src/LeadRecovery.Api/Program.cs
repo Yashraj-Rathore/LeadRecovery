@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 
 using LeadRecovery.Api.Demo;
@@ -192,7 +194,47 @@ builder.Services.AddRateLimiter(options =>
             "RateLimiting:ManualMessagePermitLimit must be greater than zero.");
     }
 
+    int webhookTokenLimit = builder.Configuration.GetValue(
+        "RateLimiting:WebhookTokenLimit",
+        200);
+    int webhookTokensPerSecond = builder.Configuration.GetValue(
+        "RateLimiting:WebhookTokensPerSecond",
+        40);
+    if (webhookTokenLimit < 1 ||
+        webhookTokensPerSecond < 1 ||
+        webhookTokensPerSecond > webhookTokenLimit)
+    {
+        throw new InvalidOperationException(
+            "Webhook rate limits require a positive token limit and a positive " +
+            "per-second refill no greater than that limit.");
+    }
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(
+                MetadataName.RetryAfter,
+                out TimeSpan retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter = Math.Max(
+                1,
+                (int)Math.Ceiling(retryAfter.TotalSeconds))
+                .ToString(CultureInfo.InvariantCulture);
+        }
+
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/problem+json";
+        await JsonSerializer.SerializeAsync(
+            context.HttpContext.Response.Body,
+            new
+            {
+                type = "https://www.rfc-editor.org/rfc/rfc6585#section-4",
+                title = "Request rate limit exceeded",
+                status = StatusCodes.Status429TooManyRequests,
+                traceId = context.HttpContext.TraceIdentifier,
+            },
+            cancellationToken: cancellationToken);
+    };
     options.AddPolicy(
         "login",
         context => RateLimitPartition.GetFixedWindowLimiter(
@@ -207,14 +249,29 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy(
         "manual-message",
         context => RateLimitPartition.GetFixedWindowLimiter(
-            context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ??
+            $"{context.User.FindFirst(TenantClaimTypes.TenantId)?.Value}:" +
+                (context.User.FindFirst(
+                    System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ??
                 context.Connection.RemoteIpAddress?.ToString() ??
-                "unknown",
+                "unknown"),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = manualMessagePermitLimit,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1),
+                AutoReplenishment = true,
+            }));
+    options.AddPolicy(
+        "provider-webhook",
+        context => RateLimitPartition.GetTokenBucketLimiter(
+            $"{context.Request.Path}:" +
+                (context.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+            _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = webhookTokenLimit,
+                TokensPerPeriod = webhookTokensPerSecond,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                QueueLimit = 0,
                 AutoReplenishment = true,
             }));
 });
@@ -235,6 +292,8 @@ builder.Services
 
 var app = builder.Build();
 
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler();
@@ -243,8 +302,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.UseAntiforgery();
 

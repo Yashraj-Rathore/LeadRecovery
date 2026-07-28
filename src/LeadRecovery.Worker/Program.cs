@@ -4,6 +4,7 @@ using Hangfire;
 
 using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Automations;
+using LeadRecovery.Application.Retention;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Infrastructure;
 using LeadRecovery.Infrastructure.Analysis;
@@ -55,6 +56,23 @@ bool globalAutomationEnabled =
 string aiCategoryQuestionKey = builder.Configuration["AI_CATEGORY_QUESTION_KEY"] ??
     builder.Configuration["Ai:CategoryQuestionKey"] ??
     LeadAnalysisWorkflowOptions.DefaultCategoryQuestionKey;
+bool retentionEnabled = builder.Configuration.GetValue("RETENTION_ENABLED", false);
+string retentionModeValue = builder.Configuration["RETENTION_MODE"] ?? "dry-run";
+RetentionExecutionMode retentionMode = retentionModeValue.Trim().ToLowerInvariant() switch
+{
+    "dry-run" => RetentionExecutionMode.DryRun,
+    "delete" => RetentionExecutionMode.Delete,
+    _ => throw new InvalidOperationException(
+        "RETENTION_MODE must be either 'dry-run' or 'delete'."),
+};
+RetentionRuntimeOptions retentionOptions = new(
+    retentionEnabled,
+    retentionMode,
+    builder.Configuration.GetValue(
+        "RETENTION_BATCH_SIZE",
+        RetentionRuntimeOptions.BatchSizeDefault),
+    builder.Configuration.GetValue("RETENTION_BACKUP_CONFIRMED", false));
+string retentionCron = builder.Configuration["RETENTION_CRON"] ?? Cron.Daily(2);
 
 builder.Services.AddScoped<BackgroundTenantContext>();
 builder.Services.AddScoped<ITenantContext>(services =>
@@ -65,6 +83,9 @@ builder.Services.AddInfrastructure(
     databaseConnectionString,
     new AutomationRuntimeOptions(globalAutomationEnabled),
     new LeadAnalysisWorkflowOptions(aiEnabled, aiCategoryQuestionKey));
+builder.Services.AddSingleton(retentionOptions);
+builder.Services.AddScoped<RetentionUseCase>();
+builder.Services.AddScoped<TenantRetentionJob>();
 builder.Services.AddLeadRecoveryObservability(
     builder.Configuration,
     "LeadRecovery.Worker",
@@ -108,11 +129,25 @@ builder.Services.AddSingleton(new SmsWorkerOptions(
     TimeSpan.FromMinutes(5)));
 builder.Services.AddHangfireServer(options =>
 {
-    options.Queues = ["sms", "analysis"];
+    options.Queues = ["sms", "analysis", "maintenance"];
     options.WorkerCount = builder.Configuration.GetValue<int?>("JOBS_WORKER_COUNT") ??
         builder.Configuration.GetValue("SMS_WORKER_COUNT", 2);
 });
 builder.Services.AddHostedService<ScheduledActionDispatcher>();
 
 var host = builder.Build();
+if (retentionOptions.Enabled)
+{
+    IRecurringJobManager recurringJobs =
+        host.Services.GetRequiredService<IRecurringJobManager>();
+    recurringJobs.AddOrUpdate<TenantRetentionJob>(
+        "tenant-operational-data-retention",
+        job => job.ExecuteAsync(CancellationToken.None),
+        retentionCron,
+        new RecurringJobOptions
+        {
+            TimeZone = TimeZoneInfo.Utc,
+        });
+}
+
 await host.RunAsync();

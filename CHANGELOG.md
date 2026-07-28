@@ -225,6 +225,21 @@ All notable repository and product-specification changes are recorded here.
   inbound/dashboard continuity, manual-action preservation, and recovery.
 - ADR-0020 documenting kill-switch scope, fail-closed configuration, dynamic
   tenant control, manual-message exclusion, and recovery semantics.
+- LR-0803 opt-in tenant operational-data retention with a 30-3,650 day policy,
+  disabled-by-default daily Hangfire maintenance, dry-run manifests, bounded
+  terminal-Lead deletion, and startup-enforced backup acknowledgement.
+- Transactional PII-free retention audits plus domain, Application, and real
+  PostgreSQL coverage for policy cutoffs, preview, deletion, recent-record
+  preservation, and cross-tenant scope mismatch.
+- Retention backup/PITR Runbook F and ADR-0021 documenting the operational-data
+  boundary, retained opt-out/audit/idempotency evidence, and lack of application
+  undelete.
+- LR-0804 configurable IP login and tenant/user manual-message fixed windows,
+  path/source provider token buckets, `429`/`Retry-After` responses, and API-
+  wide CSP, frame, MIME, referrer, permissions, and cross-domain headers.
+- API integration coverage for login/manual quotas, security headers, and a
+  25-request valid signed webhook retry burst, plus ADR-0022 documenting the
+  independently partitioned abuse-control boundary.
 
 ### Changed
 

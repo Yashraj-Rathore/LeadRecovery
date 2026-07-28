@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: LeadRecovery API
   version: 1.0.0-milestone.8
-  description: Implemented browser, automation control, deterministic workflow, AI review, Twilio webhook, and SMS contract through LR-0802.
+  description: Implemented browser, automation control, deterministic workflow, AI review, Twilio webhook, SMS, and HTTP-hardening contract through LR-0804.
 servers:
   - url: https://app.example.com/api/v1
 paths:
@@ -44,6 +44,8 @@ paths:
           description: Signed callback form is malformed.
         '403':
           description: Signature is missing or invalid.
+        '429':
+          description: Provider webhook token bucket exceeded; retry according to `Retry-After` when present.
         '503':
           description: Auth token or canonical webhook URL is not configured.
   /webhooks/twilio/sms/inbound:
@@ -84,6 +86,8 @@ paths:
           description: Signed callback form is malformed.
         '403':
           description: Signature is missing or invalid.
+        '429':
+          description: Provider webhook token bucket exceeded; retry according to `Retry-After` when present.
         '503':
           description: Auth token or canonical webhook URL is not configured.
   /webhooks/twilio/sms/status:
@@ -122,6 +126,8 @@ paths:
           description: Signed callback form is malformed.
         '403':
           description: Signature is missing or invalid.
+        '429':
+          description: Provider webhook token bucket exceeded; retry according to `Retry-After` when present.
         '503':
           description: Auth token or canonical webhook URL is not configured.
   /auth/csrf:
@@ -174,7 +180,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
         '429':
-          description: Login rate limit exceeded.
+          description: Login IP rate limit exceeded; includes `Retry-After` when available.
   /auth/me:
     get:
       tags: [Authentication]
@@ -542,7 +548,7 @@ paths:
         '409':
           description: Opt-out, closed Lead, tenant policy, or idempotency conflict.
         '429':
-          description: Manual-message rate limit exceeded.
+          description: Authenticated tenant/user manual-message rate limit exceeded; includes `Retry-After` when available.
   /leads/{leadId}/booking-link:
     post:
       tags: [Lead operations]

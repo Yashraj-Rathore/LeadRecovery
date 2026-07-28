@@ -155,6 +155,20 @@ scheduling and execution path rechecks global, tenant, Lead, and opt-out
 eligibility. Inbound SMS/delivery callbacks and dashboard reads do not depend
 on either automation switch.
 
+### LR-0803/LR-0804 hardening baseline
+
+Retention is a daily UTC Hangfire maintenance job, disabled by default. Each
+enabled tenant batch logs only TenantId, mode, aggregate candidate/deletion
+counts, and AuditEventId. The durable audit manifest records policy, cutoff,
+mode, batch size, and aggregate child counts with
+`containsPersonalData=false`; it never stores deleted contact or message data.
+
+API abuse controls are independently observable through standard ASP.NET `429`
+request telemetry. Defaults are five login attempts per IP/minute, ten manual
+messages per tenant/user/minute, and 200 webhook burst tokens refilled at 40/s
+per path/source. Limit changes require a load/retry test and must not remove
+signature validation, idempotency, or provider request-size limits.
+
 ## 5. Alerts
 
 Initial alerts:
@@ -250,6 +264,34 @@ available, and global disable preserves a pending manual action.
 4. Rotate credentials if needed.
 5. Escalate to incident owner and legal/privacy process.
 6. Do not delete evidence.
+
+### Runbook F - Retention preview, execution, and restore warning
+
+1. Confirm the target tenant policy is deliberately enabled and its retention
+   days (30-3,650) match the contract. LR-0803 has no browser settings endpoint;
+   use only the trusted provisioning/administration path.
+2. Set the Worker to `RETENTION_ENABLED=true`, `RETENTION_MODE=dry-run`, the
+   bounded `RETENTION_BATCH_SIZE`, and the intended UTC `RETENTION_CRON`. Leave
+   `RETENTION_BACKUP_CONFIRMED=false`.
+3. Review Worker counts and each tenant's `Retention.DryRun` AuditEvent. Confirm
+   the cutoff and expected terminal-Lead volume. Investigate an unexpected
+   count; do not proceed by raising the batch size.
+4. Verify a current encrypted PostgreSQL backup or PITR recovery point and the
+   environment restore procedure. Where the recovery policy requires it,
+   complete a restore rehearsal. `RETENTION_BACKUP_CONFIRMED` cannot verify or
+   create a backup.
+5. Change to `RETENTION_MODE=delete` and set
+   `RETENTION_BACKUP_CONFIRMED=true` only for the approved deployment. Confirm
+   `Retention.Deleted` manifests and that recent/non-terminal/cross-tenant Leads,
+   Customer opt-out state, AuditEvents, and ExternalEventReceipts remain.
+6. Return to dry-run or disable after the approved window if continuous delete
+   mode is not intended. Record the policy, reviewer, backup reference, counts,
+   and deployment version outside customer-content logs.
+7. There is no application-level undelete. If restoration is required, disable
+   retention and customer writes, preserve evidence, select the approved backup/
+   PITR point, and follow the database incident restore procedure. A database
+   restore can roll back unrelated Leads, inbound callbacks, and sends, so
+   reconcile provider events and idempotency state before resuming automation.
 
 ## 8. Backups and recovery
 
