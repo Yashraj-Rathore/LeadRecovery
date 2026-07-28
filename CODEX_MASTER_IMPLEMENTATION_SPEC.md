@@ -6862,9 +6862,9 @@ database migrations, and work on a small local/staging cluster before CI/CD is
 implemented in LR-0903.
 
 The originally reserved Node.js 24.17.0 image is not published. The current
-supported Node.js 24.18.0 Bookworm image and current .NET 10 SDK/runtime patch
-images are published and were verified through their immutable registry
-digests.
+supported Node.js 24.18.0 Bookworm build image, minimized Alpine 3.23 runtime,
+and current .NET 10 SDK/runtime patch images are published and were verified
+through their immutable registry digests.
 
 ## Decision
 

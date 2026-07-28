@@ -14,7 +14,7 @@ ENV API_BASE_URL=$API_BASE_URL \
 COPY src/LeadRecovery.Web/ src/LeadRecovery.Web/
 RUN pnpm --filter @leadrecovery/web build
 
-FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS runtime
+FROM node:24.18.0-alpine3.23@sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436 AS runtime
 ARG VERSION=0.0.0-local
 ARG REVISION=unknown
 ARG CREATED=unknown
@@ -24,6 +24,12 @@ LABEL org.opencontainers.image.title="LeadRecovery Web" \
       org.opencontainers.image.version="$VERSION" \
       org.opencontainers.image.revision="$REVISION" \
       org.opencontainers.image.created="$CREATED"
+
+# The standalone Next.js server needs Node.js only. Remove package managers and
+# their dependency trees from the final image to minimize runtime attack surface.
+RUN rm -rf /opt/yarn-v* /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx \
+      /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 WORKDIR /app
 COPY --from=build --chown=node:node /workspace/src/LeadRecovery.Web/.next/standalone ./

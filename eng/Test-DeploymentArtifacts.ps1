@@ -42,6 +42,19 @@ try {
             "$dockerfile must pin its base image by digest."
     }
 
+    $webDockerfile = Get-Content -LiteralPath 'deploy/docker/web.Dockerfile' -Raw
+    Assert-Contains $webDockerfile `
+        '(?m)^FROM node:24\.18\.0-alpine3\.23@sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436 AS runtime$' `
+        'The web runtime must use the approved immutable Alpine base.'
+    foreach ($unusedToolingPath in @(
+            '/opt/yarn-v\*'
+            '/usr/local/lib/node_modules/corepack'
+            '/usr/local/lib/node_modules/npm'
+        )) {
+        Assert-Contains $webDockerfile $unusedToolingPath `
+            "The web runtime must remove unused package tooling matching $unusedToolingPath."
+    }
+
     $previousPassword = $env:POSTGRES_PASSWORD
     try {
         $env:POSTGRES_PASSWORD = 'deployment-artifact-validation-only'

@@ -9,11 +9,11 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  19686
+        "bytes":  19912
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  275640
+        "bytes":  275678
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
@@ -181,7 +181,7 @@
     },
     {
         "path":  "docs/decisions/0023-production-images-and-kubernetes-rollout.md",
-        "bytes":  3419
+        "bytes":  3457
     },
     {
         "path":  "docs/decisions/0024-immutable-cicd-promotion-and-rollback.md",

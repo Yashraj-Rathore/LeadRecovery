@@ -271,6 +271,9 @@ All notable repository and product-specification changes are recorded here.
 
 ### Changed
 
+- Minimized the web production runtime by pinning Node.js 24.18.0 on Alpine
+  3.23 and removing unused package-manager trees, allowing the LR-0903
+  High/Critical image gate to pass without suppressing vulnerability findings.
 - Updated the reserved Node.js patch from unpublished 24.17.0 to published
   24.18.0 and aligned local, CI, documentation, and container pins.
 - Clarified that `Booked` and `ClosedWon` are statuses, not close reasons.

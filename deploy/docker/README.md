@@ -11,7 +11,8 @@ also supplies the one-shot `--migrate` mode used by Compose and Kubernetes.
 |---|---:|---|
 | .NET SDK | 10.0.302 | `sha256:ed034a8bf0b24ded0cbbac07e17825d8e9ebfe21e308191d0f7421eaf5ad4664` |
 | ASP.NET Core runtime | 10.0.10 | `sha256:1fa23fc4872d95fd71c2833ebe65d7e84a43b2d51a31d119516852f13d9505a7` |
-| Node.js | 24.18.0 Bookworm slim | `sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d` |
+| Node.js build | 24.18.0 Bookworm slim | `sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d` |
+| Node.js runtime | 24.18.0 Alpine 3.23 | `sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436` |
 
 The .NET container SDK may roll forward within the `10.0.3xx` feature band
 selected by `global.json`. Application packages remain locked independently.
@@ -56,6 +57,8 @@ state.
 - API and worker run as the .NET image `app` user; web runs as `node`.
 - Runtime images contain no compiler, SDK, or added OS package. The .NET OCI
   check uses Bash TCP support already present in the pinned runtime image.
+- The web runtime contains Node.js but removes npm, Corepack, pnpm, and Yarn;
+  dependency installation remains isolated to the discarded build stages.
 - Compose defaults to the fake SMS provider, disabled AI, disabled retention,
   and disabled global automation. Real provider activity requires explicit
   operator configuration.
