@@ -120,15 +120,17 @@ jobs:
 
       - name: Generate ephemeral demo values
         run: |
-          echo "E2E_OWNER_PASSWORD=Aa1!$(openssl rand -hex 24)" >> "$GITHUB_ENV"
-          echo "E2E_STAFF_PASSWORD=Bb2!$(openssl rand -hex 24)" >> "$GITHUB_ENV"
-          echo "E2E_BETA_OWNER_PASSWORD=Cc3!$(openssl rand -hex 24)" >> "$GITHUB_ENV"
           suffix=$(printf '%04d' $((100 + GITHUB_RUN_NUMBER % 90)))
-          echo "E2E_ALPHA_URGENT_PHONE=+1416555${suffix}" >> "$GITHUB_ENV"
-          echo "E2E_ALPHA_BOOKING_PHONE=+1416555$((10#$suffix + 1))" >> "$GITHUB_ENV"
-          echo "E2E_BETA_LEAD_PHONE=+1416555$((10#$suffix + 2))" >> "$GITHUB_ENV"
-          echo "E2E_ALPHA_PROVIDER_PHONE=+1416555$((10#$suffix + 3))" >> "$GITHUB_ENV"
-          echo "E2E_BETA_PROVIDER_PHONE=+1416555$((10#$suffix + 4))" >> "$GITHUB_ENV"
+          {
+            echo "E2E_OWNER_PASSWORD=Aa1!$(openssl rand -hex 24)"
+            echo "E2E_STAFF_PASSWORD=Bb2!$(openssl rand -hex 24)"
+            echo "E2E_BETA_OWNER_PASSWORD=Cc3!$(openssl rand -hex 24)"
+            echo "E2E_ALPHA_URGENT_PHONE=+1416555${suffix}"
+            echo "E2E_ALPHA_BOOKING_PHONE=+1416555$((10#$suffix + 1))"
+            echo "E2E_BETA_LEAD_PHONE=+1416555$((10#$suffix + 2))"
+            echo "E2E_ALPHA_PROVIDER_PHONE=+1416555$((10#$suffix + 3))"
+            echo "E2E_BETA_PROVIDER_PHONE=+1416555$((10#$suffix + 4))"
+          } >> "$GITHUB_ENV"
 
       - name: Apply database migrations
         run: >-
