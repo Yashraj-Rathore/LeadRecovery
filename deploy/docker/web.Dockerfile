@@ -1,4 +1,4 @@
-FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS dependencies
+FROM node:26.5.0-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb AS dependencies
 WORKDIR /workspace
 
 RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
@@ -14,7 +14,7 @@ ENV API_BASE_URL=$API_BASE_URL \
 COPY src/LeadRecovery.Web/ src/LeadRecovery.Web/
 RUN pnpm --filter @leadrecovery/web build
 
-FROM node:24.18.0-alpine3.23@sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436 AS runtime
+FROM node:26.5.0-alpine3.23@sha256:0473b6671ff22c8eeb570c0e1e51408595d3171e73f8002c269b763f0a943149 AS runtime
 ARG VERSION=0.0.0-local
 ARG REVISION=unknown
 ARG CREATED=unknown
