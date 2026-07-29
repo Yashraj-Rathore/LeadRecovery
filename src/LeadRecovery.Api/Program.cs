@@ -8,6 +8,7 @@ using LeadRecovery.Api.Endpoints;
 using LeadRecovery.Api.Identity;
 using LeadRecovery.Api.Integrations.Twilio;
 using LeadRecovery.Api.Middleware;
+using LeadRecovery.Api.Onboarding;
 using LeadRecovery.Api.Tenancy;
 using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Authorization;
@@ -303,6 +304,14 @@ if (args.Contains("--migrate", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (await TenantOnboardingCommand.TryRunAsync(
+        args,
+        app.Services,
+        app.Lifetime.ApplicationStopping))
+{
+    return;
+}
+
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 if (!app.Environment.IsDevelopment())
@@ -328,6 +337,7 @@ app.MapHealthChecks("/health/ready");
 app.MapAuthenticationEndpoints();
 app.MapAutomationEndpoints();
 app.MapLeadEndpoints();
+app.MapReportEndpoints();
 app.MapTwilioWebhookEndpoints();
 
 await app.Services.SeedDemoDataAsync(

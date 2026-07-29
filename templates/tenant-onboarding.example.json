@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "business": { "name": "Northstar Home Services", "slug": "northstar-home-services", "timezoneId": "America/Toronto" },
+  "phone": {
+    "provider": "Twilio",
+    "phoneNumberE164": "+14165550100",
+    "providerNumberSid": "PN_REPLACE_WITH_PROVIDER_ID",
+    "recoverableCallStatuses": ["busy", "failed", "no-answer"],
+    "initialDelaySeconds": 60,
+    "recoveryCooldownSeconds": 3600,
+    "inboundSmsEnabled": true,
+    "missedCallRecoveryEnabled": true
+  },
+  "workflow": {
+    "name": "Default recovery workflow",
+    "bookingUrl": "https://booking.example.test/northstar-home-services",
+    "qualificationQuestions": [
+      { "key": "service", "prompt": "Which service do you need?", "answerKind": "Choice", "allowedValues": ["Plumbing", "HVAC", "Electrical"] },
+      { "key": "problem", "prompt": "Briefly describe the problem.", "answerKind": "RequiredText", "allowedValues": [] }
+    ],
+    "businessHours": [
+      { "day": "Monday", "opensAt": "08:00", "closesAt": "18:00" },
+      { "day": "Tuesday", "opensAt": "08:00", "closesAt": "18:00" },
+      { "day": "Wednesday", "opensAt": "08:00", "closesAt": "18:00" },
+      { "day": "Thursday", "opensAt": "08:00", "closesAt": "18:00" },
+      { "day": "Friday", "opensAt": "08:00", "closesAt": "18:00" }
+    ],
+    "followUps": [
+      { "sequence": 1, "delayMinutes": 60, "templatePurpose": "WorkflowFollowUpOne" },
+      { "sequence": 2, "delayMinutes": 1440, "templatePurpose": "WorkflowFollowUpTwo" }
+    ],
+    "urgentHumanReviewAfterHours": true
+  },
+  "templates": [
+    { "name": "Missed call recovery", "purpose": "InitialMissedCallRecovery", "body": "Sorry we missed your call to {{BusinessName}}. What service can we help with? Reply STOP to opt out." },
+    { "name": "Booking link", "purpose": "BookingLink", "body": "Choose a service time here: {{BookingUrl}}" },
+    { "name": "Follow-up one", "purpose": "WorkflowFollowUpOne", "body": "Are you still looking for help from {{BusinessName}}?" },
+    { "name": "Follow-up two", "purpose": "WorkflowFollowUpTwo", "body": "Reply if you would still like our team to contact you." }
+  ],
+  "users": [
+    { "email": "owner@example.test", "displayName": "Northstar Owner", "role": "Owner", "passwordEnvironmentVariable": "ONBOARD_OWNER_PASSWORD" },
+    { "email": "dispatcher@example.test", "displayName": "Northstar Dispatcher", "role": "Staff", "passwordEnvironmentVariable": "ONBOARD_STAFF_PASSWORD" }
+  ],
+  "enableAutomation": false
+}

@@ -189,6 +189,7 @@ internal sealed class DemoDataSeeder(
                 memberships.First().User.Id,
                 now,
                 cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             foreach ((ApplicationUser user, TenantRole role) in memberships)
             {
@@ -304,6 +305,47 @@ internal sealed class DemoDataSeeder(
                                 result = "RecoveryScheduled",
                                 scheduledActionId = action.Id,
                             })));
+
+                        MessageTemplate recoveryTemplate = await dbContext.MessageTemplates
+                            .SingleAsync(
+                                template => template.Purpose == SmsTemplatePurposes.InitialMissedCallRecovery,
+                                cancellationToken);
+                        Conversation conversation = new(
+                            Guid.CreateVersion7(),
+                            tenant.Id,
+                            lead.Id,
+                            ConversationChannel.Sms,
+                            createdAt.AddMinutes(1));
+                        Message recovery = Message.QueueOutbound(
+                            Guid.CreateVersion7(),
+                            tenant.Id,
+                            lead.Id,
+                            conversation.Id,
+                            MessageKind.Automated,
+                            "Twilio",
+                            $"demo-recovery-message:{lead.Id:N}",
+                            $"Sorry we missed your call to {tenant.Name}. What service can we help with? Reply STOP to opt out.",
+                            createdAt.AddMinutes(2),
+                            templateId: recoveryTemplate.Id);
+                        recovery.MarkSent($"SM{lead.Id:N}", createdAt.AddMinutes(2));
+                        recovery.MarkDelivered(createdAt.AddMinutes(3));
+                        action.Start(createdAt.AddMinutes(2));
+                        action.Complete(createdAt.AddMinutes(3));
+                        Message reply = Message.ReceiveInbound(
+                            Guid.CreateVersion7(),
+                            tenant.Id,
+                            lead.Id,
+                            conversation.Id,
+                            MessageKind.Manual,
+                            "Twilio",
+                            $"SMR{lead.Id:N}",
+                            $"demo-reply:{lead.Id:N}",
+                            "There is an active leak under the kitchen sink. I am in Mississauga and need help today.",
+                            createdAt.AddMinutes(4));
+                        lead.RecordBusinessActivity(createdAt.AddMinutes(2));
+                        lead.RecordCustomerActivity(createdAt.AddMinutes(4));
+                        dbContext.Conversations.Add(conversation);
+                        dbContext.Messages.AddRange(recovery, reply);
                     }
 
                     if (item.Source == LeadSource.InboundSms)
@@ -438,6 +480,14 @@ internal sealed class DemoDataSeeder(
             dbContext.WorkflowDefinitions.Add(workflow);
         }
 
+        await EnsureTemplate(
+            tenant.Id,
+            authorUserId,
+            "Missed call recovery",
+            SmsTemplatePurposes.InitialMissedCallRecovery,
+            "Sorry we missed your call to {{BusinessName}}. What service can we help with? Reply STOP to opt out.",
+            now,
+            cancellationToken);
         await EnsureTemplate(
             tenant.Id,
             authorUserId,

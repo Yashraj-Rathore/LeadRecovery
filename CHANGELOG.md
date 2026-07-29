@@ -6,6 +6,23 @@ All notable repository and product-specification changes are recorded here.
 
 ### Added
 
+- LR-1001 schema-versioned operator onboarding for business, provider phone,
+  hours, workflow, booking URL, approved templates, and initial users, with
+  read-only validation, environment-backed passwords, serializable rollback,
+  Trial-until-complete activation, safe automation defaults, and a complete
+  onboarding/support checklist.
+- LR-1002 expanded fictional Alpha Plumbing demo records, reproducible
+  under-two-minute walkthrough, named duplicate/STOP integration proof script,
+  four UI screenshots, GitHub case-study README, and a measured 57.12-second
+  captioned 1280x720 H.264 product-tour MP4 with isolated regeneration tooling.
+- LR-1003 authenticated tenant-scoped pilot dashboard and matching JSON/CSV
+  export for missed calls, initial recovery, replies, qualification, bookings,
+  manual work, failures, opt-outs, human review, and median first response,
+  plus baseline/success criteria and explicit non-revenue interpretation.
+- ADR-0025 documenting validated onboarding, bounded operational reporting,
+  fictional browser evidence, and the boundary between media and automated
+  duplicate/consent proof.
+
 - Milestone 0 modular-monolith solution with API, worker, layered class
   libraries, and four test projects.
 - Process liveness and readiness endpoints with integration coverage.

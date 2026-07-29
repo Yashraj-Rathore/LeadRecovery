@@ -27,6 +27,7 @@ const betaProviderPhone = required("E2E_BETA_PROVIDER_PHONE");
 
 export default defineConfig({
   testDir: "./tests",
+  testIgnore: "**/demo-video.spec.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,

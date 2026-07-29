@@ -5,19 +5,19 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  36540
+        "bytes":  40355
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  19912
+        "bytes":  21041
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  275678
+        "bytes":  281266
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  5304
+        "bytes":  5594
     },
     {
         "path":  "CODEX_START_HERE.md",
@@ -81,11 +81,11 @@
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  22174
+        "bytes":  23510
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
-        "bytes":  4834
+        "bytes":  5562
     },
     {
         "path":  "docs/14_SAAS_EVOLUTION.md",
@@ -188,12 +188,56 @@
         "bytes":  4712
     },
     {
+        "path":  "docs/decisions/0025-validated-onboarding-demo-and-pilot-reporting.md",
+        "bytes":  1719
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  2979
+        "bytes":  3115
+    },
+    {
+        "path":  "docs/pilot/assets/01-inbox.png",
+        "bytes":  116665
+    },
+    {
+        "path":  "docs/pilot/assets/02-missed-call-thread.png",
+        "bytes":  124614
+    },
+    {
+        "path":  "docs/pilot/assets/03-human-review.png",
+        "bytes":  124614
+    },
+    {
+        "path":  "docs/pilot/assets/04-pilot-report.png",
+        "bytes":  97153
+    },
+    {
+        "path":  "docs/pilot/assets/leadrecovery-demo.mp4",
+        "bytes":  1367243
+    },
+    {
+        "path":  "docs/pilot/assets/README.md",
+        "bytes":  221
+    },
+    {
+        "path":  "docs/pilot/DEMO.md",
+        "bytes":  2552
+    },
+    {
+        "path":  "docs/pilot/MEASUREMENT.md",
+        "bytes":  2802
+    },
+    {
+        "path":  "docs/pilot/ONBOARDING.md",
+        "bytes":  3583
+    },
+    {
+        "path":  "docs/pilot/README.md",
+        "bytes":  2289
     },
     {
         "path":  "README.md",
-        "bytes":  18633
+        "bytes":  19919
     },
     {
         "path":  "templates/.env.example",
@@ -210,5 +254,9 @@
     {
         "path":  "templates/pull-request-template.md",
         "bytes":  809
+    },
+    {
+        "path":  "templates/tenant-onboarding.example.json",
+        "bytes":  2483
     }
 ]

@@ -121,6 +121,25 @@ export type AutomationStatus = {
   cancelledActionCount: number;
 };
 
+export type PilotReport = {
+  fromUtc: string;
+  toUtcExclusive: string;
+  missedCalls: number;
+  recoveryMessagesSent: number;
+  recoveryMessagesDelivered: number;
+  leadsWithInboundReply: number;
+  replyRatePercent: number;
+  qualifiedLeads: number;
+  bookedLeads: number;
+  bookingRatePercent: number;
+  manualMessagesSent: number;
+  failedMessages: number;
+  optOuts: number;
+  needsHumanReview: number;
+  medianFirstResponseMinutes: number | null;
+  methodology: string;
+};
+
 export async function securePost<TSuccess = LeadDetail>(
   path: string,
   body: unknown,

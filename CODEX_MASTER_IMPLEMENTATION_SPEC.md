@@ -23,8 +23,7 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 9 are complete. LR-0101 through LR-0903 are implemented;
-Milestone 10 pilot readiness is the next delivery scope.
+Milestones 0 through 10 are complete. LR-0101 through LR-1003 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -83,6 +82,16 @@ attention-first queue rows, clearer loading/empty/error feedback, consistent
 coverage improve daily use without adding a component-library dependency or
 changing an API/workflow contract.
 
+LR-1001 adds a schema-versioned, validated operator onboarding plan for
+business, phone, hours, deterministic workflow, booking, approved templates,
+and initial users. Passwords stay in environment variables, activation is a
+serializable all-or-nothing transaction, and automation defaults off until the
+post-activation checklist is approved. LR-1002 adds the opt-in fictional Alpha
+Plumbing demo, a real one-minute browser tour, screenshots, case-study README,
+and one-command duplicate/STOP proof. LR-1003 adds a bounded tenant-scoped pilot
+dashboard plus JSON/CSV export with published baselines and explicit
+operational—not revenue or causal—interpretation.
+
 Milestone 7 adds a provider-neutral analysis contract, independent strict
 schema validation, and an optional OpenAI Responses API adapter. Eligible
 inbound replies now create coalesced, durable `AnalyzeLead` work only when AI
@@ -126,6 +135,9 @@ The currently implemented browser and health contract is:
   through PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
+- `GET /api/v1/reports/pilot` and `GET /api/v1/reports/pilot.csv` provide the
+  authenticated tenant member with the same bounded operational pilot fields
+  as JSON or CSV; the Next.js view is `/reports/pilot`.
 
 ## Pinned foundation versions
 
@@ -150,6 +162,7 @@ The currently implemented browser and health contract is:
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
+| FFmpeg | 8.1.2 | Optional local WebM-to-H.264 demo-media conversion and inspection |
 | Redocly CLI | 2.40.0 | OpenAPI pull-request validation |
 | actionlint | 1.7.12 | Checksum-verified workflow syntax validation |
 | Trivy / Trivy Action | 0.70.0 / 0.36.0 | Secret and High/Critical release-image gates |
@@ -202,6 +215,12 @@ pnpm install --frozen-lockfile
 $env:API_BASE_URL = 'http://localhost:8080'
 pnpm frontend:dev
 ```
+
+The complete pilot handoff starts at [`docs/pilot/README.md`](docs/pilot/README.md).
+Use [`docs/pilot/ONBOARDING.md`](docs/pilot/ONBOARDING.md) for no-code tenant
+activation, [`docs/pilot/DEMO.md`](docs/pilot/DEMO.md) for the reproducible
+two-minute flow and paced MP4, and [`docs/pilot/MEASUREMENT.md`](docs/pilot/MEASUREMENT.md)
+for report definitions and success criteria.
 
 The browser uses the Next.js `/api` rewrite so the session and antiforgery
 cookies remain same-origin. Do not expose the API under a separate browser
@@ -5224,6 +5243,15 @@ the restored API and web.
 - validation prevents incomplete activation;
 - onboarding checklist completed.
 
+Implementation status (2026-07-29): complete. A schema-versioned JSON plan
+configures the business, provider phone, business hours, deterministic workflow,
+booking URL, approved templates, and initial users. A read-only validation mode
+returns field errors before secret access. Passwords resolve only from named
+environment variables, activation is serializable and rollback-safe, and the
+Tenant remains Trial until every required record succeeds; automation defaults
+off. The operator checklist and support/disable procedure are in
+`docs/pilot/ONBOARDING.md`.
+
 ### LR-1002 Demo tenant and script
 
 **Acceptance:**
@@ -5232,6 +5260,13 @@ the restored API and web.
 - two-minute missed-call flow reproducible;
 - duplicate and opt-out proof available;
 - screenshots/README prepared.
+
+Implementation status (2026-07-29): complete. The opt-in Alpha Plumbing seed
+contains only fictional identities, numbers, messages, and outcomes, including
+a delivered recovery thread and inbound reply. The GitHub case study, four real
+UI screenshots, measured 57.12-second captioned MP4, under-two-minute live
+script, isolated regeneration procedure, and named duplicate/STOP proof command
+are under `docs/pilot/`.
 
 ### LR-1003 Pilot measurement
 
@@ -5242,11 +5277,29 @@ the restored API and web.
 - success criteria agreed;
 - no unsupported revenue claim.
 
+Implementation status (2026-07-29): complete. Authenticated tenant members can
+choose a bounded UTC date range, inspect the pilot report, and download the same
+fields as CSV. The baseline, formulas, starter success criteria, attribution
+owner, confounder log, and explicit operational-not-revenue limitation are
+documented in `docs/pilot/MEASUREMENT.md`.
+
 ---
 
 <!-- SOURCE: docs/13_PILOT_AND_VALIDATION.md -->
 
 # 13 - Pilot, Demo, and Market Validation Plan
+
+## Implementation status
+
+Milestone 10 is complete as of 2026-07-29. The executable pilot package is:
+
+- [`pilot/ONBOARDING.md`](pilot/ONBOARDING.md) for validated transactional activation and the completed operator checklist;
+- [`pilot/README.md`](pilot/README.md) for the fictional GitHub case study, screenshots, limitations, and product tour;
+- [`pilot/DEMO.md`](pilot/DEMO.md) for the under-two-minute live flow, 57.12-second paced MP4, and duplicate/STOP proof;
+- [`pilot/MEASUREMENT.md`](pilot/MEASUREMENT.md) for baseline fields, report formulas, CSV export, and agreed success criteria.
+
+The application supplies the tenant-scoped report at `/reports/pilot`; none of
+its values are revenue estimates or causal claims.
 
 ## 1. Commercial positioning
 
@@ -5615,6 +5668,7 @@ updated in the same change so they remain aligned.
 | [0022](0022-api-rate-limits-and-security-headers.md) | API rate limits and security headers | Accepted |
 | [0023](0023-production-images-and-kubernetes-rollout.md) | Production images and Kubernetes rollout | Accepted |
 | [0024](0024-immutable-cicd-promotion-and-rollback.md) | Immutable CI/CD promotion and rollback | Accepted |
+| [0025](0025-validated-onboarding-demo-and-pilot-reporting.md) | Validated onboarding, demo evidence, and pilot reporting | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -6999,6 +7053,35 @@ database compatibility has not been confirmed.
 
 ---
 
+<!-- SOURCE: docs/decisions/0025-validated-onboarding-demo-and-pilot-reporting.md -->
+
+# ADR 0025: Validated onboarding, demo evidence, and pilot reporting
+
+- Status: Accepted
+- Date: 2026-07-29
+
+## Context
+
+Milestone 10 requires repeatable tenant configuration, a truthful fictional demonstration, and useful pilot evidence without adding a platform-admin browser role or implying revenue attribution.
+
+## Decision
+
+A trusted operator provisions schema-versioned JSON through the API executable. Passwords are referenced by environment-variable name, validation is available without writes, and activation is one serializable transaction: Tenant status changes from Trial to Active only after users, memberships, phone, active workflow, and approved active templates persist. Automation defaults off.
+
+Tenant members receive a read-only pilot report and CSV built from existing tenant-filtered Leads, Messages, Templates, and AuditEvents. Its missed-call denominator, date boundary, and field definitions are published. Booking requires staff confirmation, and every representation disclaims revenue and causal inference.
+
+Demo media is generated from the opt-in fictional seed and real browser UI. The deliberately paced capture is separate from normal E2E tests. Duplicate and STOP captions link to named integration tests; media alone is not proof.
+
+## Consequences
+
+- New tenants can be configured without a deployment or code edit.
+- A partial plan or Identity failure cannot leave an active tenant.
+- Operator access to database configuration remains privileged and outside the customer UI.
+- Reporting reads bounded operational records and is not analytics infrastructure.
+- Seeded records and the fake SMS adapter demonstrate product behavior but do not validate a live carrier or market outcome.
+
+---
+
 <!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
 
 # Codex Prompt Sequence
@@ -7081,6 +7164,11 @@ and compatibility-confirmed non-migrating rollback.
 ## Prompt 12 - Pilot readiness
 
 Implement LR-1001 through LR-1003. Create fictional demo seed data, onboarding checklist, demo instructions, operational metrics, case-study README, and a two-minute demo flow.
+
+Implementation status (2026-07-29): complete. Milestone 10 adds transactional
+validated operator onboarding, a fictional and reproducible demo package with
+real UI media and duplicate/STOP proof, and tenant-scoped pilot reporting with
+CSV export and documented non-revenue interpretation.
 
 ## Prompt format for defect fixes
 

@@ -435,6 +435,7 @@ autom4te.cache/
 tarballs/
 test-results/
 playwright-report/
+demo-results/
 *.tsbuildinfo
 
 # content below from: https://github.com/github/gitignore/blob/main/Global/macOS.gitignore
@@ -493,3 +494,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Local tenant onboarding plans may contain business configuration.
+tenant-onboarding.local.json

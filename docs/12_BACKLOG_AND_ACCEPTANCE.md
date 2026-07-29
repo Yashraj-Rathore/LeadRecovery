@@ -586,6 +586,15 @@ the restored API and web.
 - validation prevents incomplete activation;
 - onboarding checklist completed.
 
+Implementation status (2026-07-29): complete. A schema-versioned JSON plan
+configures the business, provider phone, business hours, deterministic workflow,
+booking URL, approved templates, and initial users. A read-only validation mode
+returns field errors before secret access. Passwords resolve only from named
+environment variables, activation is serializable and rollback-safe, and the
+Tenant remains Trial until every required record succeeds; automation defaults
+off. The operator checklist and support/disable procedure are in
+`docs/pilot/ONBOARDING.md`.
+
 ### LR-1002 Demo tenant and script
 
 **Acceptance:**
@@ -595,6 +604,13 @@ the restored API and web.
 - duplicate and opt-out proof available;
 - screenshots/README prepared.
 
+Implementation status (2026-07-29): complete. The opt-in Alpha Plumbing seed
+contains only fictional identities, numbers, messages, and outcomes, including
+a delivered recovery thread and inbound reply. The GitHub case study, four real
+UI screenshots, measured 57.12-second captioned MP4, under-two-minute live
+script, isolated regeneration procedure, and named duplicate/STOP proof command
+are under `docs/pilot/`.
+
 ### LR-1003 Pilot measurement
 
 **Acceptance:**
@@ -603,3 +619,9 @@ the restored API and web.
 - dashboard/report export available;
 - success criteria agreed;
 - no unsupported revenue claim.
+
+Implementation status (2026-07-29): complete. Authenticated tenant members can
+choose a bounded UTC date range, inspect the pilot report, and download the same
+fields as CSV. The baseline, formulas, starter success criteria, attribution
+owner, confounder log, and explicit operational-not-revenue limitation are
+documented in `docs/pilot/MEASUREMENT.md`.

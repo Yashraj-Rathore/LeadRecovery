@@ -1,5 +1,17 @@
 # 13 - Pilot, Demo, and Market Validation Plan
 
+## Implementation status
+
+Milestone 10 is complete as of 2026-07-29. The executable pilot package is:
+
+- [`pilot/ONBOARDING.md`](pilot/ONBOARDING.md) for validated transactional activation and the completed operator checklist;
+- [`pilot/README.md`](pilot/README.md) for the fictional GitHub case study, screenshots, limitations, and product tour;
+- [`pilot/DEMO.md`](pilot/DEMO.md) for the under-two-minute live flow, 57.12-second paced MP4, and duplicate/STOP proof;
+- [`pilot/MEASUREMENT.md`](pilot/MEASUREMENT.md) for baseline fields, report formulas, CSV export, and agreed success criteria.
+
+The application supplies the tenant-scoped report at `/reports/pilot`; none of
+its values are revenue estimates or causal claims.
+
 ## 1. Commercial positioning
 
 Do not sell “AI software.” Sell a concrete operational result:

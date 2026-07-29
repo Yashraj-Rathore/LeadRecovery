@@ -5,7 +5,13 @@ import { getInitials } from "../../lib/presentation";
 import { AutomationControl } from "./automation-control";
 import { LogoutButton } from "./logout-button";
 
-export function WorkspaceHeader({ session }: { session: AuthSession }) {
+export function WorkspaceHeader({
+  session,
+  current = "inbox",
+}: {
+  session: AuthSession;
+  current?: "inbox" | "pilot";
+}) {
   return (
     <header className="workspace-header">
       <div className="workspace-header-inner">
@@ -20,8 +26,11 @@ export function WorkspaceHeader({ session }: { session: AuthSession }) {
         </Link>
 
         <nav className="primary-nav" aria-label="Primary navigation">
-          <Link href="/leads" aria-current="page">
+          <Link href="/leads" aria-current={current === "inbox" ? "page" : undefined}>
             Inbox
+          </Link>
+          <Link href="/reports/pilot" aria-current={current === "pilot" ? "page" : undefined}>
+            Pilot report
           </Link>
         </nav>
 

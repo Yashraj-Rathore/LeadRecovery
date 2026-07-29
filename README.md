@@ -16,8 +16,7 @@ The system intentionally uses **C# as the production backend** and includes **Do
 
 ## Current implementation status
 
-Milestones 0 through 9 are complete. LR-0101 through LR-0903 are implemented;
-Milestone 10 pilot readiness is the next delivery scope.
+Milestones 0 through 10 are complete. LR-0101 through LR-1003 are implemented.
 The modular monolith now includes the PostgreSQL domain and tenant foundation,
 secure Identity cookie sessions, signed Twilio call/SMS ingestion,
 PostgreSQL-backed Hangfire recovery and manual-message execution, immediate
@@ -76,6 +75,16 @@ attention-first queue rows, clearer loading/empty/error feedback, consistent
 coverage improve daily use without adding a component-library dependency or
 changing an API/workflow contract.
 
+LR-1001 adds a schema-versioned, validated operator onboarding plan for
+business, phone, hours, deterministic workflow, booking, approved templates,
+and initial users. Passwords stay in environment variables, activation is a
+serializable all-or-nothing transaction, and automation defaults off until the
+post-activation checklist is approved. LR-1002 adds the opt-in fictional Alpha
+Plumbing demo, a real one-minute browser tour, screenshots, case-study README,
+and one-command duplicate/STOP proof. LR-1003 adds a bounded tenant-scoped pilot
+dashboard plus JSON/CSV export with published baselines and explicit
+operational—not revenue or causal—interpretation.
+
 Milestone 7 adds a provider-neutral analysis contract, independent strict
 schema validation, and an optional OpenAI Responses API adapter. Eligible
 inbound replies now create coalesced, durable `AnalyzeLead` work only when AI
@@ -119,6 +128,9 @@ The currently implemented browser and health contract is:
   through PostgreSQL-backed Hangfire,
   using the deterministic fake SMS provider unless real delivery is explicitly
   enabled.
+- `GET /api/v1/reports/pilot` and `GET /api/v1/reports/pilot.csv` provide the
+  authenticated tenant member with the same bounded operational pilot fields
+  as JSON or CSV; the Next.js view is `/reports/pilot`.
 
 ## Pinned foundation versions
 
@@ -143,6 +155,7 @@ The currently implemented browser and health contract is:
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
+| FFmpeg | 8.1.2 | Optional local WebM-to-H.264 demo-media conversion and inspection |
 | Redocly CLI | 2.40.0 | OpenAPI pull-request validation |
 | actionlint | 1.7.12 | Checksum-verified workflow syntax validation |
 | Trivy / Trivy Action | 0.70.0 / 0.36.0 | Secret and High/Critical release-image gates |
@@ -195,6 +208,12 @@ pnpm install --frozen-lockfile
 $env:API_BASE_URL = 'http://localhost:8080'
 pnpm frontend:dev
 ```
+
+The complete pilot handoff starts at [`docs/pilot/README.md`](docs/pilot/README.md).
+Use [`docs/pilot/ONBOARDING.md`](docs/pilot/ONBOARDING.md) for no-code tenant
+activation, [`docs/pilot/DEMO.md`](docs/pilot/DEMO.md) for the reproducible
+two-minute flow and paced MP4, and [`docs/pilot/MEASUREMENT.md`](docs/pilot/MEASUREMENT.md)
+for report definitions and success criteria.
 
 The browser uses the Next.js `/api` rewrite so the session and antiforgery
 cookies remain same-origin. Do not expose the API under a separate browser

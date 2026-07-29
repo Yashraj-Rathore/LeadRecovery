@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: LeadRecovery API
-  version: 1.0.0-milestone.8
-  description: Implemented browser, automation control, deterministic workflow, AI review, Twilio webhook, SMS, and HTTP-hardening contract through LR-0804.
+  version: 1.0.0-milestone.10
+  description: Implemented browser, automation, deterministic workflow, AI review, Twilio/SMS, hardening, and tenant pilot-reporting contract through LR-1003.
 servers:
   - url: https://app.example.com/api/v1
 paths:
@@ -268,6 +268,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AutomationStatus'
+  /reports/pilot:
+    get:
+      operationId: getPilotReport
+      tags: [Reports]
+      summary: Get tenant-scoped operational pilot metrics
+      description: Bookings require staff confirmation. Values are operational indicators, not revenue estimates or causal attribution.
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+          description: Inclusive UTC start date; defaults to 29 days before `to`.
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+          description: Inclusive UTC end date; defaults to the current UTC date. Maximum range is 366 days.
+      responses:
+        '200':
+          description: Operational metrics derived only from records visible to the authenticated tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotReport'
+        '400':
+          description: Date format, ordering, or maximum range is invalid.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: Authenticated session lacks a tenant member role.
+  /reports/pilot.csv:
+    get:
+      operationId: exportPilotReportCsv
+      tags: [Reports]
+      summary: Export the tenant-scoped pilot report as CSV
+      description: Uses the same range, metrics, tenant filters, and interpretation as the JSON report.
+      security:
+        - cookieSession: []
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: UTF-8 two-column metric/value CSV download.
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          description: Date format, ordering, or maximum range is invalid.
+        '401':
+          description: Not authenticated.
+        '403':
+          description: Authenticated session lacks a tenant member role.
   /leads:
     get:
       tags: [Leads]
@@ -772,6 +838,60 @@ components:
         role:
           type: string
           enum: [Owner, Manager, Staff, ReadOnly]
+    PilotReport:
+      type: object
+      required: [fromUtc, toUtcExclusive, missedCalls, recoveryMessagesSent, recoveryMessagesDelivered, leadsWithInboundReply, replyRatePercent, qualifiedLeads, bookedLeads, bookingRatePercent, manualMessagesSent, failedMessages, optOuts, needsHumanReview, medianFirstResponseMinutes, methodology]
+      properties:
+        fromUtc:
+          type: string
+          format: date-time
+        toUtcExclusive:
+          type: string
+          format: date-time
+        missedCalls:
+          type: integer
+          minimum: 0
+        recoveryMessagesSent:
+          type: integer
+          minimum: 0
+        recoveryMessagesDelivered:
+          type: integer
+          minimum: 0
+        leadsWithInboundReply:
+          type: integer
+          minimum: 0
+        replyRatePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        qualifiedLeads:
+          type: integer
+          minimum: 0
+        bookedLeads:
+          type: integer
+          minimum: 0
+        bookingRatePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        manualMessagesSent:
+          type: integer
+          minimum: 0
+        failedMessages:
+          type: integer
+          minimum: 0
+        optOuts:
+          type: integer
+          minimum: 0
+        needsHumanReview:
+          type: integer
+          minimum: 0
+        medianFirstResponseMinutes:
+          type: [number, 'null']
+          minimum: 0
+        methodology:
+          type: string
+          description: Required operational-only and non-causal interpretation.
     AutomationStatus:
       type: object
       required: [globalEnabled, tenantEnabled, effectiveEnabled, tenantRowVersion, cancelledActionCount]

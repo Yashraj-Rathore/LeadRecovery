@@ -31,6 +31,7 @@ updated in the same change so they remain aligned.
 | [0022](0022-api-rate-limits-and-security-headers.md) | API rate limits and security headers | Accepted |
 | [0023](0023-production-images-and-kubernetes-rollout.md) | Production images and Kubernetes rollout | Accepted |
 | [0024](0024-immutable-cicd-promotion-and-rollback.md) | Immutable CI/CD promotion and rollback | Accepted |
+| [0025](0025-validated-onboarding-demo-and-pilot-reporting.md) | Validated onboarding, demo evidence, and pilot reporting | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.

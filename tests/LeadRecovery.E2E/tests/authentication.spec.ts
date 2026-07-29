@@ -57,6 +57,24 @@ test("login renders only the active tenant and cross-tenant detail stays hidden"
   await expect(page.getByRole("heading", { name: "Booking request" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Beta tenant lead" })).toHaveCount(0);
 
+  const reportResponse = await page.request.get("/api/v1/reports/pilot");
+  expect(reportResponse.ok()).toBeTruthy();
+  const report = (await reportResponse.json()) as {
+    missedCalls: number;
+    recoveryMessagesSent: number;
+    leadsWithInboundReply: number;
+    methodology: string;
+  };
+  expect(report.missedCalls).toBe(1);
+  expect(report.recoveryMessagesSent).toBe(1);
+  expect(report.leadsWithInboundReply).toBe(1);
+  expect(report.methodology).toContain("do not estimate revenue");
+  const csvResponse = await page.request.get("/api/v1/reports/pilot.csv");
+  expect(csvResponse.ok()).toBeTruthy();
+  expect(await csvResponse.text()).toContain("missed_calls");
+  await page.getByRole("link", { name: "Pilot report" }).click();
+  await expect(page.getByRole("heading", { name: "Recovery report" })).toBeVisible();
+
   const crossTenantResponse = await page.request.get(`/api/v1/leads/${betaLeadId}`);
   expect(crossTenantResponse.status()).toBe(404);
 });
@@ -77,7 +95,9 @@ test("staff operates a lead with accessible filters, conflict recovery, and safe
   await page.getByRole("link", { name: /Open lead for Urgent plumbing caller/ }).click();
   await expect(page.getByRole("heading", { name: "Urgent plumbing caller" })).toBeVisible();
   await expect(page.getByText("Missed call captured")).toBeVisible();
-  await expect(page.getByText("Send initial recovery SMS")).toBeVisible();
+  await expect(page.getByText(/Sorry we missed your call to Alpha Plumbing/)).toBeVisible();
+  await expect(page.getByText("Delivered", { exact: true })).toBeVisible();
+  await expect(page.getByText("Send initial recovery SMS")).toHaveCount(0);
   await expect(page.getByText("Automation: Active")).toBeVisible();
   await expect(page.getByText("AI-generated suggestion")).toBeVisible();
   await expect(page.getByText("Low confidence")).toBeVisible();
@@ -127,7 +147,7 @@ test("staff operates a lead with accessible filters, conflict recovery, and safe
 
   await page.getByRole("button", { name: "Resume automation" }).click();
   await expect(page.getByText("Automation: Active")).toBeVisible();
-  await expect(page.getByText("Send initial recovery SMS")).toBeVisible();
+  await expect(page.getByText("Send initial recovery SMS")).toHaveCount(0);
   await page.getByRole("button", { name: "Pause automation" }).click();
   await expect(page.getByText("Automation: Paused by staff")).toBeVisible();
   await expect(page.getByText("Send initial recovery SMS")).toHaveCount(0);

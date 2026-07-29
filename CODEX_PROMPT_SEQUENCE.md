@@ -79,6 +79,11 @@ and compatibility-confirmed non-migrating rollback.
 
 Implement LR-1001 through LR-1003. Create fictional demo seed data, onboarding checklist, demo instructions, operational metrics, case-study README, and a two-minute demo flow.
 
+Implementation status (2026-07-29): complete. Milestone 10 adds transactional
+validated operator onboarding, a fictional and reproducible demo package with
+real UI media and duplicate/STOP proof, and tenant-scoped pilot reporting with
+CSV export and documented non-revenue interpretation.
+
 ## Prompt format for defect fixes
 
 Investigate defect `[description]`. Reproduce it with an automated failing test before fixing it. Identify root cause, make the smallest safe correction, run relevant and full regression tests, update documentation if behavior changes, and report any remaining risk.
