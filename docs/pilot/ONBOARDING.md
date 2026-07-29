@@ -1,17 +1,18 @@
 # Tenant onboarding runbook
 
-LR-1001 uses a versioned JSON plan plus password environment variables. A trusted platform operator can configure the business, phone, hours, qualification, follow-ups, booking link, approved templates, and initial users without changing code. No password is stored in the plan.
+LR-1001 uses a versioned JSON plan plus password environment variables. A trusted platform operator can configure the business, phone, hours, qualification, follow-ups, booking link, approved templates, initial users, and opt-in retention policy without changing code. No password is stored in the plan.
 
 ## Before activation
 
 - [ ] Signed scope, responsibilities, support contacts, launch date, and rollback owner recorded.
-- [ ] Business name, unique slug, installed IANA timezone, service area, and business hours confirmed.
+- [ ] Business name, unique slug, installed IANA timezone, and business hours confirmed; any pilot service-area rule is documented in the qualification/staff process because it is not a stored tenant setting yet.
 - [ ] Test or production provider number, provider number ID, missed-call statuses, delay, and cooldown confirmed.
 - [ ] Customer consent and STOP wording approved by the business.
 - [ ] Qualification questions, follow-up timing, and booking/callback route approved.
 - [ ] Every required SMS purpose has one reviewed template.
 - [ ] Initial users and least-privilege roles approved; exactly one initial Owner identified.
 - [ ] Password secrets supplied through operator environment variables.
+- [ ] Retention remains disabled or its 30-3,650 day policy and backup/restore owner are approved.
 - [ ] Database migration, backup/recovery point, fake-provider test, and disable procedure confirmed.
 - [ ] Pilot baseline and success criteria from [MEASUREMENT.md](MEASUREMENT.md) agreed.
 

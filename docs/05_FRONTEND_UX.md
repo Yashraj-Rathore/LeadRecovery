@@ -21,6 +21,13 @@ Primary navigation:
 - Users
 - System Status (Owner/Manager)
 
+For the current pilot, Inbox and All Leads are one filterable `/leads`
+workspace, Reports is `/reports/pilot`, and tenant automation control is in the
+shared workspace header. Settings, user administration, password recovery, and
+a separate System Status screen are later productized-service surfaces; their
+absence is intentional and no dead navigation is shown. A trusted operator
+uses the validated onboarding command for initial configuration and users.
+
 ## 3. Core screens
 
 ### 3.1 Login
@@ -142,6 +149,8 @@ that no review action sends or schedules customer communication.
 
 ### 3.4 Settings - Business
 
+Planned self-service screen; operator-managed during the current pilot.
+
 - business name;
 - timezone;
 - business hours;
@@ -150,6 +159,9 @@ that no review action sends or schedules customer communication.
 - notification recipients.
 
 ### 3.5 Settings - Message templates
+
+Planned self-service screen; templates are versioned, approved, and activated
+transactionally by the current onboarding command.
 
 - list versions;
 - preview substitutions;
@@ -161,6 +173,9 @@ that no review action sends or schedules customer communication.
 
 ### 3.6 Settings - Automation
 
+Planned full settings screen. The current workspace header exposes the safe
+tenant pause/resume subset to Owner and Manager users.
+
 - global enable/disable;
 - recoverable call statuses;
 - cooldown period;
@@ -171,6 +186,10 @@ that no review action sends or schedules customer communication.
 - AI feature toggles.
 
 ### 3.7 Reports
+
+The current `/reports/pilot` screen implements the bounded operational metrics
+defined in `docs/pilot/MEASUREMENT.md` and matching JSON/CSV exports. The
+broader dashboard card set below remains a future analytics surface.
 
 MVP cards:
 

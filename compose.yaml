@@ -57,10 +57,32 @@ services:
     tmpfs:
       - /tmp
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      AI_CATEGORY_QUESTION_KEY: ${AI_CATEGORY_QUESTION_KEY:-service}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_HTTP_PORTS: 8080
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-leadrecovery.session}
+      AUTOMATION_GLOBAL_ENABLED: ${AUTOMATION_GLOBAL_ENABLED:-false}
       ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB:-leadrecovery};Username=${POSTGRES_USER:-leadrecovery};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
       DATA_PROTECTION_KEY_PATH: /keys
+      DemoSeed__Enabled: ${DEMOSEED__ENABLED:-false}
+      DemoSeed__OwnerEmail: ${DEMOSEED__OWNEREMAIL:-}
+      DemoSeed__OwnerPassword: ${DEMOSEED__OWNERPASSWORD:-}
+      DemoSeed__StaffEmail: ${DEMOSEED__STAFFEMAIL:-}
+      DemoSeed__StaffPassword: ${DEMOSEED__STAFFPASSWORD:-}
+      DemoSeed__BetaOwnerEmail: ${DEMOSEED__BETAOWNEREMAIL:-}
+      DemoSeed__BetaOwnerPassword: ${DEMOSEED__BETAOWNERPASSWORD:-}
+      DemoSeed__AlphaUrgentPhone: ${DEMOSEED__ALPHAURGENTPHONE:-}
+      DemoSeed__AlphaBookingPhone: ${DEMOSEED__ALPHABOOKINGPHONE:-}
+      DemoSeed__BetaLeadPhone: ${DEMOSEED__BETALEADPHONE:-}
+      DemoSeed__AlphaProviderPhone: ${DEMOSEED__ALPHAPROVIDERPHONE:-}
+      DemoSeed__BetaProviderPhone: ${DEMOSEED__BETAPROVIDERPHONE:-}
+      LOG_LEVEL: ${LOG_LEVEL:-Information}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      RateLimiting__LoginPermitLimit: ${RATELIMITING__LOGINPERMITLIMIT:-5}
+      RateLimiting__ManualMessagePermitLimit: ${RATELIMITING__MANUALMESSAGEPERMITLIMIT:-10}
+      RateLimiting__WebhookTokenLimit: ${RATELIMITING__WEBHOOKTOKENLIMIT:-200}
+      RateLimiting__WebhookTokensPerSecond: ${RATELIMITING__WEBHOOKTOKENSPERSECOND:-40}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_WEBHOOK_BASE_URL: ${TWILIO_WEBHOOK_BASE_URL:-http://localhost:8080}
     ports:
@@ -86,15 +108,29 @@ services:
       - /tmp
     environment:
       ALLOW_REAL_SMS: ${ALLOW_REAL_SMS:-false}
+      AI_CATEGORY_QUESTION_KEY: ${AI_CATEGORY_QUESTION_KEY:-service}
       AI_ENABLED: ${AI_ENABLED:-false}
-      ASPNETCORE_ENVIRONMENT: Development
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-1000}
+      AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
+      AI_MODEL: ${AI_MODEL:-gpt-5.6-sol}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      AI_RETRY_BASE_DELAY_MILLISECONDS: ${AI_RETRY_BASE_DELAY_MILLISECONDS:-250}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-15}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_HTTP_PORTS: 8080
       AUTOMATION_GLOBAL_ENABLED: ${AUTOMATION_GLOBAL_ENABLED:-false}
       ConnectionStrings__Database: Host=postgres;Port=5432;Database=${POSTGRES_DB:-leadrecovery};Username=${POSTGRES_USER:-leadrecovery};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the local .env file}
+      JOBS_WORKER_COUNT: ${JOBS_WORKER_COUNT:-4}
+      LOG_LEVEL: ${LOG_LEVEL:-Information}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      RETENTION_BACKUP_CONFIRMED: ${RETENTION_BACKUP_CONFIRMED:-false}
+      RETENTION_BATCH_SIZE: ${RETENTION_BATCH_SIZE:-100}
+      RETENTION_CRON: ${RETENTION_CRON:-0 2 * * *}
       RETENTION_ENABLED: ${RETENTION_ENABLED:-false}
       RETENTION_MODE: ${RETENTION_MODE:-dry-run}
       SMS_PROVIDER: ${SMS_PROVIDER:-fake}
+      SMS_WORKER_COUNT: ${SMS_WORKER_COUNT:-2}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_WEBHOOK_BASE_URL: ${TWILIO_WEBHOOK_BASE_URL:-http://localhost:8080}

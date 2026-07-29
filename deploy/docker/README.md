@@ -38,6 +38,9 @@ Compose waits for PostgreSQL, runs the migration container to completion, then
 starts the API and worker. The web container starts only after the API is
 healthy. Defaults expose web on `3000`, API on `8080`, and worker health on
 `8081`; the `.env` values can override those host ports.
+The same file configures API and Worker automation/AI switches consistently,
+all bounded Worker AI and retention options, API rate limits, telemetry, and
+the opt-in API demo seed. Defaults remain fail closed.
 
 Verify the stack:
 

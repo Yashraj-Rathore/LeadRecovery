@@ -33,7 +33,6 @@ RUN rm -rf /opt/yarn-v* /usr/local/lib/node_modules/corepack /usr/local/lib/node
 
 WORKDIR /app
 COPY --from=build --chown=node:node /workspace/src/LeadRecovery.Web/.next/standalone ./
-COPY --from=build --chown=node:node /workspace/src/LeadRecovery.Web/.next/static ./src/LeadRecovery.Web/.next/static
 
 ENV API_BASE_URL=http://leadrecovery-api:8080 \
     HOSTNAME=0.0.0.0 \

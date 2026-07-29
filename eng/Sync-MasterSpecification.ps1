@@ -22,6 +22,7 @@ $sourcePaths = @(
     'docs/12_BACKLOG_AND_ACCEPTANCE.md'
     'docs/13_PILOT_AND_VALIDATION.md'
     'docs/14_SAAS_EVOLUTION.md'
+    'docs/15_IMPLEMENTATION_CONFORMANCE.md'
     'docs/decisions/README.md'
     'docs/decisions/0001-modular-monolith-and-project-boundaries.md'
     'docs/decisions/0002-pinned-technology-baseline.md'
@@ -48,6 +49,7 @@ $sourcePaths = @(
     'docs/decisions/0023-production-images-and-kubernetes-rollout.md'
     'docs/decisions/0024-immutable-cicd-promotion-and-rollback.md'
     'docs/decisions/0025-validated-onboarding-demo-and-pilot-reporting.md'
+    'docs/decisions/0026-openapi-contract-conformance.md'
     'CODEX_PROMPT_SEQUENCE.md'
     'templates/definition-of-done.md'
 )

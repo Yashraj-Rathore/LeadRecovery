@@ -5,15 +5,15 @@
     },
     {
         "path":  "api/openapi.yaml",
-        "bytes":  40355
+        "bytes":  41180
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  21041
+        "bytes":  22917
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  281266
+        "bytes":  297985
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
@@ -37,27 +37,27 @@
     },
     {
         "path":  "docs/01_PRODUCT_REQUIREMENTS.md",
-        "bytes":  12203
+        "bytes":  13047
     },
     {
         "path":  "docs/02_SYSTEM_ARCHITECTURE.md",
-        "bytes":  17820
+        "bytes":  17996
     },
     {
         "path":  "docs/03_DOMAIN_AND_DATABASE.md",
-        "bytes":  19742
+        "bytes":  20415
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  16021
+        "bytes":  16760
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
-        "bytes":  8598
+        "bytes":  9615
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
-        "bytes":  6767
+        "bytes":  7156
     },
     {
         "path":  "docs/07_SECURITY_PRIVACY.md",
@@ -65,11 +65,11 @@
     },
     {
         "path":  "docs/08_TESTING_QUALITY.md",
-        "bytes":  12462
+        "bytes":  12881
     },
     {
         "path":  "docs/09_DEVOPS_KUBERNETES.md",
-        "bytes":  9947
+        "bytes":  10341
     },
     {
         "path":  "docs/10_OBSERVABILITY_OPERATIONS.md",
@@ -77,11 +77,11 @@
     },
     {
         "path":  "docs/11_TIMELINE_AND_MILESTONES.md",
-        "bytes":  12459
+        "bytes":  13669
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  23510
+        "bytes":  23634
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -90,6 +90,10 @@
     {
         "path":  "docs/14_SAAS_EVOLUTION.md",
         "bytes":  3825
+    },
+    {
+        "path":  "docs/15_IMPLEMENTATION_CONFORMANCE.md",
+        "bytes":  7872
     },
     {
         "path":  "docs/decisions/0001-modular-monolith-and-project-boundaries.md",
@@ -109,7 +113,7 @@
     },
     {
         "path":  "docs/decisions/0005-api-contract-and-concurrency.md",
-        "bytes":  1452
+        "bytes":  1753
     },
     {
         "path":  "docs/decisions/0006-lead-lifecycle-and-webhook-identity.md",
@@ -121,7 +125,7 @@
     },
     {
         "path":  "docs/decisions/0008-customer-phone-normalization.md",
-        "bytes":  1946
+        "bytes":  2170
     },
     {
         "path":  "docs/decisions/0009-conversation-and-message-lifecycle.md",
@@ -192,8 +196,12 @@
         "bytes":  1719
     },
     {
+        "path":  "docs/decisions/0026-openapi-contract-conformance.md",
+        "bytes":  1951
+    },
+    {
         "path":  "docs/decisions/README.md",
-        "bytes":  3115
+        "bytes":  3237
     },
     {
         "path":  "docs/pilot/assets/01-inbox.png",
@@ -221,7 +229,7 @@
     },
     {
         "path":  "docs/pilot/DEMO.md",
-        "bytes":  2552
+        "bytes":  2596
     },
     {
         "path":  "docs/pilot/MEASUREMENT.md",
@@ -229,7 +237,7 @@
     },
     {
         "path":  "docs/pilot/ONBOARDING.md",
-        "bytes":  3583
+        "bytes":  3817
     },
     {
         "path":  "docs/pilot/README.md",
@@ -237,7 +245,7 @@
     },
     {
         "path":  "README.md",
-        "bytes":  19919
+        "bytes":  20045
     },
     {
         "path":  "templates/.env.example",
@@ -257,6 +265,6 @@
     },
     {
         "path":  "templates/tenant-onboarding.example.json",
-        "bytes":  2483
+        "bytes":  2533
     }
 ]

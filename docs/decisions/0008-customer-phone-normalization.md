@@ -39,3 +39,7 @@ national-format input. Numbering-plan behavior follows the pinned metadata and
 requires normal dependency updates over time. LR-0102 remains open to extend
 the same tenant query/write protections to the other tenant-owned entities as
 their persistence is implemented.
+
+Implementation follow-up (2026-07-29): the final sentence records the state at
+ADR acceptance. LR-0203, LR-0204, LR-0103, and later authenticated feature
+endpoints subsequently completed the equivalent LR-0102 protections.

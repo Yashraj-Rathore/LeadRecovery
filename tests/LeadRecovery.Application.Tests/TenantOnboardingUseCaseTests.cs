@@ -59,6 +59,51 @@ public sealed class TenantOnboardingUseCaseTests
     }
 
     [Fact]
+    public void UnsafeRenderedTemplatesCannotBeActivated()
+    {
+        TenantOnboardingPlan plan = CreatePlan() with
+        {
+            Templates =
+            [
+                new(
+                    "Recovery",
+                    "InitialMissedCallRecovery",
+                    new string('a', 1_599) + "{{BusinessName}}"),
+                new("Booking", "BookingLink", "Book here: {{UnknownUrl}}"),
+                new("Follow-up", "WorkflowFollowUpOne", "Are you still looking for help?"),
+            ],
+        };
+
+        TenantOnboardingValidationResult result = TenantOnboardingUseCase.Validate(plan);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(
+            result.Errors,
+            error => error.Field == "templates[0].body" &&
+                error.Message.Contains("1600", StringComparison.Ordinal));
+        Assert.Contains(
+            result.Errors,
+            error => error.Field == "templates[1].body" &&
+                error.Message.Contains("unsupported", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData(29)]
+    [InlineData(3651)]
+    public void RetentionOutsideSupportedRangeCannotBeActivated(int days)
+    {
+        TenantOnboardingPlan plan = CreatePlan() with
+        {
+            Retention = new(true, days),
+        };
+
+        TenantOnboardingValidationResult result = TenantOnboardingUseCase.Validate(plan);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Field == "retention.days");
+    }
+
+    [Fact]
     public async Task ExecuteResolvesPasswordsFromEnvironmentAbstractionAndDelegatesAtomically()
     {
         RecordingStore store = new();

@@ -14,7 +14,7 @@ export function AutomationControl({ role }: { role: string }) {
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch("/api/v1/automation/", {
+      const response = await fetch("/api/v1/automation", {
         cache: "no-store",
         credentials: "same-origin",
         signal,

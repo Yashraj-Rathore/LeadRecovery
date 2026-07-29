@@ -4,6 +4,7 @@ using Hangfire;
 
 using LeadRecovery.Application.Analysis;
 using LeadRecovery.Application.Automations;
+using LeadRecovery.Application.Messaging;
 using LeadRecovery.Application.Retention;
 using LeadRecovery.Application.Tenancy;
 using LeadRecovery.Infrastructure;
@@ -48,11 +49,6 @@ string databaseConnectionString = builder.Configuration.GetConnectionString("Dat
 string webhookBaseUrl = builder.Configuration["TWILIO_WEBHOOK_BASE_URL"]
     ?? throw new InvalidOperationException(
         "TWILIO_WEBHOOK_BASE_URL is required for delivery callbacks.");
-if (!Uri.TryCreate(webhookBaseUrl.TrimEnd('/'), UriKind.Absolute, out Uri? baseUri))
-{
-    throw new InvalidOperationException("TWILIO_WEBHOOK_BASE_URL must be an absolute URL.");
-}
-
 bool aiEnabled = builder.Configuration.GetValue<bool?>("AI_ENABLED") ??
     builder.Configuration.GetValue("Ai:Enabled", false);
 bool globalAutomationEnabled =
@@ -129,7 +125,9 @@ if (aiEnabled)
             builder.Configuration.GetValue("Ai:MaximumOutputTokens", 1_000)));
 }
 builder.Services.AddSingleton(new SmsWorkerOptions(
-    new Uri(baseUri, "/api/v1/webhooks/twilio/sms/status"),
+    SmsStatusCallbackUriBuilder.Build(
+        webhookBaseUrl,
+        builder.Environment.IsDevelopment()),
     TimeSpan.FromSeconds(1),
     TimeSpan.FromMinutes(5)));
 builder.Services.AddHangfireServer(options =>

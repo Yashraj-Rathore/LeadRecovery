@@ -41,8 +41,14 @@ public sealed class TenantOnboardingUseCase(
             ValidateFollowUps(plan.Workflow?.FollowUps, errors);
         ValidateWorkflow(plan.Workflow, questions, businessHours, followUps, errors);
         TenantOnboardingTemplate[] templates =
-            ValidateTemplates(plan.Templates, followUps, errors);
+            ValidateTemplates(
+                plan.Templates,
+                followUps,
+                plan.Business?.Name,
+                plan.Workflow?.BookingUrl,
+                errors);
         ValidatedTenantOnboardingUser[] users = ValidateUsers(plan.Users, errors);
+        TenantOnboardingRetention retention = ValidateRetention(plan.Retention, errors);
 
         if (errors.Count != 0 ||
             plan.Business is null ||
@@ -63,6 +69,7 @@ public sealed class TenantOnboardingUseCase(
                 followUps,
                 templates,
                 users,
+                retention,
                 plan.EnableAutomation),
             []);
     }
@@ -365,6 +372,8 @@ public sealed class TenantOnboardingUseCase(
     private static TenantOnboardingTemplate[] ValidateTemplates(
         IReadOnlyList<TenantOnboardingTemplate>? source,
         IReadOnlyList<FollowUpStepPolicy> followUps,
+        string? businessName,
+        string? bookingUrl,
         List<TenantOnboardingValidationError> errors)
     {
         if (source is null || source.Count == 0)
@@ -427,6 +436,22 @@ public sealed class TenantOnboardingUseCase(
                 errors.Add(new(
                     $"templates[{index}].{exception.ParamName ?? "configuration"}",
                     exception.Message));
+            }
+
+            string? renderBookingUrl = template.Purpose.Equals(
+                SmsTemplatePurposes.InitialMissedCallRecovery,
+                StringComparison.OrdinalIgnoreCase)
+                ? null
+                : bookingUrl;
+            SmsTemplateRenderResult rendered = SmsTemplateRenderer.Render(
+                template.Body,
+                businessName,
+                renderBookingUrl);
+            if (!rendered.IsValid)
+            {
+                errors.Add(new(
+                    $"templates[{index}].body",
+                    rendered.Error!));
             }
         }
 
@@ -527,5 +552,25 @@ public sealed class TenantOnboardingUseCase(
         }
 
         return true;
+    }
+
+    private static TenantOnboardingRetention ValidateRetention(
+        TenantOnboardingRetention? retention,
+        List<TenantOnboardingValidationError> errors)
+    {
+        TenantOnboardingRetention configured = retention ?? new(
+            Enabled: false,
+            TenantFieldLimits.DataRetentionDaysDefault);
+        if (configured.Days is < TenantFieldLimits.DataRetentionDaysMinimum or
+            > TenantFieldLimits.DataRetentionDaysMaximum)
+        {
+            errors.Add(new(
+                "retention.days",
+                $"Retention days must be between " +
+                $"{TenantFieldLimits.DataRetentionDaysMinimum} and " +
+                $"{TenantFieldLimits.DataRetentionDaysMaximum}."));
+        }
+
+        return configured;
     }
 }

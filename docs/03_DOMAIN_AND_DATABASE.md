@@ -143,10 +143,16 @@ normalization interface; Infrastructure implements it with
 `libphonenumber-csharp` and stores only canonical E.164 values. Customer reads
 use an EF tenant query filter, and writes reject missing or mismatched tenant
 context. LR-0203 and LR-0204 apply equivalent persistence controls to the other
-tenant-owned Milestone 1 entities. LR-0102 still owns endpoint-level proof that
-browser input cannot override server-derived TenantId when feature APIs arrive.
+tenant-owned Milestone 1 entities. LR-0103 and the later feature API tests now
+complete LR-0102's endpoint-level proof: browser input cannot override the
+server-derived TenantId, and cross-tenant identifiers fail without disclosure.
 
 ### CallEvent
+
+This is a conceptual later model, not a table in the current schema. The MVP
+stores opaque provider-event identity in `ExternalEventReceipt`, Lead activity
+on the Lead, and a redacted call outcome in `AuditEvent`; it deliberately does
+not persist raw call payloads or a separate call-history record.
 
 - `Id`
 - `TenantId`
@@ -419,6 +425,11 @@ decisions. It never stores the Twilio auth token, request signature, raw form
 payload, or phone number in audit JSON.
 
 ### Notification
+
+This is a planned entity for a future email/in-app notification adapter. The
+current human-handoff implementation uses `LeadStatus.NeedsHuman`,
+`LeadUrgency.CriticalReview`, visible inbox prioritization, and redacted audit
+events. No Notification table or external email send is currently claimed.
 
 - `Id`
 - `TenantId`

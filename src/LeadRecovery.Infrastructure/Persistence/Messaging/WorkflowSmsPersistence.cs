@@ -386,10 +386,13 @@ internal sealed class WorkflowSmsPersistence(
             return null;
         }
 
-        string body = activeTemplate.Body
-            .Replace("{{BusinessName}}", tenant.Name, StringComparison.Ordinal)
-            .Replace("{{BookingUrl}}", workflow.BookingUrl, StringComparison.Ordinal);
-        return new ResolvedContent(body, activeTemplate.Id);
+        SmsTemplateRenderResult rendered = SmsTemplateRenderer.Render(
+            activeTemplate.Body,
+            tenant.Name,
+            workflow.BookingUrl);
+        return rendered.IsValid
+            ? new ResolvedContent(rendered.Body!, activeTemplate.Id)
+            : null;
     }
 
     private async Task Cancel(

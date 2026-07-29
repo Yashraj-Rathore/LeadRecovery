@@ -31,6 +31,20 @@ async function login(page: Page, email: string, password: string) {
   await expect(page.getByRole("heading", { name: "Lead inbox" })).toBeVisible();
 }
 
+test("browser document responses enforce the frontend security baseline", async ({
+  page,
+}) => {
+  const response = await page.goto("/login");
+
+  expect(response).not.toBeNull();
+  const headers = response!.headers();
+  expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(headers["permissions-policy"]).toContain("camera=()");
+  expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["x-frame-options"]).toBe("DENY");
+});
+
 test("login renders only the active tenant and cross-tenant detail stays hidden", async ({
   page,
 }) => {

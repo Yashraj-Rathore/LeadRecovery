@@ -181,6 +181,12 @@ Measure:
 
 No AI feature is production-ready until the evaluation and fallback tests pass agreed thresholds.
 
+Implementation readiness note (2026-07-29): provider-contract, strict-schema,
+redaction, fallback, persistence, and human-review tests are automated, but the
+required 100-message human-labelled evaluation and agreed quality thresholds
+have not been executed. AI therefore remains disabled by default and is not a
+pilot production gate until that separate evaluation evidence is recorded.
+
 ## 12. Customer-facing generation
 
 For MVP, customer-facing automated messages should come from approved templates with bounded substitutions. AI-generated customer replies may be introduced later only with human approval or a strict retrieval/template framework.

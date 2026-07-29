@@ -31,6 +31,7 @@ The script runs `DuplicateCallbackHasNoDuplicateEffect` and `SignedStopIsIdempot
 Use a new disposable PostgreSQL database, apply migrations, build the web app, and set all `E2E_*` variables described by `tests/LeadRecovery.E2E/playwright.config.ts` to fictional values. Then:
 
 ```powershell
+$env:API_BASE_URL = 'http://127.0.0.1:8080'
 pnpm frontend:build
 pnpm demo:capture
 ffmpeg -i tests/LeadRecovery.E2E/demo-results/demo-video-capture-the-fictional-pilot-walkthrough-chromium/video.webm -c:v libx264 -crf 23 -pix_fmt yuv420p -movflags +faststart -an docs/pilot/assets/leadrecovery-demo.mp4

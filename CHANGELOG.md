@@ -6,6 +6,19 @@ All notable repository and product-specification changes are recorded here.
 
 ### Added
 
+- Repository-wide implementation conformance/readiness report mapping current
+  interactions, intentionally deferred product surfaces, and provider/hosted
+  pre-pilot evidence gates.
+- Regression coverage for prefixed delivery callback URLs, production URL
+  safety, supported and bounded SMS substitutions, onboarding rejection, safe
+  legacy-template failure, Compose configuration parity, and frontend document
+  security headers.
+- Stable warning-free OpenAPI operation identifiers and a relative same-origin
+  server contract, plus canonical no-trailing-slash automation status routing.
+- Exact OpenAPI-to-runtime route and HTTP-method conformance coverage, with
+  ADR-0026 documenting the implemented contract-first provenance.
+- Optional validated retention policy in operator onboarding so the existing
+  retention Worker can be configured without direct database edits.
 - LR-1001 schema-versioned operator onboarding for business, provider phone,
   hours, workflow, booking URL, approved templates, and initial users, with
   read-only validation, environment-backed passwords, serializable rollback,
@@ -285,6 +298,23 @@ All notable repository and product-specification changes are recorded here.
 - API integration coverage for login/manual quotas, security headers, and a
   25-request valid signed webhook retry burst, plus ADR-0022 documenting the
   independently partitioned abuse-control boundary.
+
+### Fixed
+
+- Passed global automation and AI safety switches consistently to both API and
+  Worker in Compose, together with the documented host-specific demo, rate
+  limit, AI, retention, job, logging, and telemetry settings.
+- Preserved trusted public path prefixes in Worker SMS delivery callback URLs
+  and required HTTPS outside Development.
+- Validated templates after approved substitutions and failed unsafe legacy
+  content before Message creation/provider calls instead of allowing an
+  over-limit rendered body to fault the worker.
+- Added security headers to the Next.js document host, not only API responses,
+  and bounded the Worker's in-memory recent-dispatch suppression cache.
+- Packaged static assets into the generated Next.js standalone output and used
+  that production server consistently in local/E2E and container execution.
+- Reconciled stale milestone, endpoint, screen, conceptual-entity, AI
+  evaluation, and performance-readiness wording across the source documents.
 
 ### Changed
 

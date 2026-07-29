@@ -76,7 +76,8 @@ Responsibilities:
 - execute Hangfire jobs;
 - send recovery and follow-up messages;
 - call AI analysis adapter;
-- send staff notifications;
+- represent urgent staff work in the inbox/audit trail; send external staff
+  notifications only after the deferred notification adapter is approved;
 - process retention jobs;
 - retry transient failures;
 - emit operational metrics.
@@ -256,7 +257,7 @@ Contains:
 - EF Core DbContext and mappings;
 - repository/query implementations;
 - Twilio adapter;
-- email adapter;
+- future email notification adapter;
 - booking adapter;
 - AI adapter;
 - clock and ID implementations;
@@ -308,7 +309,7 @@ Suggested modules inside the monolith:
 - Conversations
 - Automations
 - Integrations
-- Notifications
+- Notifications (future external-delivery module)
 - Reporting
 - Audit
 - Administration

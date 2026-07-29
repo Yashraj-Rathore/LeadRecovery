@@ -111,7 +111,7 @@ The currently implemented browser and health contract is:
 - `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`,
   `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
   session;
-- `GET /api/v1/automation/` exposes effective global/tenant state to tenant
+- `GET /api/v1/automation` exposes effective global/tenant state to tenant
   members, while `POST /api/v1/automation/tenant` lets Owner and Manager
   members pause or resume tenant automation with CSRF and concurrency checks;
 - `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
@@ -144,7 +144,7 @@ The currently implemented browser and health contract is:
 | Component | Version | Current use |
 |---|---:|---|
 | .NET SDK | 10.0.301 | Builds all backend projects |
-| ASP.NET Core shared framework | 10.0.9 | API and worker runtime baseline |
+| ASP.NET Core packages | 10.0.9 | Centrally locked application package baseline |
 | C# | 14.0 | Backend language version |
 | PostgreSQL | 18.4 | Local database container |
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
@@ -344,8 +344,9 @@ For repository-based work, use the modular files under `docs/`.
 | `docs/12_BACKLOG_AND_ACCEPTANCE.md` | Epics, stories, acceptance criteria |
 | `docs/13_PILOT_AND_VALIDATION.md` | Demo, pilot onboarding, market validation |
 | `docs/14_SAAS_EVOLUTION.md` | Productization and later SaaS roadmap |
+| `docs/15_IMPLEMENTATION_CONFORMANCE.md` | Audited current surface, evidence, and external readiness gates |
 | `docs/decisions/` | Accepted architecture decision records |
-| `api/openapi.yaml` | Initial API contract skeleton |
+| `api/openapi.yaml` | Exact implemented versioned API contract |
 | `database/schema.sql` | Reference relational schema |
 | `CHANGELOG.md` | User-visible and repository-level changes |
 | `templates/.env.example` | Required environment variables |
@@ -749,6 +750,12 @@ Each tenant must have:
 - retention settings;
 - automation enable/disable control.
 
+Current pilot boundary: validated onboarding stores the business identity,
+timezone, phone policy, workflow hours/questions/follow-ups, booking URL,
+approved templates, initial users, automation default, and opt-in retention.
+Service-area and external notification-recipient settings remain operational
+pilot inputs until their settings/notification backlog work is approved.
+
 ### FR-002 Lead management
 
 The system must support:
@@ -879,6 +886,10 @@ Pilot target: 99.5% monthly availability excluding scheduled maintenance. This i
 - send only the minimum necessary text to an AI provider;
 - maintain data-processing documentation for pilots.
 
+Operational Lead-graph retention is implemented with audited dry-run/delete
+controls. A complete legal tenant export/deletion request workflow remains a
+SaaS-readiness item and must not be inferred from that narrower retention job.
+
 ### Accessibility
 
 The dashboard should target WCAG 2.2 AA practices:
@@ -917,6 +928,10 @@ The demo is complete when it can show:
 - A documented rollback or disable switch exists.
 - The tenant approves all outbound message templates.
 - The pilot has defined measurements and a support contact.
+
+The application emits the failure logs, metrics, and durable states needed for
+alerts. A real pilot must configure and test the hosted alert receiver and
+on-call destination; local automated tests cannot claim that external routing.
 
 ---
 
@@ -1000,7 +1015,8 @@ Responsibilities:
 - execute Hangfire jobs;
 - send recovery and follow-up messages;
 - call AI analysis adapter;
-- send staff notifications;
+- represent urgent staff work in the inbox/audit trail; send external staff
+  notifications only after the deferred notification adapter is approved;
 - process retention jobs;
 - retry transient failures;
 - emit operational metrics.
@@ -1180,7 +1196,7 @@ Contains:
 - EF Core DbContext and mappings;
 - repository/query implementations;
 - Twilio adapter;
-- email adapter;
+- future email notification adapter;
 - booking adapter;
 - AI adapter;
 - clock and ID implementations;
@@ -1232,7 +1248,7 @@ Suggested modules inside the monolith:
 - Conversations
 - Automations
 - Integrations
-- Notifications
+- Notifications (future external-delivery module)
 - Reporting
 - Audit
 - Administration
@@ -1566,10 +1582,16 @@ normalization interface; Infrastructure implements it with
 `libphonenumber-csharp` and stores only canonical E.164 values. Customer reads
 use an EF tenant query filter, and writes reject missing or mismatched tenant
 context. LR-0203 and LR-0204 apply equivalent persistence controls to the other
-tenant-owned Milestone 1 entities. LR-0102 still owns endpoint-level proof that
-browser input cannot override server-derived TenantId when feature APIs arrive.
+tenant-owned Milestone 1 entities. LR-0103 and the later feature API tests now
+complete LR-0102's endpoint-level proof: browser input cannot override the
+server-derived TenantId, and cross-tenant identifiers fail without disclosure.
 
 ### CallEvent
+
+This is a conceptual later model, not a table in the current schema. The MVP
+stores opaque provider-event identity in `ExternalEventReceipt`, Lead activity
+on the Lead, and a redacted call outcome in `AuditEvent`; it deliberately does
+not persist raw call payloads or a separate call-history record.
 
 - `Id`
 - `TenantId`
@@ -1843,6 +1865,11 @@ payload, or phone number in audit JSON.
 
 ### Notification
 
+This is a planned entity for a future email/in-app notification adapter. The
+current human-handoff implementation uses `LeadStatus.NeedsHuman`,
+`LeadUrgency.CriticalReview`, visible inbox prioritization, and redacted audit
+events. No Notification table or external email send is currently claimed.
+
 - `Id`
 - `TenantId`
 - `UserId` nullable
@@ -2033,7 +2060,7 @@ implemented OpenAPI contract.
 
 ### 3.1 Automation control endpoints
 
-- `GET /api/v1/automation/` returns global, tenant, and effective automation
+- `GET /api/v1/automation` returns global, tenant, and effective automation
   state plus an opaque tenant row version to every authenticated tenant member.
 - `POST /api/v1/automation/tenant` requires Owner or Manager role,
   `X-CSRF-TOKEN`, the current opaque row version, the desired state, and a fixed
@@ -2164,6 +2191,12 @@ same fake-by-default/live-explicitly-gated provider path as automated recovery.
 
 ## 6. Tenant configuration endpoints
 
+The routes below are the planned self-service administration contract, not
+current API routes. The current pilot uses the validated operator onboarding
+command for business, phone, workflow, template, and initial-user setup. Only
+the implemented `GET /api/v1/automation` and
+`POST /api/v1/automation/tenant` controls are browser-editable today.
+
 - `GET /api/v1/settings/business`
 - `PUT /api/v1/settings/business`
 - `GET /api/v1/settings/messages`
@@ -2177,6 +2210,14 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 
 ## 7. Reporting endpoints
 
+Current bounded pilot reporting is implemented at:
+
+- `GET /api/v1/reports/pilot`
+- `GET /api/v1/reports/pilot.csv`
+
+The broader analytics routes below are future contracts and are intentionally
+absent from the current OpenAPI document and application:
+
 - `GET /api/v1/reports/overview?from=...&to=...`
 - `GET /api/v1/reports/funnel?from=...&to=...`
 - `GET /api/v1/reports/failures?from=...&to=...`
@@ -2185,10 +2226,13 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 
 ### 8.1 Webhook endpoints
 
-- `POST /api/v1/webhooks/twilio/voice`
 - `POST /api/v1/webhooks/twilio/call-status`
 - `POST /api/v1/webhooks/twilio/sms/inbound`
 - `POST /api/v1/webhooks/twilio/sms/status`
+
+`POST /api/v1/webhooks/twilio/voice` is reserved for a future TwiML/voice
+interaction and is not a current route. Missed-call recovery uses the
+implemented call-status callback.
 
 Milestone 3 implements
 `POST /api/v1/webhooks/twilio/call-status`. It accepts
@@ -2408,6 +2452,13 @@ Primary navigation:
 - Users
 - System Status (Owner/Manager)
 
+For the current pilot, Inbox and All Leads are one filterable `/leads`
+workspace, Reports is `/reports/pilot`, and tenant automation control is in the
+shared workspace header. Settings, user administration, password recovery, and
+a separate System Status screen are later productized-service surfaces; their
+absence is intentional and no dead navigation is shown. A trusted operator
+uses the validated onboarding command for initial configuration and users.
+
 ## 3. Core screens
 
 ### 3.1 Login
@@ -2529,6 +2580,8 @@ that no review action sends or schedules customer communication.
 
 ### 3.4 Settings - Business
 
+Planned self-service screen; operator-managed during the current pilot.
+
 - business name;
 - timezone;
 - business hours;
@@ -2537,6 +2590,9 @@ that no review action sends or schedules customer communication.
 - notification recipients.
 
 ### 3.5 Settings - Message templates
+
+Planned self-service screen; templates are versioned, approved, and activated
+transactionally by the current onboarding command.
 
 - list versions;
 - preview substitutions;
@@ -2548,6 +2604,9 @@ that no review action sends or schedules customer communication.
 
 ### 3.6 Settings - Automation
 
+Planned full settings screen. The current workspace header exposes the safe
+tenant pause/resume subset to Owner and Manager users.
+
 - global enable/disable;
 - recoverable call statuses;
 - cooldown period;
@@ -2558,6 +2617,10 @@ that no review action sends or schedules customer communication.
 - AI feature toggles.
 
 ### 3.7 Reports
+
+The current `/reports/pilot` screen implements the bounded operational metrics
+defined in `docs/pilot/MEASUREMENT.md` and matching JSON/CSV exports. The
+broader dashboard card set below remains a future analytics surface.
 
 MVP cards:
 
@@ -2834,6 +2897,12 @@ Measure:
 - latency and cost.
 
 No AI feature is production-ready until the evaluation and fallback tests pass agreed thresholds.
+
+Implementation readiness note (2026-07-29): provider-contract, strict-schema,
+redaction, fallback, persistence, and human-review tests are automated, but the
+required 100-message human-labelled evaluation and agreed quality thresholds
+have not been executed. AI therefore remains disabled by default and is not a
+pilot production gate until that separate evaluation evidence is recorded.
 
 ## 12. Customer-facing generation
 
@@ -3459,6 +3528,13 @@ Before pilot:
 - 10,000 leads in one tenant;
 - background worker processing 1,000 scheduled actions in a controlled test.
 
+Current automated evidence includes the 10,000-Lead tenant dashboard p95 gate,
+normal provider retry-burst coverage, bounded job queries, and restart/idempotency
+integration tests. The two-minute webhook load, 100-concurrent-read run, and
+1,000-action controlled worker run require environment telemetry and remain
+explicit pre-pilot staging gates; they are not represented as completed by the
+unit/integration suite.
+
 Measure:
 
 - p50/p95/p99 latency;
@@ -3634,6 +3710,12 @@ volumes:
 ```
 
 The committed file must use environment substitution and must not contain real secrets.
+
+The production-shaped Compose file passes shared automation and AI switches to
+both API and Worker, forwards the Worker's bounded AI/retention/job/telemetry
+settings, and forwards the API's authentication/rate-limit/telemetry settings.
+The fictional demo-seed values are API-only and opt in explicitly. Deployment
+artifact tests prevent the shared safety switches from drifting between hosts.
 
 ## 5. Kubernetes architecture
 
@@ -4311,7 +4393,7 @@ authorization policies, tenant-scoped lead reads, opt-in fictional seed data,
 the Next.js login/inbox shell, PostgreSQL integration tests, and Playwright
 cross-tenant coverage are present. The shell does not complete LR-0501 or
 LR-0502: filters, assignments, full lead detail/timeline, messaging, and other
-dashboard operations remain Milestone 6.
+dashboard operations remain Milestone 5.
 
 ### Milestone 3 - Twilio missed-call ingestion (Week 3)
 
@@ -4421,6 +4503,11 @@ booked to cancel remaining automation. Unit, PostgreSQL, and Playwright tests
 cover DST, idempotency, tenant isolation, closure/opt-out suppression, and the
 office booking flow.
 
+The original generic `staff notifications` deliverable is satisfied for the
+MVP by urgent Needs Human/Critical Review inbox state and audit visibility.
+External email notification delivery and its future Notification entity remain
+deferred; LR-0601 through LR-0604 did not add or require an email adapter.
+
 ### Milestone 7 - AI assistance and safety (Week 7)
 
 Deliverables:
@@ -4448,6 +4535,11 @@ are deduplicated and presented for staff review, and provider outage routes the
 Lead to `NeedsHuman` without undoing deterministic workflow state or sending a
 customer-facing AI message. Unit, PostgreSQL, API, and Playwright coverage prove
 the provider, persistence, review, fallback, and no-autonomous-send boundaries.
+
+The runtime acceptance slice is complete, but the 100-message human-labelled
+quality evaluation in `docs/06_AI_GUARDRAILS.md` remains a separate production
+readiness gate. AI stays disabled by default until that evidence and agreed
+thresholds exist.
 
 ### Milestone 8 - Production hardening (Week 8)
 
@@ -4477,6 +4569,11 @@ runbook. Independent login/manual/webhook limits and API security headers have
 PostgreSQL/API retry-burst acceptance coverage. Container image scanning and
 staging alert configuration remain Milestone 9 deployment work, not an
 unimplemented Milestone 8 application behavior.
+
+The 10,000-Lead p95 check is automated. The documented sustained webhook,
+100-concurrent-read, and 1,000-action runs remain pre-pilot staging exercises
+because their acceptance depends on environment CPU, memory, connections, and
+telemetry rather than a portable unit-test result.
 
 ### Milestone 9 - Docker, Kubernetes, and CI/CD (Week 9)
 
@@ -4531,6 +4628,12 @@ Exit criteria:
 - another person can run the demo from documentation;
 - pilot tenant can be configured without code changes;
 - all known limitations documented.
+
+Implementation status (2026-07-29): complete for LR-1001 through LR-1003.
+Validated transactional operator onboarding, the fictional case-study/media
+package, duplicate/STOP proof, and bounded tenant pilot report are present.
+Real-provider, hosted-alert, full-load, and AI-quality evidence remain explicit
+pre-pilot gates rather than claims made by the fictional demo.
 
 ## 3. First 14 days - daily plan
 
@@ -4766,8 +4869,9 @@ connects durable scheduled-action cancellation behind the booking use case.
 LR-0202 stores canonical E.164 phone identity behind an application interface,
 derives customer ownership from server tenant context, and enforces
 `(TenantId, PhoneE164)` uniqueness in PostgreSQL. Its Customer-specific query
-and write guards do not complete LR-0102, which remains open for the other
-tenant-owned Milestone 1 entities.
+and write guards were the first LR-0102 slice. LR-0203, LR-0204, LR-0103, and
+the later authenticated feature endpoints now apply the equivalent query/write
+and cross-tenant browser protections to all implemented tenant-owned models.
 
 ### LR-0203 Conversation and message model
 
@@ -5633,6 +5737,129 @@ This is stronger than presenting Kubernetes or AI as disconnected technical exer
 
 ---
 
+<!-- SOURCE: docs/15_IMPLEMENTATION_CONFORMANCE.md -->
+
+# 15 - Implementation Conformance and Readiness
+
+## 1. Purpose and scope
+
+This document reconciles the product requirements, architecture, accepted
+decisions, API contract, database reference, deployment assets, and executable
+implementation as audited on 2026-07-29. The current product is a modular
+monolith with separate API, Worker, and Next.js hosts over one PostgreSQL
+database. It is a service-led pilot product, not a self-service SaaS.
+
+`api/openapi.yaml` is the exact implemented HTTP surface. Product documents may
+also describe future contracts; those are not current routes unless they appear
+in OpenAPI and endpoint mapping tests.
+
+## 2. Current end-to-end interactions
+
+| Interaction | Current behavior and evidence boundary |
+|---|---|
+| Authentication and tenancy | Same-origin secure cookie and CSRF flow; one active tenant membership per session; role checks and server-derived TenantId; list/detail/mutation and persistence tests deny cross-tenant access. |
+| Missed call recovery | Signed call-status callback resolves the configured destination, records one opaque receipt, creates/updates one Lead, and schedules one recovery intent under cooldown and automation policy. Duplicate delivery has no duplicate business effect. |
+| Outbound recovery | Worker rechecks global, tenant, Lead, opt-out, number, and approved-template policy before a fake-by-default or explicitly gated Twilio call. Rendered templates allow only bounded BusinessName/BookingUrl substitutions. |
+| Inbound SMS and STOP | Signed inbound callback persists one message and activity update. STOP-family input stores opt-out state, suppresses the Lead, and cancels pending automation transactionally. |
+| Delivery lifecycle | Signed callbacks apply allowed Sent/Delivered/Failed progression idempotently and expose failure in the timeline. |
+| Staff workspace | Accessible responsive inbox/detail/report routes provide filters, assignment, audited state transitions, notes, manual SMS, lead/tenant automation controls, pending-action cancellation, booking flow, conflict refresh, and role-aware human review. |
+| Qualification and follow-up | Versioned tenant policy deterministically evaluates structured answers, schedules only inside tenant business hours, caps follow-ups at three, and rechecks reply/closure/booking/opt-out state at execution. |
+| AI assistance | Optional and disabled by default. Bounded redacted input, strict versioned output, immutable suggestion, accept/edit/reject review, and outage fallback never control deterministic workflow or send customer content. |
+| Operational controls | Platform and tenant kill switches fail closed without disabling inbound capture, dashboard access, delivery callbacks, or manual staff SMS. Retention is opt-in, dry-run first, tenant-scoped, audited, and deletion requires backup acknowledgement. |
+| Pilot reporting | Authenticated tenant-scoped JSON, CSV, and UI share one bounded definition for operational—not revenue or causal—metrics. |
+| Deployment | Multi-stage non-root images, migration-first Compose/Kustomize, external secrets/database, health probes, immutable-digest CI/CD, staging-before-production promotion, and non-migrating rollback are policy-tested. |
+
+## 3. Corrections made by this audit
+
+- Compose now passes `AUTOMATION_GLOBAL_ENABLED` and `AI_ENABLED` to both API
+  and Worker, plus the documented host-specific settings. Previously the Worker
+  could be enabled while the API silently remained disabled and scheduled no
+  automated or AI work.
+- Worker delivery callbacks now preserve a configured public path prefix and
+  reject credential/query/fragment URLs plus non-HTTPS production bases.
+- Template activation validates the fully substituted SMS length and supported
+  placeholder set. Runtime processing also fails an invalid legacy template
+  safely before creating or sending a Message.
+- The Next.js document host now emits its own CSP, frame, MIME, referrer,
+  permissions, and cross-domain security headers; API headers alone did not
+  protect separately served HTML.
+- The Worker's recent-dispatch suppression cache now expires entries after the
+  execution lease instead of growing for the lifetime of the process.
+- The committed OpenAPI contract now has stable operation IDs, warning-free
+  linting, and an exact runtime route/method conformance test under ADR-0026.
+- The standalone Next.js build now packages static assets into its runnable
+  output, so local, browser-test, and container startup use the same artifact.
+- Tenant onboarding can now validate and configure the existing opt-in
+  retention policy instead of requiring a direct database edit.
+- Current and future settings, reporting, voice, notification, and data models
+  are now labelled explicitly throughout the source documentation.
+
+## 4. Intentionally deferred product surfaces
+
+These are not defects in the current LR-0001 through LR-1003 pilot scope:
+
+- self-service business/template/integration settings and user invitations;
+- stored service-area and notification-recipient settings; pilots must document
+  those rules operationally until an approved settings/notification issue;
+- forgot/reset password, tenant switching, and PlatformAdmin browser screens;
+- a TwiML voice route, separate CallEvent history, or voice recording;
+- direct calendar booking integration or booking webhooks; the current flow
+  uses one approved HTTPS booking destination and staff confirmation;
+- external email notifications and a Notification table; urgent work is
+  represented in the operational inbox and audit trail;
+- broad overview/funnel/failure analytics beyond the bounded pilot report;
+- SignalR/live push, billing, usage metering, CRM integrations, and SaaS
+  cancellation/export/deletion workflows.
+
+These surfaces require a backlog issue and acceptance criteria before
+implementation. Tenant operational retention is implemented; it is not a
+substitute for a future legal tenant export/deletion workflow.
+
+## 5. Evidence that cannot be claimed from a local automated audit
+
+The repository proves behavior with fake/in-process providers and disposable
+PostgreSQL. Before a real pilot, an operator must still record:
+
+- real Twilio number routing, exact public callback signatures, carrier
+  delivery, consent wording, allowed recipients, and rollback rehearsal;
+- hosted TLS/ingress, managed database backup and restore, alert destinations,
+  secrets, cluster credentials, and protected-environment reviewers;
+- the sustained 20-webhook/second, 100-concurrent-read, and 1,000-action staging
+  runs with p50/p95/p99, error, connection, lag, CPU, memory, and duplicate data;
+- the human-labelled 100-message AI evaluation and agreed accuracy, safety,
+  latency, and cost thresholds before enabling AI for production;
+- accessibility review with assistive technology and the pilot business's
+  approved templates, hours, support owner, measurement baseline, and privacy
+  agreements.
+
+Absence of those environment/provider results must not be reported as a
+software test failure, but the product must remain disabled or fake-by-default
+until the applicable gate is approved.
+
+## 6. Audit validation commands
+
+The repository definition of done uses the following evidence set:
+
+```powershell
+dotnet format LeadRecovery.sln --no-restore --verify-no-changes
+dotnet build LeadRecovery.sln --configuration Release --no-restore --warnaserror
+dotnet test LeadRecovery.sln --configuration Release --no-build
+pnpm frontend:typecheck
+$env:API_BASE_URL = 'http://127.0.0.1:8080'
+pnpm frontend:build
+pnpm openapi:lint
+pnpm audit --audit-level high
+./eng/Test-DeploymentArtifacts.ps1
+./eng/Test-CiCdArtifacts.ps1
+./eng/Invoke-DemoProof.ps1 -Configuration Release
+pnpm e2e
+```
+
+Integration and browser commands require Docker and a fresh disposable
+database. Live SMS and AI remain disabled for every automated command.
+
+---
+
 <!-- SOURCE: docs/decisions/README.md -->
 
 # Architecture decision records
@@ -5669,6 +5896,7 @@ updated in the same change so they remain aligned.
 | [0023](0023-production-images-and-kubernetes-rollout.md) | Production images and Kubernetes rollout | Accepted |
 | [0024](0024-immutable-cicd-promotion-and-rollback.md) | Immutable CI/CD promotion and rollback | Accepted |
 | [0025](0025-validated-onboarding-demo-and-pilot-reporting.md) | Validated onboarding, demo evidence, and pilot reporting | Accepted |
+| [0026](0026-openapi-contract-conformance.md) | Committed OpenAPI contract and executable route conformance | Accepted |
 
 Use the next sequential number for a new decision. Do not rewrite the outcome
 of an accepted ADR; supersede it with a new record and link both records.
@@ -5894,6 +6122,11 @@ operations, and CI compares a committed generated export with the application.
 An intentional contract change updates endpoint annotations, the committed
 export, affected clients, and documentation together.
 
+Implementation amendment (2026-07-29): ADR-0026 replaces the unrealized
+annotation/generated-export provenance with a committed authoritative OpenAPI
+contract and exact executable route/method comparison. Schema changes remain a
+single reviewed DTO, contract, client, test, and documentation change.
+
 Lead optimistic concurrency uses an application-managed `bigint Version` that
 is configured as an EF Core concurrency token and incremented on each update.
 API requests and responses represent the value as an opaque base64 token named
@@ -6034,6 +6267,10 @@ national-format input. Numbering-plan behavior follows the pinned metadata and
 requires normal dependency updates over time. LR-0102 remains open to extend
 the same tenant query/write protections to the other tenant-owned entities as
 their persistence is implemented.
+
+Implementation follow-up (2026-07-29): the final sentence records the state at
+ADR acceptance. LR-0203, LR-0204, LR-0103, and later authenticated feature
+endpoints subsequently completed the equivalent LR-0102 protections.
 
 ---
 
@@ -7079,6 +7316,49 @@ Demo media is generated from the opt-in fictional seed and real browser UI. The 
 - Operator access to database configuration remains privileged and outside the customer UI.
 - Reporting reads bounded operational records and is not analytics infrastructure.
 - Seeded records and the fake SMS adapter demonstrate product behavior but do not validate a live carrier or market outcome.
+
+---
+
+<!-- SOURCE: docs/decisions/0026-openapi-contract-conformance.md -->
+
+# ADR-0026: Committed OpenAPI contract and executable route conformance
+
+- Status: Accepted; amends ADR-0005 API provenance
+- Date: 2026-07-29
+- Decision owners: LeadRecovery engineering
+
+## Context
+
+ADR-0005 anticipated framework annotations as the implementation source and a
+generated OpenAPI export comparison. The implemented Minimal API remained
+contract-first instead: `api/openapi.yaml` is reviewed and consumed directly,
+but no generated schema exporter was introduced. Leaving that difference
+implicit would make route drift possible and misstate the CI evidence.
+
+## Decision
+
+1. `api/openapi.yaml` remains the authoritative versioned external contract.
+2. Every operation has one stable `operationId`, a same-origin relative server,
+   and passes the pinned Redocly rules without warnings.
+3. A PostgreSQL/API-host integration test enumerates all implemented
+   `/api/v1` route templates and HTTP methods, normalizes framework route
+   constraints and route-group terminal slashes, parses the committed contract,
+   and requires exact set equality.
+   An undocumented endpoint and a documented but missing endpoint both fail CI.
+4. Request/response schema changes remain explicit contract review: update the
+   DTO/endpoint behavior, OpenAPI schema, clients, tests, and documentation in
+   one change. The repository does not claim generated schema equivalence.
+5. A future generated exporter may replace the committed-schema workflow only
+   through another accepted decision and equivalent breaking-change controls.
+
+## Consequences
+
+- Route and method drift is executable evidence rather than a documentation
+  convention, without adding runtime OpenAPI packages to the production API.
+- Stable operation IDs support later client generation and change review.
+- Schema fidelity still depends on focused endpoint tests and human contract
+  review; the route conformance test deliberately does not pretend to validate
+  every JSON field.
 
 ---
 

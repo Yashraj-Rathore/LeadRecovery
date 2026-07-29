@@ -104,7 +104,7 @@ The currently implemented browser and health contract is:
 - `GET /api/v1/auth/csrf`, `POST /api/v1/auth/login`,
   `GET /api/v1/auth/me`, and `POST /api/v1/auth/logout` manage the browser
   session;
-- `GET /api/v1/automation/` exposes effective global/tenant state to tenant
+- `GET /api/v1/automation` exposes effective global/tenant state to tenant
   members, while `POST /api/v1/automation/tenant` lets Owner and Manager
   members pause or resume tenant automation with CSRF and concurrency checks;
 - `GET /api/v1/leads`, `GET /api/v1/leads/assignees`, and
@@ -137,7 +137,7 @@ The currently implemented browser and health contract is:
 | Component | Version | Current use |
 |---|---:|---|
 | .NET SDK | 10.0.301 | Builds all backend projects |
-| ASP.NET Core shared framework | 10.0.9 | API and worker runtime baseline |
+| ASP.NET Core packages | 10.0.9 | Centrally locked application package baseline |
 | C# | 14.0 | Backend language version |
 | PostgreSQL | 18.4 | Local database container |
 | Entity Framework Core and tools | 10.0.9 | Persistence and migrations |
@@ -337,8 +337,9 @@ For repository-based work, use the modular files under `docs/`.
 | `docs/12_BACKLOG_AND_ACCEPTANCE.md` | Epics, stories, acceptance criteria |
 | `docs/13_PILOT_AND_VALIDATION.md` | Demo, pilot onboarding, market validation |
 | `docs/14_SAAS_EVOLUTION.md` | Productization and later SaaS roadmap |
+| `docs/15_IMPLEMENTATION_CONFORMANCE.md` | Audited current surface, evidence, and external readiness gates |
 | `docs/decisions/` | Accepted architecture decision records |
-| `api/openapi.yaml` | Initial API contract skeleton |
+| `api/openapi.yaml` | Exact implemented versioned API contract |
 | `database/schema.sql` | Reference relational schema |
 | `CHANGELOG.md` | User-visible and repository-level changes |
 | `templates/.env.example` | Required environment variables |

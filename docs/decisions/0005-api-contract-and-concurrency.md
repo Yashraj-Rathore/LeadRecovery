@@ -18,6 +18,11 @@ operations, and CI compares a committed generated export with the application.
 An intentional contract change updates endpoint annotations, the committed
 export, affected clients, and documentation together.
 
+Implementation amendment (2026-07-29): ADR-0026 replaces the unrealized
+annotation/generated-export provenance with a committed authoritative OpenAPI
+contract and exact executable route/method comparison. Schema changes remain a
+single reviewed DTO, contract, client, test, and documentation change.
+
 Lead optimistic concurrency uses an application-managed `bigint Version` that
 is configured as an EF Core concurrency token and incremented on each update.
 API requests and responses represent the value as an opaque base64 token named

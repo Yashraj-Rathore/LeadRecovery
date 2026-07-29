@@ -41,5 +41,6 @@
     { "email": "owner@example.test", "displayName": "Northstar Owner", "role": "Owner", "passwordEnvironmentVariable": "ONBOARD_OWNER_PASSWORD" },
     { "email": "dispatcher@example.test", "displayName": "Northstar Dispatcher", "role": "Staff", "passwordEnvironmentVariable": "ONBOARD_STAFF_PASSWORD" }
   ],
+  "retention": { "enabled": false, "days": 365 },
   "enableAutomation": false
 }

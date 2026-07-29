@@ -88,6 +88,45 @@ public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
     }
 
     [Fact]
+    public async Task RenderedTemplateOverProviderLimitFailsSafelyWithoutSending()
+    {
+        WorkflowSeed seed = await SeedWorkflowAsync(
+            "+14165550205",
+            "+14165550206",
+            new string('a', 1_401) + "{{BusinessName}}",
+            new string('B', 200));
+
+        OutboundSmsOutcome outcome;
+        await using (AsyncServiceScope scope = fixture.Application.Services.CreateAsyncScope())
+        {
+            SendScheduledRecoverySmsUseCase useCase =
+                scope.ServiceProvider.GetRequiredService<SendScheduledRecoverySmsUseCase>();
+            outcome = await useCase.ExecuteAsync(
+                seed.ActionId,
+                seed.TenantId,
+                "integration-render-limit",
+                new Uri("https://webhooks.example.test/api/v1/webhooks/twilio/sms/status"),
+                TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(OutboundSmsOutcome.Ignored, outcome);
+        await using AsyncServiceScope verificationScope =
+            fixture.Application.Services.CreateAsyncScope();
+        LeadRecoveryDbContext dbContext =
+            verificationScope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
+        ScheduledAction action = await dbContext.ScheduledActions.IgnoreQueryFilters()
+            .SingleAsync(
+                candidate => candidate.Id == seed.ActionId,
+                TestContext.Current.CancellationToken);
+        Assert.Equal(ScheduledActionStatus.Failed, action.Status);
+        Assert.Equal(
+            0,
+            await dbContext.Messages.IgnoreQueryFilters().CountAsync(
+                candidate => candidate.TenantId == seed.TenantId,
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task SignedStopIsIdempotentCancelsPendingActionAndBlocksFutureSend()
     {
         WorkflowSeed seed = await SeedWorkflowAsync("+14165550210", "+14165550211");
@@ -633,7 +672,9 @@ public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
 
     private async Task<WorkflowSeed> SeedWorkflowAsync(
         string businessPhone,
-        string customerPhone)
+        string customerPhone,
+        string templateBody = "{{BusinessName}} received your call. How can we help?",
+        string tenantName = "Alpha Test")
     {
         Guid tenantId = Guid.CreateVersion7();
         Guid leadId = Guid.CreateVersion7();
@@ -643,7 +684,7 @@ public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
         DateTimeOffset now = DateTimeOffset.UtcNow.AddSeconds(-2);
         Tenant tenant = new(
             tenantId,
-            "Alpha Test",
+            tenantName,
             $"sms-{tenantId:N}",
             "America/Toronto",
             now);
@@ -679,7 +720,7 @@ public sealed class TwilioSmsWorkflowTests(LeadRecoveryApiFixture fixture)
             tenantId,
             "Initial recovery",
             SmsTemplatePurposes.InitialMissedCallRecovery,
-            "{{BusinessName}} received your call. How can we help?",
+            templateBody,
             1,
             userId,
             now);

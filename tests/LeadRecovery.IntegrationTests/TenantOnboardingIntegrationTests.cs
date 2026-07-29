@@ -28,6 +28,8 @@ public sealed class TenantOnboardingIntegrationTests(LeadRecoveryApiFixture fixt
         Tenant tenant = await dbContext.Tenants.SingleAsync(item => item.Id == tenantId, TestContext.Current.CancellationToken);
         Assert.Equal(TenantStatus.Active, tenant.Status);
         Assert.False(tenant.AutomationEnabled);
+        Assert.True(tenant.DataRetentionEnabled);
+        Assert.Equal(180, tenant.DataRetentionDays);
         Assert.Equal(1, await dbContext.TenantPhoneNumbers.IgnoreQueryFilters().CountAsync(item => item.TenantId == tenantId, TestContext.Current.CancellationToken));
         Assert.Equal(1, await dbContext.WorkflowDefinitions.IgnoreQueryFilters().CountAsync(item => item.TenantId == tenantId && item.IsActive, TestContext.Current.CancellationToken));
         Assert.Equal(3, await dbContext.MessageTemplates.IgnoreQueryFilters().CountAsync(item => item.TenantId == tenantId && item.IsActive, TestContext.Current.CancellationToken));
@@ -66,7 +68,9 @@ public sealed class TenantOnboardingIntegrationTests(LeadRecoveryApiFixture fixt
             new("Booking", "BookingLink", "Book here: {{BookingUrl}}"),
             new("Follow-up", "FollowUpOne", "Are you still looking for help?"),
         ],
-        [new($"owner-{key}@example.test", "Test Owner", "Owner", "TEST_OWNER_PASSWORD")]);
+        [new($"owner-{key}@example.test", "Test Owner", "Owner", "TEST_OWNER_PASSWORD")],
+        EnableAutomation: false,
+        Retention: new(true, 180));
 
     private sealed class FixedSecrets(string password) : IOnboardingSecretSource
     {

@@ -75,12 +75,13 @@ export default defineConfig({
     },
     {
       command:
-        "node src/LeadRecovery.Web/node_modules/next/dist/bin/next " +
-        "start src/LeadRecovery.Web --hostname 127.0.0.1 --port 3000",
+        "node src/LeadRecovery.Web/.next/standalone/src/LeadRecovery.Web/server.js",
       cwd: repositoryRoot,
       env: {
         ...process.env,
         API_BASE_URL: "http://127.0.0.1:8080",
+        HOSTNAME: "127.0.0.1",
+        PORT: "3000",
       },
       url: "http://127.0.0.1:3000/login",
       timeout: 120_000,

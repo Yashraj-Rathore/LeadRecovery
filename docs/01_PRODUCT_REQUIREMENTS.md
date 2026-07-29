@@ -213,6 +213,12 @@ Each tenant must have:
 - retention settings;
 - automation enable/disable control.
 
+Current pilot boundary: validated onboarding stores the business identity,
+timezone, phone policy, workflow hours/questions/follow-ups, booking URL,
+approved templates, initial users, automation default, and opt-in retention.
+Service-area and external notification-recipient settings remain operational
+pilot inputs until their settings/notification backlog work is approved.
+
 ### FR-002 Lead management
 
 The system must support:
@@ -343,6 +349,10 @@ Pilot target: 99.5% monthly availability excluding scheduled maintenance. This i
 - send only the minimum necessary text to an AI provider;
 - maintain data-processing documentation for pilots.
 
+Operational Lead-graph retention is implemented with audited dry-run/delete
+controls. A complete legal tenant export/deletion request workflow remains a
+SaaS-readiness item and must not be inferred from that narrower retention job.
+
 ### Accessibility
 
 The dashboard should target WCAG 2.2 AA practices:
@@ -381,3 +391,7 @@ The demo is complete when it can show:
 - A documented rollback or disable switch exists.
 - The tenant approves all outbound message templates.
 - The pilot has defined measurements and a support contact.
+
+The application emits the failure logs, metrics, and durable states needed for
+alerts. A real pilot must configure and test the hosted alert receiver and
+on-call destination; local automated tests cannot claim that external routing.

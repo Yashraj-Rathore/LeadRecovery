@@ -768,7 +768,7 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
         _ = await Login(ownerClient, owner);
         AutomationStatusResponse before = Assert.IsType<AutomationStatusResponse>(
             await ownerClient.GetFromJsonAsync<AutomationStatusResponse>(
-                "/api/v1/automation/",
+                "/api/v1/automation",
                 TestContext.Current.CancellationToken));
         Assert.True(before.EffectiveEnabled);
 
@@ -800,7 +800,7 @@ public sealed class AuthenticationAuthorizationTests(LeadRecoveryApiFixture fixt
         _ = await Login(staffClient, staff);
         AutomationStatusResponse staffStatus = Assert.IsType<AutomationStatusResponse>(
             await staffClient.GetFromJsonAsync<AutomationStatusResponse>(
-                "/api/v1/automation/",
+                "/api/v1/automation",
                 TestContext.Current.CancellationToken));
         Assert.False(staffStatus.EffectiveEnabled);
         using HttpResponseMessage forbidden = await PostWithCsrf(

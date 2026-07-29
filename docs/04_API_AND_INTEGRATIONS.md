@@ -51,7 +51,7 @@ implemented OpenAPI contract.
 
 ### 3.1 Automation control endpoints
 
-- `GET /api/v1/automation/` returns global, tenant, and effective automation
+- `GET /api/v1/automation` returns global, tenant, and effective automation
   state plus an opaque tenant row version to every authenticated tenant member.
 - `POST /api/v1/automation/tenant` requires Owner or Manager role,
   `X-CSRF-TOKEN`, the current opaque row version, the desired state, and a fixed
@@ -182,6 +182,12 @@ same fake-by-default/live-explicitly-gated provider path as automated recovery.
 
 ## 6. Tenant configuration endpoints
 
+The routes below are the planned self-service administration contract, not
+current API routes. The current pilot uses the validated operator onboarding
+command for business, phone, workflow, template, and initial-user setup. Only
+the implemented `GET /api/v1/automation` and
+`POST /api/v1/automation/tenant` controls are browser-editable today.
+
 - `GET /api/v1/settings/business`
 - `PUT /api/v1/settings/business`
 - `GET /api/v1/settings/messages`
@@ -195,6 +201,14 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 
 ## 7. Reporting endpoints
 
+Current bounded pilot reporting is implemented at:
+
+- `GET /api/v1/reports/pilot`
+- `GET /api/v1/reports/pilot.csv`
+
+The broader analytics routes below are future contracts and are intentionally
+absent from the current OpenAPI document and application:
+
 - `GET /api/v1/reports/overview?from=...&to=...`
 - `GET /api/v1/reports/funnel?from=...&to=...`
 - `GET /api/v1/reports/failures?from=...&to=...`
@@ -203,10 +217,13 @@ Only Owner/Manager roles may edit configuration. Approval may require Owner depe
 
 ### 8.1 Webhook endpoints
 
-- `POST /api/v1/webhooks/twilio/voice`
 - `POST /api/v1/webhooks/twilio/call-status`
 - `POST /api/v1/webhooks/twilio/sms/inbound`
 - `POST /api/v1/webhooks/twilio/sms/status`
+
+`POST /api/v1/webhooks/twilio/voice` is reserved for a future TwiML/voice
+interaction and is not a current route. Missed-call recovery uses the
+implemented call-status callback.
 
 Milestone 3 implements
 `POST /api/v1/webhooks/twilio/call-status`. It accepts

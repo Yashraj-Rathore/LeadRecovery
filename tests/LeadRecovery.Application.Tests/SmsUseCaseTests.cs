@@ -4,6 +4,66 @@ namespace LeadRecovery.Application.Tests;
 
 public sealed class SmsUseCaseTests
 {
+    [Theory]
+    [InlineData(
+        "https://webhooks.example.test",
+        "https://webhooks.example.test/api/v1/webhooks/twilio/sms/status")]
+    [InlineData(
+        "https://webhooks.example.test/lead-recovery/",
+        "https://webhooks.example.test/lead-recovery/api/v1/webhooks/twilio/sms/status")]
+    public void StatusCallbackPreservesCanonicalBasePath(
+        string baseUrl,
+        string expected)
+    {
+        Uri result = SmsStatusCallbackUriBuilder.Build(
+            baseUrl,
+            isDevelopment: false);
+
+        Assert.Equal(expected, result.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("http://webhooks.example.test")]
+    [InlineData("https://user@webhooks.example.test")]
+    [InlineData("https://webhooks.example.test?tenant=one")]
+    public void StatusCallbackRejectsUnsafeProductionBaseUrl(string baseUrl)
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            SmsStatusCallbackUriBuilder.Build(baseUrl, isDevelopment: false));
+    }
+
+    [Fact]
+    public void TemplateRendererAppliesOnlyApprovedBoundedPlaceholders()
+    {
+        SmsTemplateRenderResult result = SmsTemplateRenderer.Render(
+            "Thanks for calling {{BusinessName}}. Book at {{BookingUrl}}",
+            "Northstar",
+            "https://booking.example.test/northstar");
+
+        Assert.True(result.IsValid);
+        Assert.Equal(
+            "Thanks for calling Northstar. Book at https://booking.example.test/northstar",
+            result.Body);
+    }
+
+    [Fact]
+    public void TemplateRendererRejectsUnsupportedAndOverlongRenderedContent()
+    {
+        SmsTemplateRenderResult unsupported = SmsTemplateRenderer.Render(
+            "Hello {{CustomerName}}",
+            "Northstar",
+            null);
+        SmsTemplateRenderResult overlong = SmsTemplateRenderer.Render(
+            new string('a', 1_599) + "{{BusinessName}}",
+            "Northstar",
+            null);
+
+        Assert.False(unsupported.IsValid);
+        Assert.Contains("unsupported", unsupported.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.False(overlong.IsValid);
+        Assert.Contains("1600", overlong.Error, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AcceptedSendUsesPreparedProviderPayloadAndCompletes()
     {

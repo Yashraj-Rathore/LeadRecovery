@@ -112,6 +112,12 @@ volumes:
 
 The committed file must use environment substitution and must not contain real secrets.
 
+The production-shaped Compose file passes shared automation and AI switches to
+both API and Worker, forwards the Worker's bounded AI/retention/job/telemetry
+settings, and forwards the API's authentication/rate-limit/telemetry settings.
+The fictional demo-seed values are API-only and opt in explicitly. Deployment
+artifact tests prevent the shared safety switches from drifting between hosts.
+
 ## 5. Kubernetes architecture
 
 ```mermaid

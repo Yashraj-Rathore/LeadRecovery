@@ -56,6 +56,24 @@ try {
     }
 
     $previousPassword = $env:POSTGRES_PASSWORD
+    $compose = Get-Content -LiteralPath 'compose.yaml' -Raw
+    foreach ($sharedSafetySwitch in @(
+            'AI_ENABLED'
+            'AUTOMATION_GLOBAL_ENABLED'
+        )) {
+        $switchCount = [regex]::Matches(
+            $compose,
+            "(?m)^\s{6}${sharedSafetySwitch}:").Count
+        if ($switchCount -ne 2) {
+            throw "compose.yaml must pass $sharedSafetySwitch to both API and Worker."
+        }
+    }
+
+    Assert-Contains $compose '(?m)^\s{6}DemoSeed__Enabled:' `
+        'compose.yaml must pass the opt-in demo-seed switch to the API.'
+    Assert-Contains $compose '(?m)^\s{6}RETENTION_BACKUP_CONFIRMED:' `
+        'compose.yaml must pass the retention deletion safety gate to the Worker.'
+
     try {
         $env:POSTGRES_PASSWORD = 'deployment-artifact-validation-only'
         & docker compose config --quiet

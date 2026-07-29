@@ -79,7 +79,7 @@ authorization policies, tenant-scoped lead reads, opt-in fictional seed data,
 the Next.js login/inbox shell, PostgreSQL integration tests, and Playwright
 cross-tenant coverage are present. The shell does not complete LR-0501 or
 LR-0502: filters, assignments, full lead detail/timeline, messaging, and other
-dashboard operations remain Milestone 6.
+dashboard operations remain Milestone 5.
 
 ### Milestone 3 - Twilio missed-call ingestion (Week 3)
 
@@ -189,6 +189,11 @@ booked to cancel remaining automation. Unit, PostgreSQL, and Playwright tests
 cover DST, idempotency, tenant isolation, closure/opt-out suppression, and the
 office booking flow.
 
+The original generic `staff notifications` deliverable is satisfied for the
+MVP by urgent Needs Human/Critical Review inbox state and audit visibility.
+External email notification delivery and its future Notification entity remain
+deferred; LR-0601 through LR-0604 did not add or require an email adapter.
+
 ### Milestone 7 - AI assistance and safety (Week 7)
 
 Deliverables:
@@ -216,6 +221,11 @@ are deduplicated and presented for staff review, and provider outage routes the
 Lead to `NeedsHuman` without undoing deterministic workflow state or sending a
 customer-facing AI message. Unit, PostgreSQL, API, and Playwright coverage prove
 the provider, persistence, review, fallback, and no-autonomous-send boundaries.
+
+The runtime acceptance slice is complete, but the 100-message human-labelled
+quality evaluation in `docs/06_AI_GUARDRAILS.md` remains a separate production
+readiness gate. AI stays disabled by default until that evidence and agreed
+thresholds exist.
 
 ### Milestone 8 - Production hardening (Week 8)
 
@@ -245,6 +255,11 @@ runbook. Independent login/manual/webhook limits and API security headers have
 PostgreSQL/API retry-burst acceptance coverage. Container image scanning and
 staging alert configuration remain Milestone 9 deployment work, not an
 unimplemented Milestone 8 application behavior.
+
+The 10,000-Lead p95 check is automated. The documented sustained webhook,
+100-concurrent-read, and 1,000-action runs remain pre-pilot staging exercises
+because their acceptance depends on environment CPU, memory, connections, and
+telemetry rather than a portable unit-test result.
 
 ### Milestone 9 - Docker, Kubernetes, and CI/CD (Week 9)
 
@@ -299,6 +314,12 @@ Exit criteria:
 - another person can run the demo from documentation;
 - pilot tenant can be configured without code changes;
 - all known limitations documented.
+
+Implementation status (2026-07-29): complete for LR-1001 through LR-1003.
+Validated transactional operator onboarding, the fictional case-study/media
+package, duplicate/STOP proof, and bounded tenant pilot report are present.
+Real-provider, hosted-alert, full-load, and AI-quality evidence remain explicit
+pre-pilot gates rather than claims made by the fictional demo.
 
 ## 3. First 14 days - daily plan
 

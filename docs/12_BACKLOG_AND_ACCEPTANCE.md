@@ -109,8 +109,9 @@ connects durable scheduled-action cancellation behind the booking use case.
 LR-0202 stores canonical E.164 phone identity behind an application interface,
 derives customer ownership from server tenant context, and enforces
 `(TenantId, PhoneE164)` uniqueness in PostgreSQL. Its Customer-specific query
-and write guards do not complete LR-0102, which remains open for the other
-tenant-owned Milestone 1 entities.
+and write guards were the first LR-0102 slice. LR-0203, LR-0204, LR-0103, and
+the later authenticated feature endpoints now apply the equivalent query/write
+and cross-tenant browser protections to all implemented tenant-owned models.
 
 ### LR-0203 Conversation and message model
 

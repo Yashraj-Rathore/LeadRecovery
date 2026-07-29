@@ -131,6 +131,10 @@ internal sealed class TenantOnboardingStore(
             dbContext.MessageTemplates.Add(template);
         }
 
+        tenant.ConfigureDataRetention(
+            plan.Retention.Enabled,
+            plan.Retention.Days,
+            now);
         tenant.SetAutomationEnabled(plan.EnableAutomation, now);
         tenant.ChangeStatus(TenantStatus.Active, now);
         dbContext.AuditEvents.Add(new AuditEvent(
@@ -151,6 +155,8 @@ internal sealed class TenantOnboardingStore(
                 templateCount = plan.Templates.Count,
                 userCount = plan.Users.Count,
                 automationEnabled = plan.EnableAutomation,
+                retentionEnabled = plan.Retention.Enabled,
+                retentionDays = plan.Retention.Days,
                 containsPersonalData = false,
             })));
 

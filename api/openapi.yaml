@@ -4,10 +4,11 @@ info:
   version: 1.0.0-milestone.10
   description: Implemented browser, automation, deterministic workflow, AI review, Twilio/SMS, hardening, and tenant pilot-reporting contract through LR-1003.
 servers:
-  - url: https://app.example.com/api/v1
+  - url: /api/v1
 paths:
   /webhooks/twilio/call-status:
     post:
+      operationId: acceptTwilioCallStatus
       tags: [Twilio webhooks]
       summary: Accept an authenticated Twilio call-status callback
       description: Persists recovery intent only; this endpoint does not send SMS.
@@ -50,6 +51,7 @@ paths:
           description: Auth token or canonical webhook URL is not configured.
   /webhooks/twilio/sms/inbound:
     post:
+      operationId: acceptTwilioInboundSms
       tags: [Twilio webhooks]
       summary: Accept a signed inbound SMS callback
       security: []
@@ -92,6 +94,7 @@ paths:
           description: Auth token or canonical webhook URL is not configured.
   /webhooks/twilio/sms/status:
     post:
+      operationId: acceptTwilioSmsStatus
       tags: [Twilio webhooks]
       summary: Accept a signed outbound SMS delivery callback
       security: []
@@ -132,6 +135,7 @@ paths:
           description: Auth token or canonical webhook URL is not configured.
   /auth/csrf:
     get:
+      operationId: getCsrfToken
       tags: [Authentication]
       summary: Issue an antiforgery request token
       security: []
@@ -149,6 +153,7 @@ paths:
                 $ref: '#/components/schemas/CsrfToken'
   /auth/login:
     post:
+      operationId: login
       tags: [Authentication]
       summary: Create a same-origin browser session
       security: []
@@ -183,6 +188,7 @@ paths:
           description: Login IP rate limit exceeded; includes `Retry-After` when available.
   /auth/me:
     get:
+      operationId: getCurrentSession
       tags: [Authentication]
       summary: Get the currently validated user, tenant, and role
       security:
@@ -198,6 +204,7 @@ paths:
           description: Missing, expired, revoked, or otherwise invalid session.
   /auth/logout:
     post:
+      operationId: logout
       tags: [Authentication]
       summary: Invalidate the user's issued sessions and clear the browser cookie
       security:
@@ -215,8 +222,9 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '401':
           description: Not authenticated.
-  /automation/:
+  /automation:
     get:
+      operationId: getAutomationStatus
       tags: [Automation]
       summary: Get effective platform and tenant automation state
       security:
@@ -232,6 +240,7 @@ paths:
           description: Not authenticated.
   /automation/tenant:
     post:
+      operationId: setTenantAutomation
       tags: [Automation]
       summary: Pause or resume tenant automation
       description: Owner/Manager only. Pending automated actions are cancelled on disable; manual staff SMS and inbound capture remain available.
@@ -336,6 +345,7 @@ paths:
           description: Authenticated session lacks a tenant member role.
   /leads:
     get:
+      operationId: listLeads
       tags: [Leads]
       summary: List and filter leads owned by the authenticated tenant
       security:
@@ -391,6 +401,7 @@ paths:
           description: Authenticated session lacks a tenant member role.
   /leads/assignees:
     get:
+      operationId: listLeadAssignees
       tags: [Leads]
       summary: List active assignable members of the authenticated tenant
       security:
@@ -408,6 +419,7 @@ paths:
           description: Not authenticated.
   /leads/{leadId}:
     get:
+      operationId: getLead
       tags: [Leads]
       summary: Get tenant-scoped lead detail, timeline, and pending actions
       security:
@@ -429,6 +441,7 @@ paths:
           description: Lead does not exist in the active tenant.
   /leads/{leadId}/assignment:
     post:
+      operationId: assignLead
       tags: [Lead operations]
       summary: Assign or unassign a lead
       security:
@@ -457,6 +470,7 @@ paths:
           $ref: '#/components/responses/LeadConflict'
   /leads/{leadId}/transitions:
     post:
+      operationId: transitionLead
       tags: [Lead operations]
       summary: Apply an allowed domain lead-status transition
       security:
@@ -485,6 +499,7 @@ paths:
           $ref: '#/components/responses/LeadConflict'
   /leads/{leadId}/automation/pause:
     post:
+      operationId: pauseLeadAutomation
       tags: [Lead operations]
       summary: Pause lead automation and cancel pending automated actions
       security:
@@ -513,6 +528,7 @@ paths:
           $ref: '#/components/responses/LeadConflict'
   /leads/{leadId}/automation/resume:
     post:
+      operationId: resumeLeadAutomation
       tags: [Lead operations]
       summary: Resume eligible lead automation
       security:
@@ -541,6 +557,7 @@ paths:
           $ref: '#/components/responses/LeadConflict'
   /leads/{leadId}/notes:
     post:
+      operationId: addLeadNote
       tags: [Lead operations]
       summary: Add a plain-text internal lead note
       security:
@@ -567,6 +584,7 @@ paths:
           description: Lead is not in the active tenant.
   /leads/{leadId}/messages:
     get:
+      operationId: listLeadMessages
       tags: [Lead operations]
       summary: List SMS timeline entries for a lead
       security:
@@ -587,6 +605,7 @@ paths:
         '404':
           description: Lead is not in the active tenant.
     post:
+      operationId: queueManualSms
       tags: [Lead operations]
       summary: Queue an idempotent manual SMS
       security:
@@ -617,6 +636,7 @@ paths:
           description: Authenticated tenant/user manual-message rate limit exceeded; includes `Retry-After` when available.
   /leads/{leadId}/booking-link:
     post:
+      operationId: queueBookingLink
       tags: [Lead operations]
       summary: Queue the active tenant workflow's approved booking link
       security:
@@ -645,6 +665,7 @@ paths:
           $ref: '#/components/responses/LeadConflict'
   /leads/{leadId}/scheduled-actions/{actionId}/cancel:
     post:
+      operationId: cancelScheduledAction
       tags: [Lead operations]
       summary: Cancel a pending action owned by the active tenant and lead
       security:
@@ -666,6 +687,7 @@ paths:
           description: Lead or action is not in the active tenant.
   /leads/{leadId}/ai-analyses/{analysisId}/accept:
     post:
+      operationId: acceptLeadAnalysis
       tags: [Lead operations]
       summary: Accept an immutable AI suggestion as staff-reviewed guidance
       security:
@@ -695,6 +717,7 @@ paths:
           $ref: '#/components/responses/LeadConflict'
   /leads/{leadId}/ai-analyses/{analysisId}/edit:
     post:
+      operationId: editLeadAnalysis
       tags: [Lead operations]
       summary: Store staff-corrected values without overwriting the AI output
       security:
@@ -724,6 +747,7 @@ paths:
           $ref: '#/components/responses/LeadConflict'
   /leads/{leadId}/ai-analyses/{analysisId}/reject:
     post:
+      operationId: rejectLeadAnalysis
       tags: [Lead operations]
       summary: Reject an AI suggestion with an optional evaluation reason
       security:

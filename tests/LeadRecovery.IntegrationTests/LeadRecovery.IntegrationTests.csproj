@@ -22,6 +22,9 @@
 
   <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\api\openapi.yaml"
+          Link="Contracts\openapi.yaml"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

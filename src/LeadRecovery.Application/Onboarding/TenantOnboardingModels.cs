@@ -10,7 +10,8 @@ public sealed record TenantOnboardingPlan(
     TenantOnboardingWorkflow Workflow,
     IReadOnlyList<TenantOnboardingTemplate> Templates,
     IReadOnlyList<TenantOnboardingUser> Users,
-    bool EnableAutomation = false);
+    bool EnableAutomation = false,
+    TenantOnboardingRetention? Retention = null);
 
 public sealed record TenantOnboardingBusiness(
     string Name,
@@ -62,6 +63,10 @@ public sealed record TenantOnboardingUser(
     string Role,
     string PasswordEnvironmentVariable);
 
+public sealed record TenantOnboardingRetention(
+    bool Enabled,
+    int Days);
+
 public sealed record TenantOnboardingValidationError(
     string Field,
     string Message);
@@ -81,6 +86,7 @@ public sealed record ValidatedTenantOnboardingPlan(
     IReadOnlyList<FollowUpStepPolicy> FollowUps,
     IReadOnlyList<TenantOnboardingTemplate> Templates,
     IReadOnlyList<ValidatedTenantOnboardingUser> Users,
+    TenantOnboardingRetention Retention,
     bool EnableAutomation);
 
 public sealed record TenantOnboardingValidationResult(

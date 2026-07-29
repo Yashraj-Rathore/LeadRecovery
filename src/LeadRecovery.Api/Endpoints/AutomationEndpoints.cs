@@ -18,14 +18,16 @@ internal static class AutomationEndpoints
             .WithTags("Automation")
             .RequireAuthorization(AuthorizationPolicies.TenantMember);
 
-        automation.MapGet(
-            "/",
+        endpoints.MapGet(
+                "/api/v1/automation",
             async Task<IResult> (
                 AutomationControlUseCase useCase,
                 CancellationToken cancellationToken) =>
                 Results.Ok(Map(
                     await useCase.GetAsync(cancellationToken),
-                    cancelledActionCount: 0)));
+                    cancelledActionCount: 0)))
+            .WithTags("Automation")
+            .RequireAuthorization(AuthorizationPolicies.TenantMember);
 
         automation.MapPost(
                 "/tenant",

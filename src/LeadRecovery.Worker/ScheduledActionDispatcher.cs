@@ -52,6 +52,14 @@ internal sealed partial class ScheduledActionDispatcher(
             scope.ServiceProvider.GetRequiredService<LeadRecoveryDbContext>();
 
         DateTimeOffset staleBefore = now.Subtract(options.RunningLease);
+        foreach ((Guid actionId, DateTimeOffset enqueuedAt) in _recentlyEnqueued)
+        {
+            if (enqueuedAt <= staleBefore)
+            {
+                _ = _recentlyEnqueued.TryRemove(actionId, out _);
+            }
+        }
+
         _ = await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"""
             update scheduled_actions

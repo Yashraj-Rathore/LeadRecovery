@@ -273,6 +273,13 @@ Before pilot:
 - 10,000 leads in one tenant;
 - background worker processing 1,000 scheduled actions in a controlled test.
 
+Current automated evidence includes the 10,000-Lead tenant dashboard p95 gate,
+normal provider retry-burst coverage, bounded job queries, and restart/idempotency
+integration tests. The two-minute webhook load, 100-concurrent-read run, and
+1,000-action controlled worker run require environment telemetry and remain
+explicit pre-pilot staging gates; they are not represented as completed by the
+unit/integration suite.
+
 Measure:
 
 - p50/p95/p99 latency;

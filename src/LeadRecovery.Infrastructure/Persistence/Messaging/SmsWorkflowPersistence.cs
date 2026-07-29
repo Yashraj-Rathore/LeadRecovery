@@ -121,6 +121,27 @@ internal sealed class SmsWorkflowPersistence(
             return null;
         }
 
+        SmsTemplateRenderResult rendered = SmsTemplateRenderer.Render(
+            template.Body,
+            tenant.Name,
+            bookingUrl: null);
+        if (!rendered.IsValid)
+        {
+            action.Start(now);
+            action.Fail("Approved recovery template cannot be rendered safely.", now);
+            AddAudit(
+                tenantId,
+                "RecoverySmsFailed",
+                nameof(ScheduledAction),
+                action.Id,
+                correlationId,
+                now,
+                new { result = "TemplateRenderInvalid" });
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+
         customer ??= new Customer(
             Guid.CreateVersion7(),
             tenantId,
@@ -161,10 +182,6 @@ internal sealed class SmsWorkflowPersistence(
             cancellationToken);
         if (message is null)
         {
-            string body = template.Body.Replace(
-                "{{BusinessName}}",
-                tenant.Name,
-                StringComparison.Ordinal);
             message = Message.QueueOutbound(
                 Guid.CreateVersion7(),
                 tenantId,
@@ -173,7 +190,7 @@ internal sealed class SmsWorkflowPersistence(
                 MessageKind.Automated,
                 "Twilio",
                 messageIdempotencyKey,
-                body,
+                rendered.Body!,
                 now,
                 templateId: template.Id);
             dbContext.Messages.Add(message);
