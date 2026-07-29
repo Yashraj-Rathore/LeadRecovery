@@ -6,6 +6,12 @@ All notable repository and product-specification changes are recorded here.
 
 ### Added
 
+- Complete dark operations-console UI overhaul across login, navigation,
+  inbox, reports, Lead detail, timeline/composer, action cards, automation,
+  AI review, loading, empty, and error states. The dependency-free icon system,
+  fast motion, visible mobile navigation, 44-pixel controls, reduced-motion,
+  high-contrast, forced-colors, and dark browser-chrome behavior preserve the
+  existing accessible workflows while replacing the generic light presentation.
 - Repository-wide implementation conformance/readiness report mapping current
   interactions, intentionally deferred product surfaces, and provider/hosted
   pre-pilot evidence gates.
@@ -26,7 +32,7 @@ All notable repository and product-specification changes are recorded here.
   onboarding/support checklist.
 - LR-1002 expanded fictional Alpha Plumbing demo records, reproducible
   under-two-minute walkthrough, named duplicate/STOP integration proof script,
-  four UI screenshots, GitHub case-study README, and a measured 57.12-second
+  four UI screenshots, GitHub case-study README, and a measured 58.28-second
   captioned 1280x720 H.264 product-tour MP4 with isolated regeneration tooling.
 - LR-1003 authenticated tenant-scoped pilot dashboard and matching JSON/CSV
   export for missed calls, initial recovery, replies, qualification, bookings,

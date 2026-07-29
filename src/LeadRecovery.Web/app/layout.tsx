@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import "./styles.css";
+import "./dark-theme.css";
 
 export const metadata: Metadata = {
   title: {
@@ -11,8 +12,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: "light",
-  themeColor: "#123f34",
+  colorScheme: "dark",
+  themeColor: "#07090d",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

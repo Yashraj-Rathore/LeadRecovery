@@ -12,6 +12,7 @@ import {
   getInitials,
 } from "../../lib/presentation";
 import { WorkspaceHeader } from "./workspace-header";
+import { UiIcon } from "../ui-icon";
 
 const statuses = [
   "New",
@@ -143,7 +144,7 @@ export function LeadInbox({ session }: { session: AuthSession }) {
 
         <section className="summary-grid" aria-label="Inbox summary">
           <article className="summary-card">
-            <span className="summary-icon" aria-hidden="true">↗</span>
+            <span className="summary-icon"><UiIcon name="inbox" /></span>
             <div>
               <span>In this view</span>
               <strong>{loading ? "—" : leads.length}</strong>
@@ -151,7 +152,7 @@ export function LeadInbox({ session }: { session: AuthSession }) {
             <small>Filtered lead count</small>
           </article>
           <article className={`summary-card ${needsAttention > 0 ? "summary-attention" : ""}`}>
-            <span className="summary-icon" aria-hidden="true">!</span>
+            <span className="summary-icon"><UiIcon name="alert" /></span>
             <div>
               <span>Needs attention</span>
               <strong>{loading ? "—" : needsAttention}</strong>
@@ -159,7 +160,7 @@ export function LeadInbox({ session }: { session: AuthSession }) {
             <small>Human review or critical</small>
           </article>
           <article className="summary-card">
-            <span className="summary-icon" aria-hidden="true">●</span>
+            <span className="summary-icon"><UiIcon name="message" /></span>
             <div>
               <span>Unread replies</span>
               <strong>{loading ? "—" : unread}</strong>
@@ -167,7 +168,7 @@ export function LeadInbox({ session }: { session: AuthSession }) {
             <small>New customer activity</small>
           </article>
           <article className="summary-card">
-            <span className="summary-icon" aria-hidden="true">◇</span>
+            <span className="summary-icon"><UiIcon name="user-plus" /></span>
             <div>
               <span>Unassigned</span>
               <strong>{loading ? "—" : unassigned}</strong>
@@ -248,7 +249,7 @@ export function LeadInbox({ session }: { session: AuthSession }) {
               onClick={() => setRefreshKey((key) => key + 1)}
               disabled={loading || isRefreshing}
             >
-              <span aria-hidden="true">↻</span>
+              <UiIcon name="refresh" size={16} />
               {isRefreshing ? "Refreshing…" : "Refresh"}
             </button>
           </div>
@@ -361,7 +362,7 @@ export function LeadInbox({ session }: { session: AuthSession }) {
                     </div>
                     <Link className="open-lead-link" href={`/leads/${lead.id}`}>
                       Open<span className="sr-only"> lead for {customerLabel}</span>
-                      <span aria-hidden="true">→</span>
+                      <UiIcon name="arrow-right" size={16} />
                     </Link>
                   </article>
                 );

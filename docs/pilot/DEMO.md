@@ -1,6 +1,6 @@
 # Fictional demo and media runbook
 
-The committed product tour is a silent, captioned, 1280x720 H.264 MP4. Its measured duration is **57.12 seconds at 25 fps**. Chapters hold for roughly 5-9 seconds, navigation happens immediately, and there is no idle cursor time. This intentionally keeps the video faster than the live two-minute walkthrough. The committed file was converted and inspected with FFmpeg 8.1.2; FFmpeg is optional and used only to regenerate media.
+The committed product tour is a silent, captioned, 1280x720 H.264 MP4. Its measured duration is **58.28 seconds at 25 fps**. Chapters hold for roughly 5-9 seconds, navigation happens immediately, and there is no idle cursor time. This intentionally keeps the video faster than the live two-minute walkthrough. The committed file was converted and inspected with FFmpeg 8.1.2; FFmpeg is optional and used only to regenerate media.
 
 ## Live walkthrough (under two minutes)
 

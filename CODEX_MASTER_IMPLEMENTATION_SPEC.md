@@ -75,12 +75,13 @@ separately dispatched protected production workflow, and retain a manual
 compatibility-gated rollback path that never reverses database migrations
 automatically.
 
-The implemented dashboard now uses one responsive, high-contrast workspace
-system across login, inbox, and Lead detail. Human-readable workflow labels,
-attention-first queue rows, clearer loading/empty/error feedback, consistent
-44-pixel controls, skip navigation, reduced-motion support, and mobile overflow
-coverage improve daily use without adding a component-library dependency or
-changing an API/workflow contract.
+The implemented dashboard now uses one responsive, high-contrast dark graphite
+operations console across login, inbox, reports, Lead detail, and AI review.
+Human-readable workflow labels, attention-first queue rows, layered but quiet
+surfaces, fast interaction motion, clearer loading/empty/error feedback,
+visible mobile navigation, consistent 44-pixel controls, skip navigation,
+reduced-motion support, and mobile overflow coverage improve daily use without
+adding a component-library dependency or changing an API/workflow contract.
 
 LR-1001 adds a schema-versioned, validated operator onboarding plan for
 business, phone, hours, deterministic workflow, booking, approved templates,
@@ -2559,6 +2560,15 @@ and 390-pixel mobile layouts preserve essential controls without horizontal
 overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
 high-contrast outline, and reduced-motion and increased-contrast preferences
 are respected.
+
+The current interface applies a dark graphite operations-console theme to every
+implemented screen. Luminous mint identifies safe primary actions and healthy
+automation, cyan identifies information, amber identifies attention, and red
+remains reserved for failure or critical safety state. Translucent boundaries,
+layered shadows, compact navigation, and 150-220 millisecond interaction motion
+add depth without obscuring the queue. Primary navigation remains visible at
+390 pixels, native controls declare a dark color scheme, and all decorative
+motion is removed when the user requests reduced motion.
 
 LR-0802 adds a compact, high-contrast automation status to the shared workspace
 header. Every role can see `Automation on`, `Tenant paused`, `Platform paused`,
@@ -5368,7 +5378,7 @@ off. The operator checklist and support/disable procedure are in
 Implementation status (2026-07-29): complete. The opt-in Alpha Plumbing seed
 contains only fictional identities, numbers, messages, and outcomes, including
 a delivered recovery thread and inbound reply. The GitHub case study, four real
-UI screenshots, measured 57.12-second captioned MP4, under-two-minute live
+UI screenshots, measured 58.28-second captioned MP4, under-two-minute live
 script, isolated regeneration procedure, and named duplicate/STOP proof command
 are under `docs/pilot/`.
 
@@ -5399,7 +5409,7 @@ Milestone 10 is complete as of 2026-07-29. The executable pilot package is:
 
 - [`pilot/ONBOARDING.md`](pilot/ONBOARDING.md) for validated transactional activation and the completed operator checklist;
 - [`pilot/README.md`](pilot/README.md) for the fictional GitHub case study, screenshots, limitations, and product tour;
-- [`pilot/DEMO.md`](pilot/DEMO.md) for the under-two-minute live flow, 57.12-second paced MP4, and duplicate/STOP proof;
+- [`pilot/DEMO.md`](pilot/DEMO.md) for the under-two-minute live flow, 58.28-second paced MP4, and duplicate/STOP proof;
 - [`pilot/MEASUREMENT.md`](pilot/MEASUREMENT.md) for baseline fields, report formulas, CSV export, and agreed success criteria.
 
 The application supplies the tenant-scoped report at `/reports/pilot`; none of

@@ -9,11 +9,11 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  22917
+        "bytes":  23381
     },
     {
         "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  297985
+        "bytes":  298706
     },
     {
         "path":  "CODEX_PROMPT_SEQUENCE.md",
@@ -53,7 +53,7 @@
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
-        "bytes":  9615
+        "bytes":  10220
     },
     {
         "path":  "docs/06_AI_GUARDRAILS.md",
@@ -205,23 +205,23 @@
     },
     {
         "path":  "docs/pilot/assets/01-inbox.png",
-        "bytes":  116665
+        "bytes":  279653
     },
     {
         "path":  "docs/pilot/assets/02-missed-call-thread.png",
-        "bytes":  124614
+        "bytes":  291785
     },
     {
         "path":  "docs/pilot/assets/03-human-review.png",
-        "bytes":  124614
+        "bytes":  291785
     },
     {
         "path":  "docs/pilot/assets/04-pilot-report.png",
-        "bytes":  97153
+        "bytes":  191535
     },
     {
         "path":  "docs/pilot/assets/leadrecovery-demo.mp4",
-        "bytes":  1367243
+        "bytes":  1736032
     },
     {
         "path":  "docs/pilot/assets/README.md",
@@ -245,7 +245,7 @@
     },
     {
         "path":  "README.md",
-        "bytes":  20045
+        "bytes":  20161
     },
     {
         "path":  "templates/.env.example",

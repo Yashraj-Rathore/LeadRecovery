@@ -129,6 +129,15 @@ overflow; visible controls meet the 44 CSS-pixel target, focus treatment uses a
 high-contrast outline, and reduced-motion and increased-contrast preferences
 are respected.
 
+The current interface applies a dark graphite operations-console theme to every
+implemented screen. Luminous mint identifies safe primary actions and healthy
+automation, cyan identifies information, amber identifies attention, and red
+remains reserved for failure or critical safety state. Translucent boundaries,
+layered shadows, compact navigation, and 150-220 millisecond interaction motion
+add depth without obscuring the queue. Primary navigation remains visible at
+390 pixels, native controls declare a dark color scheme, and all decorative
+motion is removed when the user requests reduced motion.
+
 LR-0802 adds a compact, high-contrast automation status to the shared workspace
 header. Every role can see `Automation on`, `Tenant paused`, `Platform paused`,
 or the fail-safe unknown state. Owner and Manager members can open the control,

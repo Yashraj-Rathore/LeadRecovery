@@ -12,6 +12,7 @@ import {
   getInitials,
 } from "../../../lib/presentation";
 import { WorkspaceHeader } from "../workspace-header";
+import { UiIcon } from "../../ui-icon";
 import { AiAnalysisReviewCard } from "./ai-analysis-review";
 
 const closeReasons = [
@@ -248,7 +249,7 @@ export function LeadDetailView({
       <WorkspaceHeader session={session} />
       <main id="main-content" className="dashboard-shell detail-shell">
         <nav className="breadcrumb" aria-label="Breadcrumb">
-          <Link href="/leads"><span aria-hidden="true">←</span> Lead inbox</Link>
+          <Link href="/leads"><UiIcon name="arrow-left" size={15} /> Lead inbox</Link>
           <span aria-hidden="true">/</span>
           <span aria-current="page">{customerLabel}</span>
         </nav>
@@ -296,7 +297,7 @@ export function LeadDetailView({
             <button className="new-activity" type="button" onClick={reviewNewActivity}>
               <span className="signal-dot" aria-hidden="true" />
               New activity arrived. Review the updated timeline.
-              <span aria-hidden="true">↓</span>
+              <UiIcon name="arrow-right" size={16} />
             </button>
           ) : null}
         </div>
@@ -330,7 +331,7 @@ export function LeadDetailView({
                 onClick={() => void load(false)}
                 disabled={isRefreshing}
               >
-                <span aria-hidden="true">↻</span>
+                <UiIcon name="refresh" size={16} />
                 {isRefreshing ? "Refreshing…" : "Refresh"}
               </button>
             </div>

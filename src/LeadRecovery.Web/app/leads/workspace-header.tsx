@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AuthSession } from "../../lib/api";
 import { getInitials } from "../../lib/presentation";
+import { UiIcon } from "../ui-icon";
 import { AutomationControl } from "./automation-control";
 import { LogoutButton } from "./logout-button";
 
@@ -27,9 +28,11 @@ export function WorkspaceHeader({
 
         <nav className="primary-nav" aria-label="Primary navigation">
           <Link href="/leads" aria-current={current === "inbox" ? "page" : undefined}>
+            <UiIcon name="inbox" size={16} />
             Inbox
           </Link>
           <Link href="/reports/pilot" aria-current={current === "pilot" ? "page" : undefined}>
+            <UiIcon name="chart" size={16} />
             Pilot report
           </Link>
         </nav>

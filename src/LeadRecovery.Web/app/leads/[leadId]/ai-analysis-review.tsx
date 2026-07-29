@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { AiAnalysisReview, AiAnalysisValues } from "../../../lib/api";
 import { formatLabel, formatTimestamp } from "../../../lib/presentation";
+import { UiIcon } from "../../ui-icon";
 
 const urgencyOptions = ["Unknown", "Low", "Normal", "High", "CriticalReview"];
 
@@ -122,7 +123,8 @@ export function AiAnalysisReviewCard({
         <div>
           <div className="ai-label-row">
             <span className="ai-generated-label">
-              <span aria-hidden="true">✦</span> AI-generated suggestion
+              <UiIcon name="sparkles" size={14} />
+              AI-generated suggestion
             </span>
             <span className={`review-status review-status-${analysis.reviewStatus.toLowerCase()}`}>
               {analysis.reviewStatus === "Pending"

@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { UiIcon } from "../ui-icon";
+
 type CsrfResponse = {
   token: string;
 };
@@ -158,7 +160,7 @@ export default function LoginPage() {
           </form>
 
           <p className="security-note">
-            <span aria-hidden="true">✓</span>
+            <span><UiIcon name="shield" size={14} /></span>
             Protected by a secure, same-origin staff session.
           </p>
         </div>

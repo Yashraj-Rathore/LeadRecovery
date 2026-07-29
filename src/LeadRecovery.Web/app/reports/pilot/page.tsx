@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AuthSession, getApiBaseUrl, PilotReport } from "../../../lib/api";
 import { WorkspaceHeader } from "../../leads/workspace-header";
+import { UiIcon } from "../../ui-icon";
 
 async function load<T>(path: string): Promise<T | null> {
   const requestHeaders = await headers();
@@ -59,6 +60,7 @@ export default async function PilotReportPage({
             </p>
           </div>
           <a className="secondary-button" href={`/api/v1/reports/pilot.csv${suffix}`} download>
+            <UiIcon name="download" size={16} />
             Export CSV
           </a>
         </header>
@@ -66,7 +68,10 @@ export default async function PilotReportPage({
         <form className="report-range" method="get">
           <label>From<input type="date" name="from" defaultValue={query.from ?? dateOnly(report.fromUtc)} /></label>
           <label>To<input type="date" name="to" defaultValue={query.to ?? dateOnly(new Date(new Date(report.toUtcExclusive).getTime() - 86400000).toISOString())} /></label>
-          <button className="primary-button" type="submit">Update report</button>
+          <button className="primary-button" type="submit">
+            <UiIcon name="refresh" size={16} />
+            Update report
+          </button>
         </form>
 
         <section className="report-metrics" aria-label="Pilot metrics">

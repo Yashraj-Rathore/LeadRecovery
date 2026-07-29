@@ -68,12 +68,13 @@ separately dispatched protected production workflow, and retain a manual
 compatibility-gated rollback path that never reverses database migrations
 automatically.
 
-The implemented dashboard now uses one responsive, high-contrast workspace
-system across login, inbox, and Lead detail. Human-readable workflow labels,
-attention-first queue rows, clearer loading/empty/error feedback, consistent
-44-pixel controls, skip navigation, reduced-motion support, and mobile overflow
-coverage improve daily use without adding a component-library dependency or
-changing an API/workflow contract.
+The implemented dashboard now uses one responsive, high-contrast dark graphite
+operations console across login, inbox, reports, Lead detail, and AI review.
+Human-readable workflow labels, attention-first queue rows, layered but quiet
+surfaces, fast interaction motion, clearer loading/empty/error feedback,
+visible mobile navigation, consistent 44-pixel controls, skip navigation,
+reduced-motion support, and mobile overflow coverage improve daily use without
+adding a component-library dependency or changing an API/workflow contract.
 
 LR-1001 adds a schema-versioned, validated operator onboarding plan for
 business, phone, hours, deterministic workflow, booking, approved templates,

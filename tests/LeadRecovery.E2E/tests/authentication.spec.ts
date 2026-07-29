@@ -43,6 +43,15 @@ test("browser document responses enforce the frontend security baseline", async 
   expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["x-frame-options"]).toBe("DENY");
+
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    "content",
+    "#07090d",
+  );
+  const colorScheme = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).colorScheme,
+  );
+  expect(colorScheme).toContain("dark");
 });
 
 test("login renders only the active tenant and cross-tenant detail stays hidden", async ({
@@ -234,6 +243,11 @@ test("workspace navigation and primary actions remain usable on mobile", async (
   await page.getByLabel("Password").fill(required("E2E_OWNER_PASSWORD"));
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/leads$/);
+
+  const reportNavigation = page.getByRole("link", { name: "Pilot report" });
+  await expect(reportNavigation).toBeVisible();
+  const reportNavigationBounds = await reportNavigation.boundingBox();
+  expect(reportNavigationBounds?.height ?? 0).toBeGreaterThanOrEqual(44);
 
   const viewportFits = await page.evaluate(() =>
     document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,

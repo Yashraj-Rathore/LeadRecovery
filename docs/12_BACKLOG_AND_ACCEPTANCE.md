@@ -608,7 +608,7 @@ off. The operator checklist and support/disable procedure are in
 Implementation status (2026-07-29): complete. The opt-in Alpha Plumbing seed
 contains only fictional identities, numbers, messages, and outcomes, including
 a delivered recovery thread and inbound reply. The GitHub case study, four real
-UI screenshots, measured 57.12-second captioned MP4, under-two-minute live
+UI screenshots, measured 58.28-second captioned MP4, under-two-minute live
 script, isolated regeneration procedure, and named duplicate/STOP proof command
 are under `docs/pilot/`.
 

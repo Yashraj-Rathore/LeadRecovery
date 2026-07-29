@@ -25,16 +25,16 @@ async function caption(
     Object.assign(overlay.style, {
       position: "fixed", zIndex: "99999", left: "32px", right: "32px", bottom: "24px",
       display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 18px", alignItems: "center",
-      padding: "16px 20px", border: "1px solid rgba(255,255,255,.24)", borderRadius: "16px",
-      background: "rgba(10,35,29,.94)", color: "white", boxShadow: "0 18px 48px rgba(0,0,0,.24)",
+      padding: "16px 20px", border: "1px solid rgba(115,230,173,.24)", borderRadius: "16px",
+      background: "rgba(9,12,16,.95)", color: "white", boxShadow: "0 18px 48px rgba(0,0,0,.42)",
       fontFamily: "Inter,Segoe UI,sans-serif",
     });
     const small = overlay.querySelector("small") as HTMLElement;
     const strong = overlay.querySelector("strong") as HTMLElement;
     const span = overlay.querySelector("span") as HTMLElement;
-    Object.assign(small.style, { gridRow: "1 / span 2", color: "#9fe3c9", fontWeight: "800", letterSpacing: ".12em", textTransform: "uppercase" });
+    Object.assign(small.style, { gridRow: "1 / span 2", color: "#73e6ad", fontWeight: "800", letterSpacing: ".12em", textTransform: "uppercase" });
     Object.assign(strong.style, { fontSize: "21px", lineHeight: "1.15" });
-    Object.assign(span.style, { color: "#d7e8e1", fontSize: "14px" });
+    Object.assign(span.style, { color: "#aab6b2", fontSize: "14px" });
     document.body.append(overlay);
   }, { kicker, title, body });
   await page.waitForTimeout(durationMs);
