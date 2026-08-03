@@ -16,6 +16,6 @@
     "demo:capture": "pnpm --dir tests/LeadRecovery.E2E demo:capture"
   },
   "devDependencies": {
-    "@redocly/cli": "2.40.0"
+    "@redocly/cli": "2.43.2"
   }
 }
