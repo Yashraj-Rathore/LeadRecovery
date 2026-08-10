@@ -16,7 +16,7 @@ RUN dotnet publish src/LeadRecovery.Api/LeadRecovery.Api.csproj \
     --output /app/publish \
     /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.10@sha256:1fa23fc4872d95fd71c2833ebe65d7e84a43b2d51a31d119516852f13d9505a7 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.10@sha256:f1126d438ccc359f51cc6d4701a8deae513856cf10f5fe645d29ea6403dcac6b AS runtime
 ARG VERSION=0.0.0-local
 ARG REVISION=unknown
 ARG CREATED=unknown
