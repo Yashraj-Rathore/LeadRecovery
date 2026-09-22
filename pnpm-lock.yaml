@@ -14,8 +14,8 @@ importers:
   .:
     devDependencies:
       '@redocly/cli':
-        specifier: 2.40.0
-        version: 2.40.0
+        specifier: 2.53.3
+        version: 2.53.3
 
   src/LeadRecovery.Web:
     dependencies:
@@ -275,8 +275,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@redocly/cli@2.40.0':
-    resolution: {integrity: sha512-1uQ4GeNjhApy9EtypZgp70ZN5GC2JFfst3UkNEXSqkXgVIPGdEAnlz5Xwgax/4cEUGOvaZoM3X25iSQcqbplFg==}
+  '@redocly/cli@2.53.3':
+    resolution: {integrity: sha512-hzNAWzHCOZ05vwRx0ehTxNeJaxxizjGV505eKtfs9MR/8ieD/8lYhAK4GF5FaqRRwOEpLO0PvzQwBSKYXmxhRA==}
     engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
     hasBin: true
 
@@ -558,7 +558,7 @@ snapshots:
     dependencies:
       playwright: 1.61.1
 
-  '@redocly/cli@2.40.0': {}
+  '@redocly/cli@2.53.3': {}
 
   '@swc/helpers@0.5.23':
     dependencies:
