@@ -153,7 +153,7 @@ The currently implemented browser and health contract is:
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.18.0 | Frontend, container, and Playwright runtime |
 | pnpm | 11.10.0 | Locked frontend workspace package manager |
-| Next.js | 16.2.11 | Same-origin browser shell |
+| Next.js | 16.3.3 | Same-origin browser shell |
 | React | 19.2.7 | Browser UI runtime |
 | TypeScript | 6.0.3 | Strict frontend type checking |
 | Playwright | 1.61.1 | Browser acceptance tests |
