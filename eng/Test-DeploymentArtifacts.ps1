@@ -44,7 +44,7 @@ try {
 
     $webDockerfile = Get-Content -LiteralPath 'deploy/docker/web.Dockerfile' -Raw
     Assert-Contains $webDockerfile `
-        '(?m)^FROM node:24\.18\.0-alpine3\.23@sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436 AS runtime$' `
+        '(?m)^FROM node:24\.21\.0-alpine3\.23@sha256:9ec4a2e289874ed0d722e1772ec2de45d2801541db8612f3638b26f128c69ac2 AS runtime$' `
         'The web runtime must use the approved immutable Alpine base.'
     foreach ($unusedToolingPath in @(
             '/opt/yarn-v\*'

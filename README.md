@@ -151,7 +151,7 @@ The currently implemented browser and health contract is:
 | SSH.NET | 2026.0.0 | Security override for the Testcontainers SSH transport dependency |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
-| Node.js | 24.18.0 | Frontend, container, and Playwright runtime |
+| Node.js | 24.21.0 | Frontend, container, and Playwright runtime |
 | pnpm | 11.10.0 | Locked frontend workspace package manager |
 | Next.js | 16.3.3 | Same-origin browser shell |
 | React | 19.2.7 | Browser UI runtime |

@@ -158,7 +158,7 @@ The currently implemented browser and health contract is:
 | SSH.NET | 2026.0.0 | Security override for the Testcontainers SSH transport dependency |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
-| Node.js | 24.18.0 | Frontend, container, and Playwright runtime |
+| Node.js | 24.21.0 | Frontend, container, and Playwright runtime |
 | pnpm | 11.10.0 | Locked frontend workspace package manager |
 | Next.js | 16.3.3 | Same-origin browser shell |
 | React | 19.2.7 | Browser UI runtime |
@@ -5983,7 +5983,7 @@ Use this foundation baseline:
 | SSH.NET | 2026.0.0 |
 | Testcontainers.PostgreSql | 4.13.0 |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 |
-| Node.js | 24.18.0 |
+| Node.js | 24.21.0 |
 | pnpm | 11.10.0 |
 | Next.js | 16.3.3 |
 | React and React DOM | 19.2.7 |
@@ -6011,7 +6011,8 @@ runtime, database, or framework version requires an ADR and full validation.
 Patch updates may use a normal dependency change with passing quality gates.
 
 Node.js was updated from the reserved but unpublished 24.17.0 image to the
-published 24.18.0 patch during LR-0901. ADR-0023 records the container-specific
+published 24.18.0 patch during LR-0901, then to the security-maintained
+24.21.0 LTS patch on 2026-09-22. ADR-0023 records the container-specific
 SDK/runtime images and immutable base digests.
 
 ---
@@ -7159,7 +7160,7 @@ database migrations, and work on a small local/staging cluster before CI/CD is
 implemented in LR-0903.
 
 The originally reserved Node.js 24.17.0 image is not published. The current
-supported Node.js 24.18.0 Bookworm build image, minimized Alpine 3.23 runtime,
+supported Node.js 24.21.0 Bookworm build image, minimized Alpine 3.23 runtime,
 and current .NET 10 SDK/runtime patch images are published and were verified
 through their immutable registry digests.
 
@@ -7192,8 +7193,10 @@ through their immutable registry digests.
 10. Keep automation, real SMS, AI, retention, and demo seeding disabled in the
     deployment baseline. Environment operators enable each only after its
     independent safety gate.
-11. Update the repository Node.js pin from unavailable 24.17.0 to published
-    24.18.0. Application .NET package locks remain at 10.0.9 while images use
+11. Maintain the repository Node.js pin on the supported 24.x LTS line,
+    updated from unavailable 24.17.0 to published
+    24.18.0 and then 24.21.0. Application .NET package locks remain at
+    10.0.9 while images use
     the compatible .NET 10 SDK 10.0.302 and security-maintained runtime 10.0.12
     patches. The runtime tag and immutable registry digest were re-verified on
     2026-09-22.

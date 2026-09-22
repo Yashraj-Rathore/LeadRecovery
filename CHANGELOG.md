@@ -307,6 +307,9 @@ All notable repository and product-specification changes are recorded here.
 
 ### Fixed
 
+- Updated the web build/runtime images and local/CI toolchain to Node.js 24.21.0
+  LTS, using re-verified immutable official-image digests with patched Alpine
+  OpenSSL packages.
 - Updated the API and worker production runtime to ASP.NET Core 10.0.12 with a
   re-verified immutable Microsoft Container Registry digest, replacing the
   vulnerable 10.0.10 runtime.

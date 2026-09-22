@@ -11,11 +11,13 @@ also supplies the one-shot `--migrate` mode used by Compose and Kubernetes.
 |---|---:|---|
 | .NET SDK | 10.0.302 | `sha256:ed034a8bf0b24ded0cbbac07e17825d8e9ebfe21e308191d0f7421eaf5ad4664` |
 | ASP.NET Core runtime | 10.0.12 | `sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f` |
-| Node.js build | 24.18.0 Bookworm slim | `sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d` |
-| Node.js runtime | 24.18.0 Alpine 3.23 | `sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436` |
+| Node.js build | 24.21.0 Bookworm slim | `sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6` |
+| Node.js runtime | 24.21.0 Alpine 3.23 | `sha256:9ec4a2e289874ed0d722e1772ec2de45d2801541db8612f3638b26f128c69ac2` |
 
-The ASP.NET Core 10.0.12 runtime pin was re-verified on 2026-09-22 against Microsoft's
-official .NET 10 security release record and the Microsoft Container Registry manifest.
+The Node.js 24.21.0 images and ASP.NET Core 10.0.12 runtime were re-verified on
+2026-09-22 against the official release records and registry manifests. The
+ASP.NET Core runtime was checked against Microsoft's official .NET 10 security
+release record and the Microsoft Container Registry manifest.
 
 The .NET container SDK may roll forward within the `10.0.3xx` feature band
 selected by `global.json`. Application packages remain locked independently.
