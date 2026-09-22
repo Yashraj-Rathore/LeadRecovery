@@ -1,6 +1,6 @@
-# Codex Prompt Sequence
+# AI Agent Prompt Sequence
 
-Use one prompt at a time. Do not ask Codex to build the entire system in one task.
+Use one prompt at a time. Do not ask the implementation agent to build the entire system in one task.
 
 ## Prompt 0 - Repository assessment
 

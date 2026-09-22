@@ -1,7 +1,23 @@
 [
     {
+        "path":  ".ai-agent/assessment-prompt.txt",
+        "bytes":  373
+    },
+    {
+        "path":  ".ai-agent/master-implementation-spec.md",
+        "bytes":  298549
+    },
+    {
+        "path":  ".ai-agent/prompt-sequence.md",
+        "bytes":  5616
+    },
+    {
+        "path":  ".ai-agent/start-here.md",
+        "bytes":  1530
+    },
+    {
         "path":  "AGENTS.md",
-        "bytes":  4270
+        "bytes":  4286
     },
     {
         "path":  "api/openapi.yaml",
@@ -9,19 +25,7 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  23381
-    },
-    {
-        "path":  "CODEX_MASTER_IMPLEMENTATION_SPEC.md",
-        "bytes":  298706
-    },
-    {
-        "path":  "CODEX_PROMPT_SEQUENCE.md",
-        "bytes":  5594
-    },
-    {
-        "path":  "CODEX_START_HERE.md",
-        "bytes":  1527
+        "bytes":  23628
     },
     {
         "path":  "database/schema.sql",
@@ -49,7 +53,7 @@
     },
     {
         "path":  "docs/04_API_AND_INTEGRATIONS.md",
-        "bytes":  16760
+        "bytes":  16779
     },
     {
         "path":  "docs/05_FRONTEND_UX.md",
@@ -81,7 +85,7 @@
     },
     {
         "path":  "docs/12_BACKLOG_AND_ACCEPTANCE.md",
-        "bytes":  23634
+        "bytes":  23652
     },
     {
         "path":  "docs/13_PILOT_AND_VALIDATION.md",
@@ -245,7 +249,7 @@
     },
     {
         "path":  "README.md",
-        "bytes":  20161
+        "bytes":  19928
     },
     {
         "path":  "templates/.env.example",

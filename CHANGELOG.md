@@ -324,6 +324,10 @@ All notable repository and product-specification changes are recorded here.
 
 ### Changed
 
+- Consolidated internal implementation-agent workflow material under `.ai-agent/` with
+  vendor-neutral names, retargeted the generated specification and manifest tooling, and kept
+  public onboarding focused on product and source documentation.
+
 - Minimized the web production runtime by pinning Node.js 24.18.0 on Alpine
   3.23 and removing unused package-manager trees, allowing the LR-0903
   High/Critical image gate to pass without suppressing vulnerability findings.

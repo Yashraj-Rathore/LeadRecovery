@@ -1,15 +1,15 @@
-# LeadRecovery - Complete Codex Implementation Specification
+# LeadRecovery - AI Agent Master Implementation Specification
 > Generated from the modular repository documentation by eng/Sync-MasterSpecification.ps1. Edit the source files, not this file.
 
 ---
 
 <!-- SOURCE: README.md -->
 
-# Lead Recovery Platform - Codex Documentation Package
+# Lead Recovery Platform
 
-## What this package is
+## What this repository is
 
-This repository documentation defines a complete, implementation-ready plan for a **C# / ASP.NET Core lead-recovery platform** for Ontario home-service businesses. The first commercial use case is missed-call recovery for plumbing companies, followed by lead qualification, booking, quote follow-up, and staff handoff.
+This repository contains a production-style **C# / ASP.NET Core lead-recovery platform** and its source-of-truth documentation for Ontario home-service businesses. The first commercial use case is missed-call recovery for plumbing companies, followed by lead qualification, booking, quote follow-up, and staff handoff.
 
 The recommended business strategy is service-first:
 
@@ -297,21 +297,16 @@ dotnet ef database update 0 --project src/LeadRecovery.Infrastructure --startup-
 Do not use either reset procedure on a database containing data that must be
 retained.
 
-## Start here
+## Project documentation
 
-For Codex or another coding agent:
+1. Read `docs/01_PRODUCT_REQUIREMENTS.md` for scope and user outcomes.
+2. Review `docs/02_SYSTEM_ARCHITECTURE.md` for system boundaries.
+3. Use `docs/12_BACKLOG_AND_ACCEPTANCE.md` for canonical issue contracts.
+4. Review `docs/15_IMPLEMENTATION_CONFORMANCE.md` for current implementation evidence.
+5. Use `docs/pilot/README.md` for the validated onboarding, demo, and measurement package.
 
-1. Place this package at the root of the implementation repository.
-2. Ensure `AGENTS.md` remains at the repository root.
-3. Give the agent `CODEX_START_HERE.md` as its first task context.
-4. Ask it to execute only one milestone or issue at a time.
-5. Require tests, documentation updates, and a summary after every task.
-
-For a single-file upload, use:
-
-- `CODEX_MASTER_IMPLEMENTATION_SPEC.md`
-
-For repository-based work, use the modular files under `docs/`.
+Repository contribution requirements are in `AGENTS.md` and
+`templates/definition-of-done.md`.
 
 ## Core product
 
@@ -327,10 +322,7 @@ For repository-based work, use the modular files under `docs/`.
 
 | File | Purpose |
 |---|---|
-| `AGENTS.md` | Permanent instructions for Codex and coding agents |
-| `CODEX_START_HERE.md` | First prompt and execution protocol |
-| `CODEX_MASTER_IMPLEMENTATION_SPEC.md` | Complete combined specification |
-| `CODEX_PROMPT_SEQUENCE.md` | Ready-to-use prompts for each build phase |
+| `AGENTS.md` | Permanent instructions for implementation agents |
 | `docs/01_PRODUCT_REQUIREMENTS.md` | Scope, users, workflows, requirements |
 | `docs/02_SYSTEM_ARCHITECTURE.md` | Architecture, components, patterns, decisions |
 | `docs/03_DOMAIN_AND_DATABASE.md` | Entities, states, constraints, schema |
@@ -381,7 +373,7 @@ The baseline assumes **20-25 focused hours per week for 10 weeks**. A full-time 
 
 <!-- SOURCE: AGENTS.md -->
 
-# AGENTS.md - Repository Instructions for Codex
+# AGENTS.md - Repository Instructions for Implementation Agents
 
 ## Mission
 
@@ -485,9 +477,9 @@ A task is complete only when it meets `templates/definition-of-done.md` and its 
 
 ---
 
-<!-- SOURCE: CODEX_START_HERE.md -->
+<!-- SOURCE: .ai-agent/start-here.md -->
 
-# Codex Start Here
+# AI Agent Start Here
 
 You are implementing the LeadRecovery platform. Treat the repository documentation as the source of truth.
 
@@ -2424,7 +2416,7 @@ Rate limiting must not cause silent data loss. Provider retries should receive a
 
 ## 14. OpenAPI
 
-The initial skeleton is in `api/openapi.yaml`. Codex must keep it aligned with implementation or generate it from annotated endpoints and commit a verified export.
+The initial skeleton is in `api/openapi.yaml`. The implementation agent must keep it aligned with implementation or generate it from annotated endpoints and commit a verified export.
 
 ---
 
@@ -4772,7 +4764,7 @@ Never cut:
 
 ## How to use this backlog
 
-Codex should implement one issue at a time. Each issue must meet its acceptance criteria and the repository definition of done.
+An implementation agent should implement one issue at a time. Each issue must meet its acceptance criteria and the repository definition of done.
 
 ## Epic E0 - Foundation
 
@@ -7372,11 +7364,11 @@ implicit would make route drift possible and misstate the CI evidence.
 
 ---
 
-<!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
+<!-- SOURCE: .ai-agent/prompt-sequence.md -->
 
-# Codex Prompt Sequence
+# AI Agent Prompt Sequence
 
-Use one prompt at a time. Do not ask Codex to build the entire system in one task.
+Use one prompt at a time. Do not ask the implementation agent to build the entire system in one task.
 
 ## Prompt 0 - Repository assessment
 

@@ -3,11 +3,11 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$targetPath = Join-Path $repositoryRoot 'CODEX_MASTER_IMPLEMENTATION_SPEC.md'
+$targetPath = Join-Path $repositoryRoot '.ai-agent/master-implementation-spec.md'
 $sourcePaths = @(
     'README.md'
     'AGENTS.md'
-    'CODEX_START_HERE.md'
+    '.ai-agent/start-here.md'
     'docs/01_PRODUCT_REQUIREMENTS.md'
     'docs/02_SYSTEM_ARCHITECTURE.md'
     'docs/03_DOMAIN_AND_DATABASE.md'
@@ -50,12 +50,12 @@ $sourcePaths = @(
     'docs/decisions/0024-immutable-cicd-promotion-and-rollback.md'
     'docs/decisions/0025-validated-onboarding-demo-and-pilot-reporting.md'
     'docs/decisions/0026-openapi-contract-conformance.md'
-    'CODEX_PROMPT_SEQUENCE.md'
+    '.ai-agent/prompt-sequence.md'
     'templates/definition-of-done.md'
 )
 
 $builder = [System.Text.StringBuilder]::new()
-[void]$builder.AppendLine('# LeadRecovery - Complete Codex Implementation Specification')
+[void]$builder.AppendLine('# LeadRecovery - AI Agent Master Implementation Specification')
 [void]$builder.AppendLine('> Generated from the modular repository documentation by eng/Sync-MasterSpecification.ps1. Edit the source files, not this file.')
 [void]$builder.AppendLine()
 [void]$builder.AppendLine('---')

@@ -1,4 +1,4 @@
-Read AGENTS.md and CODEX_START_HERE.md.
+Read AGENTS.md and .ai-agent/start-here.md.
 
 Do not write code yet. Review the complete documentation, explain your
 understanding of the product, propose the repository structure and pinned

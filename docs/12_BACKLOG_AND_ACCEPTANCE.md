@@ -2,7 +2,7 @@
 
 ## How to use this backlog
 
-Codex should implement one issue at a time. Each issue must meet its acceptance criteria and the repository definition of done.
+An implementation agent should implement one issue at a time. Each issue must meet its acceptance criteria and the repository definition of done.
 
 ## Epic E0 - Foundation
 

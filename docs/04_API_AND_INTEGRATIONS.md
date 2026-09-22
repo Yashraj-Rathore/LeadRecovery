@@ -414,4 +414,4 @@ Rate limiting must not cause silent data loss. Provider retries should receive a
 
 ## 14. OpenAPI
 
-The initial skeleton is in `api/openapi.yaml`. Codex must keep it aligned with implementation or generate it from annotated endpoints and commit a verified export.
+The initial skeleton is in `api/openapi.yaml`. The implementation agent must keep it aligned with implementation or generate it from annotated endpoints and commit a verified export.

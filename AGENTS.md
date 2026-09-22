@@ -1,4 +1,4 @@
-# AGENTS.md - Repository Instructions for Codex
+# AGENTS.md - Repository Instructions for Implementation Agents
 
 ## Mission
 

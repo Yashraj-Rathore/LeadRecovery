@@ -1,6 +1,7 @@
 .artifacts
 .git
 .github
+.ai-agent
 .next
 .pnpm-store
 .vs
