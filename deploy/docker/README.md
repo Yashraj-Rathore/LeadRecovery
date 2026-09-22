@@ -10,9 +10,12 @@ also supplies the one-shot `--migrate` mode used by Compose and Kubernetes.
 | Stage | Version | Immutable digest |
 |---|---:|---|
 | .NET SDK | 10.0.302 | `sha256:ed034a8bf0b24ded0cbbac07e17825d8e9ebfe21e308191d0f7421eaf5ad4664` |
-| ASP.NET Core runtime | 10.0.10 | `sha256:1fa23fc4872d95fd71c2833ebe65d7e84a43b2d51a31d119516852f13d9505a7` |
+| ASP.NET Core runtime | 10.0.12 | `sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f` |
 | Node.js build | 24.18.0 Bookworm slim | `sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d` |
 | Node.js runtime | 24.18.0 Alpine 3.23 | `sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436` |
+
+The ASP.NET Core 10.0.12 runtime pin was re-verified on 2026-09-22 against Microsoft's
+official .NET 10 security release record and the Microsoft Container Registry manifest.
 
 The .NET container SDK may roll forward within the `10.0.3xx` feature band
 selected by `global.json`. Application packages remain locked independently.

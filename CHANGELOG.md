@@ -307,6 +307,9 @@ All notable repository and product-specification changes are recorded here.
 
 ### Fixed
 
+- Updated the API and worker production runtime to ASP.NET Core 10.0.12 with a
+  re-verified immutable Microsoft Container Registry digest, replacing the
+  vulnerable 10.0.10 runtime.
 - Updated Next.js to the upstream 16.3.3 security release and pinned its Sharp 0.35.4 and Nano ID 3.3.18 transitives beyond the affected ranges.
 
 - Overrode Testcontainers' transitive SSH.NET 2025.1.0 dependency with the fixed 2026.0.0

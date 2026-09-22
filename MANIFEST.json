@@ -5,7 +5,7 @@
     },
     {
         "path":  ".ai-agent/master-implementation-spec.md",
-        "bytes":  298841
+        "bytes":  298939
     },
     {
         "path":  ".ai-agent/prompt-sequence.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  23966
+        "bytes":  24153
     },
     {
         "path":  "database/schema.sql",
@@ -189,7 +189,7 @@
     },
     {
         "path":  "docs/decisions/0023-production-images-and-kubernetes-rollout.md",
-        "bytes":  3457
+        "bytes":  3557
     },
     {
         "path":  "docs/decisions/0024-immutable-cicd-promotion-and-rollback.md",

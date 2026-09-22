@@ -7194,7 +7194,9 @@ through their immutable registry digests.
     independent safety gate.
 11. Update the repository Node.js pin from unavailable 24.17.0 to published
     24.18.0. Application .NET package locks remain at 10.0.9 while images use
-    the compatible current .NET 10 SDK 10.0.302 and runtime 10.0.10 patches.
+    the compatible .NET 10 SDK 10.0.302 and security-maintained runtime 10.0.12
+    patches. The runtime tag and immutable registry digest were re-verified on
+    2026-09-22.
 
 ## Consequences
 
