@@ -148,6 +148,7 @@ The currently implemented browser and health contract is:
 | Twilio .NET SDK | 7.14.9 | Webhook signature validation and gated outbound adapter |
 | Hangfire ASP.NET Core | 1.8.23 | Worker server and retry policy |
 | Hangfire PostgreSQL | 1.21.1 | Durable background-job storage |
+| SSH.NET | 2026.0.0 | Security override for the Testcontainers SSH transport dependency |
 | Testcontainers PostgreSQL | 4.13.0 | Isolated PostgreSQL integration tests |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 | Backend test runner |
 | Node.js | 24.18.0 | Frontend, container, and Playwright runtime |

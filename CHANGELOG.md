@@ -307,6 +307,9 @@ All notable repository and product-specification changes are recorded here.
 
 ### Fixed
 
+- Overrode Testcontainers' transitive SSH.NET 2025.1.0 dependency with the fixed 2026.0.0
+  release so warning-as-error NuGet security auditing can restore the integration-test project.
+
 - Passed global automation and AI safety switches consistently to both API and
   Worker in Compose, together with the documented host-specific demo, rate
   limit, AI, retention, job, logging, and telemetry settings.

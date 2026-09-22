@@ -5,7 +5,7 @@
     },
     {
         "path":  ".ai-agent/master-implementation-spec.md",
-        "bytes":  298549
+        "bytes":  298843
     },
     {
         "path":  ".ai-agent/prompt-sequence.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  23628
+        "bytes":  23818
     },
     {
         "path":  "database/schema.sql",
@@ -105,7 +105,7 @@
     },
     {
         "path":  "docs/decisions/0002-pinned-technology-baseline.md",
-        "bytes":  2021
+        "bytes":  2224
     },
     {
         "path":  "docs/decisions/0003-tenant-isolation.md",
@@ -249,7 +249,7 @@
     },
     {
         "path":  "README.md",
-        "bytes":  19928
+        "bytes":  20019
     },
     {
         "path":  "templates/.env.example",

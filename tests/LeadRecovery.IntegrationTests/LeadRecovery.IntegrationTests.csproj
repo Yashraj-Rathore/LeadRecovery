@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="SSH.NET" PrivateAssets="all" />
     <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 

@@ -22,6 +22,7 @@ Use this foundation baseline:
 | Entity Framework Core and dotnet-ef | 10.0.9 |
 | Npgsql Entity Framework Core provider | 10.0.2 |
 | libphonenumber-csharp | 9.0.34 |
+| SSH.NET | 2026.0.0 |
 | Testcontainers.PostgreSql | 4.13.0 |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 |
 | Node.js | 24.18.0 |
@@ -36,7 +37,9 @@ frontend versions are reserved in Milestone 0; Next.js packages are not
 installed until Milestone 2.
 
 LR-0101 introduces and centrally pins EF Core, its design-time tooling, the
-Npgsql provider, and PostgreSQL Testcontainers. LR-0202 introduces
+Npgsql provider, PostgreSQL Testcontainers, and a direct test-only SSH.NET 2026.0.0
+override for the Testcontainers transport dependency. The override avoids the high-severity
+advisories affecting the transitive 2025.1.0 floor. LR-0202 introduces
 `libphonenumber-csharp` behind an Infrastructure adapter so domain and
 application code do not depend on a third-party phone API. Hangfire and its
 PostgreSQL provider are selected and pinned only when job execution is
