@@ -25,7 +25,7 @@ Use this foundation baseline:
 | SSH.NET | 2026.0.0 |
 | Testcontainers.PostgreSql | 4.13.0 |
 | xUnit v3 Microsoft Testing Platform package | 3.2.2 |
-| Node.js | 24.18.0 |
+| Node.js | 24.21.0 |
 | pnpm | 11.10.0 |
 | Next.js | 16.3.3 |
 | React and React DOM | 19.2.7 |
@@ -53,5 +53,6 @@ runtime, database, or framework version requires an ADR and full validation.
 Patch updates may use a normal dependency change with passing quality gates.
 
 Node.js was updated from the reserved but unpublished 24.17.0 image to the
-published 24.18.0 patch during LR-0901. ADR-0023 records the container-specific
+published 24.18.0 patch during LR-0901, then to the security-maintained
+24.21.0 LTS patch on 2026-09-22. ADR-0023 records the container-specific
 SDK/runtime images and immutable base digests.

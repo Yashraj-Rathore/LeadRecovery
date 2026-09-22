@@ -5,7 +5,7 @@
     },
     {
         "path":  ".ai-agent/master-implementation-spec.md",
-        "bytes":  298939
+        "bytes":  299071
     },
     {
         "path":  ".ai-agent/prompt-sequence.md",
@@ -25,7 +25,7 @@
     },
     {
         "path":  "CHANGELOG.md",
-        "bytes":  24153
+        "bytes":  24335
     },
     {
         "path":  "database/schema.sql",
@@ -105,7 +105,7 @@
     },
     {
         "path":  "docs/decisions/0002-pinned-technology-baseline.md",
-        "bytes":  2223
+        "bytes":  2289
     },
     {
         "path":  "docs/decisions/0003-tenant-isolation.md",
@@ -189,7 +189,7 @@
     },
     {
         "path":  "docs/decisions/0023-production-images-and-kubernetes-rollout.md",
-        "bytes":  3557
+        "bytes":  3626
     },
     {
         "path":  "docs/decisions/0024-immutable-cicd-promotion-and-rollback.md",

@@ -12,7 +12,7 @@ database migrations, and work on a small local/staging cluster before CI/CD is
 implemented in LR-0903.
 
 The originally reserved Node.js 24.17.0 image is not published. The current
-supported Node.js 24.18.0 Bookworm build image, minimized Alpine 3.23 runtime,
+supported Node.js 24.21.0 Bookworm build image, minimized Alpine 3.23 runtime,
 and current .NET 10 SDK/runtime patch images are published and were verified
 through their immutable registry digests.
 
@@ -45,8 +45,10 @@ through their immutable registry digests.
 10. Keep automation, real SMS, AI, retention, and demo seeding disabled in the
     deployment baseline. Environment operators enable each only after its
     independent safety gate.
-11. Update the repository Node.js pin from unavailable 24.17.0 to published
-    24.18.0. Application .NET package locks remain at 10.0.9 while images use
+11. Maintain the repository Node.js pin on the supported 24.x LTS line,
+    updated from unavailable 24.17.0 to published
+    24.18.0 and then 24.21.0. Application .NET package locks remain at
+    10.0.9 while images use
     the compatible .NET 10 SDK 10.0.302 and security-maintained runtime 10.0.12
     patches. The runtime tag and immutable registry digest were re-verified on
     2026-09-22.
