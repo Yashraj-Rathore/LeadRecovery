@@ -25,9 +25,9 @@
       },
       "libphonenumber-csharp": {
         "type": "Direct",
-        "requested": "[9.0.34, )",
-        "resolved": "9.0.34",
-        "contentHash": "QmwQQk2ca/E3qyTTwmTnIoNj2sQ8daRWBQt4+6bkNkDyHgCjgggNGgvFqS6Gm9HQ1EbYkyKn58RjUC2jVM+RQw=="
+        "requested": "[9.0.37, )",
+        "resolved": "9.0.37",
+        "contentHash": "b/s2aYPwc7T4DgWtnB6MO9fqLXrw6jNNl3y7raEaXckzX3sQU71bt/deXQTQRNl0ytWBgzgfeuJjWLmZ5Ga32g=="
       },
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
         "type": "Direct",
